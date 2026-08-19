@@ -69,6 +69,15 @@ const AboutUs = () => {
                 The CHATEAU App is your key to a seamless lifestyle, instant access to facility bookings,
                 real-time community updates, and a direct line to your HOA board.
               </p>
+               <p className="font-semibold text-slate-800">
+                A platform, built exclusively for our community.
+              </p>
+                <p>
+                Access to the CHATEAU App is strictly limited to verified residents and HOA officers of Chateau Real Executive Village. 
+                Every account is validated against our official homeowner records before activation, no outsiders, no exceptions.
+                Resident data, financial records, and community communications are kept confidential and are never shared beyond the Chateau community. 
+                This ensures that the same trust and security you feel walking through our gates extends to every interaction you have on the app."
+              </p>
             </div>
           </div>
 
