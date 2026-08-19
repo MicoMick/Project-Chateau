@@ -116,7 +116,7 @@ const Mainpage = () => {
             </button>
           </a>
           <a href="#about" onClick={(e) => { e.preventDefault(); document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' }); }}>
-            <button className="flex items-center gap-3 px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white font-bold rounded-2xl transition-all duration-200 hover:-translate-y-1 cursor-pointer">
+            <button className="flex items-center gap-3 px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white font-semibold rounded-2xl transition-all duration-200 hover:-translate-y-1 cursor-pointer">
               Learn More
             </button>
           </a>

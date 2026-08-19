@@ -57,7 +57,7 @@ const Header = () => {
                 </a>
               ))}
               <a href="#download" onClick={scrollToSection('download')}
-                className="ml-2 px-5 py-2.5 bg-[#006837] hover:bg-[#006837]-300 text-white rounded-xl text-sm font-black transition-all duration-200 shadow-lg shadow-[#006837]-400/20 hover:-translate-y-0.5">
+                className="ml-2 px-5 py-2.5 bg-[#006837] hover:bg-[#006837]-300 text-white rounded-xl text-sm font-semibold transition-all duration-200 shadow-lg shadow-[#006837]-400/20 hover:-translate-y-0.5">
                 Get the App
               </a>
             </div>
