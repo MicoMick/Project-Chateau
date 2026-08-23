@@ -10,6 +10,7 @@ const Footer = () => {
     { label: 'How It Works',id: 'how-it-works' },
     { label: 'About Us',    id: 'about'        },
     { label: 'Download App',id: 'download'     },
+    { label: "FAQ's",       id: 'faqs'         },
   ];
 
   const scrollToSection = (id) => (e) => {

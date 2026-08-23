@@ -6,6 +6,7 @@ import Team from './LandingPage/Team/Team.jsx';
 import HowItWorks from './LandingPage/HowItWorks/HowItWorks.jsx';
 import DownloadPage from './LandingPage/DownloadPage/Downloadpage.jsx';
 import AboutUs from './LandingPage/About us/AboutUs.jsx';
+import FAQs from './LandingPage/FAQs/FAQs.jsx';
 import Footer from './LandingPage/Footer/Footer.jsx';
 import LoginPage from './LogInPage/LoginPage.jsx'; 
 import Sidebar from './HOA Page/Sidebar/Sidebar.jsx';
@@ -30,8 +31,9 @@ import AuditorDashboard from './HOA Page/AuditorBoard/AuditorDashboard.jsx';
 import Statistics from './HOA Page/Statistics/Statistics.jsx';
 import MoveInClearance from './HOA Page/Move In and Out Clearance/MoveInClearance.jsx';
 import CourtPermit from './HOA Page/Court Permit/CourtPermit.jsx';
-import { supabase } from './HOA Page/supabaseAdmin'; 
+import { supabase } from './HOA Page/supabaseAdmin';
 import ProtectedRoute from './HOA Page/Protect Route/ProtectedRoute';
+import SplashScreen from './components/Splashscreen.jsx';
 
 // ─── Role constants ─────────────────────────────────────────────────────────
 
@@ -127,6 +129,7 @@ const LandingPage = () => (
       <HowItWorks />
       <DownloadPage />
       <AboutUs />
+      <FAQs />
       <Footer />
     </main>
   </div>
@@ -168,6 +171,12 @@ const DashboardRedirect = () => {
 // ─── App ────────────────────────────────────────────────────────────────────
 
 function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} />;
+  }
+
   return (
     <Router>
       <Routes>

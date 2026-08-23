@@ -30,15 +30,19 @@ const Mainpage = () => {
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden">
       <style>{`
-        @keyframes heroFloat {
-          0%,100% { transform: translateY(0px); }
-          50%      { transform: translateY(-12px); }
-        }
         @keyframes shimmer {
           0%   { background-position: -200% center; }
           100% { background-position:  200% center; }
         }
-        .shimmer-text {
+        .shimmer-green {
+          background: linear-gradient(90deg, #006837 0%, #4ade80 40%, #006837 60%, #4ade80 100%);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: shimmer 4s linear infinite;
+        }
+        .shimmer-yellow {
           background: linear-gradient(90deg, #FFF200 0%, #ffffff 40%, #FFF200 60%, #ffffff 100%);
           background-size: 200% auto;
           -webkit-background-clip: text;
@@ -46,7 +50,6 @@ const Mainpage = () => {
           background-clip: text;
           animation: shimmer 4s linear infinite;
         }
-        .hero-badge { animation: heroFloat 4s ease-in-out infinite; }
         .hero-fade-up {
           opacity: 0;
           transform: translateY(32px);
@@ -86,7 +89,7 @@ const Mainpage = () => {
       <div className="relative z-10 container mx-auto px-6 text-center flex flex-col items-center">
 
         {/* Floating badge */}
-        <div className={`hero-badge hero-fade-up ${visible ? 'visible' : ''} inline-flex items-center gap-2.5 px-5 py-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-xs font-bold text-white/90 mb-8 tracking-widest uppercase`}
+        <div className={`hero-fade-up ${visible ? 'visible' : ''} inline-flex items-center gap-2.5 px-5 py-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-xs font-bold text-white/90 mb-8 tracking-widest uppercase`}
           style={{ transitionDelay: '0ms' }}>
           <span className="w-2 h-2 rounded-full bg-[#FFF200] animate-pulse" />
           Chateau Real Executive Village — CREVHAI
@@ -96,7 +99,10 @@ const Mainpage = () => {
         <h1 className={`hero-fade-up ${visible ? 'visible' : ''} text-5xl md:text-7xl lg:text-8xl font-black tracking-tight leading-[0.92] mb-6`}
           style={{ transitionDelay: '150ms' }}>
           <span className="block text-white mb-2">Welcome to</span>
-          <span className="shimmer-text block">Chateau Real</span>
+          <span className="block">
+            <span className="shimmer-green">Chateau</span>{' '}
+            <span className="shimmer-yellow">Real</span>
+          </span>
         </h1>
 
         {/* Subtitle */}
