@@ -34,21 +34,13 @@ const Mainpage = () => {
           0%   { background-position: -200% center; }
           100% { background-position:  200% center; }
         }
-        .shimmer-green {
+        .gradient-green-yellow {
           background: linear-gradient(90deg, #006837 0%, #4ade80 40%, #006837 60%, #4ade80 100%);
           background-size: 200% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
-          animation: shimmer 4s linear infinite;
-        }
-        .shimmer-yellow {
-          background: linear-gradient(90deg, #FFF200 0%, #ffffff 40%, #FFF200 60%, #ffffff 100%);
-          background-size: 200% auto;
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          animation: shimmer 4s linear infinite;
+          animation: shimmer 25s linear infinite;
         }
         .hero-fade-up {
           opacity: 0;
@@ -91,7 +83,6 @@ const Mainpage = () => {
         {/* Floating badge */}
         <div className={`hero-fade-up ${visible ? 'visible' : ''} inline-flex items-center gap-2.5 px-5 py-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-xs font-bold text-white/90 mb-8 tracking-widest uppercase`}
           style={{ transitionDelay: '0ms' }}>
-          <span className="w-2 h-2 rounded-full bg-[#FFF200] animate-pulse" />
           Chateau Real Executive Village — CREVHAI
         </div>
 
@@ -99,9 +90,8 @@ const Mainpage = () => {
         <h1 className={`hero-fade-up ${visible ? 'visible' : ''} text-5xl md:text-7xl lg:text-8xl font-black tracking-tight leading-[0.92] mb-6`}
           style={{ transitionDelay: '150ms' }}>
           <span className="block text-white mb-2">Welcome to</span>
-          <span className="block">
-            <span className="shimmer-green">Chateau</span>{' '}
-            <span className="shimmer-yellow">Real</span>
+          <span className="block gradient-green-yellow">
+            Chateau Real
           </span>
         </h1>
 
