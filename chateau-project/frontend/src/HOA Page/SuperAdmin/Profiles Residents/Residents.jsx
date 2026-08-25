@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../supabaseAdmin';
 import { logAudit } from '../../auditLogger';
 import {
@@ -205,10 +206,11 @@ const PasswordModal = ({ resident, onClose, onSuccess }) => {
 };
 
 const Residents = () => {
+  const [searchParams]                      = useSearchParams();
   const [residents,      setResidents]      = useState([]);
   const [filtered,       setFiltered]       = useState([]);
   const [loading,        setLoading]        = useState(true);
-  const [search,         setSearch]         = useState('');
+  const [search,         setSearch]         = useState(() => searchParams.get('q') || '');
   const [selectedStreet, setSelectedStreet] = useState('All');
   const [pwTarget,       setPwTarget]       = useState(null);
   const [toast,          setToast]          = useState({ show: false, message: '', type: 'success' });
@@ -232,6 +234,15 @@ const Residents = () => {
   }, []);
 
   useEffect(() => { fetchResidents(); }, [fetchResidents]);
+
+  // Deep link from the Super Admin notification bell — jump straight to
+  // that resident's password-reset modal once the list has loaded.
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (!q || residents.length === 0 || pwTarget) return;
+    const match = residents.find(r => (r.email || '').toLowerCase() === q.toLowerCase());
+    if (match) setPwTarget(match);
+  }, [searchParams, residents, pwTarget]);
 
   const uniqueStreets = [...new Set(residents.map(r => r.street).filter(Boolean))].sort();
 
