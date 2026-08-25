@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, X, Maximize2 } from 'lucide-react';
+import { supabase } from '../../HOA Page/supabaseAdmin';
 import CoverdCourt from '../../assets/CoverdCourt.jpg';
 import ModelHouse1 from '../../assets/ModelHouse1.jpg';
 import House2      from '../../assets/House2.jpg';
@@ -14,6 +15,15 @@ const AboutUs = () => {
   const [current,        setCurrent]        = useState(0);
   const [lightboxOpen,   setLightboxOpen]   = useState(false);
   const [sectionVisible, setSectionVisible] = useState(false);
+  const [photoOverrides, setPhotoOverrides] = useState({});
+
+  // Admin-uploaded photo overrides — set from HOA Page > Website Settings.
+  useEffect(() => {
+    supabase.from('website_settings').select('about_photos').eq('id', 1).maybeSingle()
+      .then(({ data }) => { if (data?.about_photos) setPhotoOverrides(data.about_photos); });
+  }, []);
+
+  const activeSlides = slides.map(s => ({ ...s, url: photoOverrides[s.caption] || s.url }));
 
   const next = () => setCurrent(p => (p === slides.length - 1 ? 0 : p + 1));
   const prev = () => setCurrent(p => (p === 0 ? slides.length - 1 : p - 1));
@@ -88,7 +98,7 @@ const AboutUs = () => {
 
               {/* Slides */}
               <div className="aspect-[4/3] relative bg-slate-100">
-                {slides.map((slide, i) => (
+                {activeSlides.map((slide, i) => (
                   <div key={i}
                     className={`absolute inset-0 transition-opacity duration-1000 ${i === current ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                     <img src={slide.url} alt={slide.caption}
@@ -153,11 +163,11 @@ const AboutUs = () => {
             </button>
           ))}
 
-          <img src={slides[current].url} alt={slides[current].caption}
+          <img src={activeSlides[current].url} alt={activeSlides[current].caption}
             className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300" />
 
           <div className="absolute bottom-8 text-center pointer-events-none">
-            <p className="text-white text-xl font-bold">{slides[current].caption}</p>
+            <p className="text-white text-xl font-bold">{activeSlides[current].caption}</p>
             <p className="text-white/40 text-xs mt-1 uppercase tracking-widest font-bold">
               {current + 1} / {slides.length}
             </p>

@@ -31,6 +31,7 @@ import AuditorDashboard from './HOA Page/AuditorBoard/AuditorDashboard.jsx';
 import Statistics from './HOA Page/Statistics/Statistics.jsx';
 import MoveInClearance from './HOA Page/Move In and Out Clearance/MoveInClearance.jsx';
 import CourtPermit from './HOA Page/Court Permit/CourtPermit.jsx';
+import WebsiteSettings from './HOA Page/WebsiteSettings/WebsiteSettings.jsx';
 import { supabase } from './HOA Page/supabaseAdmin';
 import ProtectedRoute from './HOA Page/Protect Route/ProtectedRoute';
 import SplashScreen from './components/Splashscreen.jsx';
@@ -83,6 +84,9 @@ const ACCESS = {
 
   // Profile
   PROFILE:     [ROLES.PRESIDENT, ROLES.VICE_PRESIDENT, ROLES.SECRETARY, ROLES.TREASURER, ROLES.AUDITOR, ROLES.BOARD_MEMBER, 'elecom'],
+
+  // Website Settings — landing page content
+  WEBSITE_SETTINGS: [ROLES.PRESIDENT, ROLES.VICE_PRESIDENT, ROLES.SECRETARY, ROLES.BOARD_MEMBER],
 };
 
 // ─── Auth + role helpers ────────────────────────────────────────────────────
@@ -286,6 +290,13 @@ function App() {
           <Route path="court-permit" element={
             <RoleBasedRoute allowedRoles={ACCESS.COURT_PERMIT}>
               <CourtPermit />
+            </RoleBasedRoute>
+          } />
+
+          {/* ── Website Settings — landing page content ── */}
+          <Route path="website-settings" element={
+            <RoleBasedRoute allowedRoles={ACCESS.WEBSITE_SETTINGS}>
+              <WebsiteSettings />
             </RoleBasedRoute>
           } />
 

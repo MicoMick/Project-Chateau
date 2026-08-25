@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, CalendarCheck, CreditCard, Vote, Megaphone,
   ScrollText, Building2,
   BarChart3, ChevronLeft, Menu, ChevronDown, ShieldCheck, UserCircle,
-  LogOut, ClipboardCheck, PieChart, UserCheck, ListChecks, ClipboardList,
+  LogOut, ClipboardCheck, PieChart, UserCheck, ListChecks, ClipboardList, Globe,
 } from 'lucide-react';
 import ChateauLogo from '../../assets/ChataueLogo.png';
 import { supabase } from '../supabaseAdmin'; 
@@ -64,6 +64,7 @@ const AUDITOR_WS  = [ROLES.AUDITOR, ROLES.TREASURER];
 const APPROVALS      = [ROLES.PRESIDENT]; // President only
 const COURT_PERMIT   = [ROLES.BOARD_MEMBER];  // Board Member — Sports Committee
 const CLEARANCES  = [ROLES.PRESIDENT, ROLES.TREASURER]; // Move In/Out clearances
+const WEBSITE_SETTINGS = [ROLES.PRESIDENT, ROLES.VICE_PRESIDENT, ROLES.SECRETARY, ROLES.BOARD_MEMBER]; // Landing page content
 
 // ─── RequireRole ──────────────────────────────────────────────────────────────
 const RequireRole = ({ userRole, allowedRoles, children }) => {
@@ -226,6 +227,14 @@ const Sidebar = () => {
       label: 'Court Permits',
       path:  '/hoa/court-permit',
       allowedRoles: COURT_PERMIT,
+    },
+
+    // ── Website Settings — landing page content ───────────────────────────────
+    {
+      icon:  <Globe size={22} />,
+      label: 'Website Settings',
+      path:  '/hoa/website-settings',
+      allowedRoles: WEBSITE_SETTINGS,
     },
   ];
 
