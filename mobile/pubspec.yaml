@@ -1,0 +1,49 @@
+name: chateau_mobile_app
+description: "HOA APP for Chateau."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Supabase & auth
+  supabase_flutter: ^2.5.0
+
+  # Media
+  image_picker: ^1.1.2
+  panorama_viewer: ^2.0.7
+  model_viewer_plus: ^1.9.0
+  video_player: ^2.9.2
+
+  # Calendar
+  table_calendar: ^3.2.0
+
+  # Map — Mapbox native SDK (Android/iOS)
+  mapbox_maps_flutter: ^2.3.0
+
+  # Map — flutter_map + tile layer (Web + Navigation page)
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.0
+
+  # Location
+  geolocator: ^12.0.0
+  geocoding: ^3.0.0
+  permission_handler: ^11.3.0
+
+  # Network
+  http: ^1.2.0
+  url_launcher: ^6.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/

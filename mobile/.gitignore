@@ -1,0 +1,38 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.g.dart
+*.freezed.dart
+
+# Android
+android/local.properties
+android/.gradle/
+android/captures/
+android/gradlew
+android/gradlew.bat
+android/app/debug/
+android/app/profile/
+android/app/release/
+*.keystore
+*.jks
+
+# iOS
+ios/.symlinks/
+ios/Pods/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# IDE
+.idea/
+*.iml
+.vscode/settings.json
+
+# macOS
+.DS_Store
+
+# Env / secrets (never commit these)
+.env
+*.env
