@@ -94,22 +94,14 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   }
 
   Future<void> _handleForgotPassword() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty) {
-      _showFeedback("Please enter your email address first.", isError: true);
-      return;
-    }
-    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email)) {
-      _showFeedback("Please enter a valid email address.", isError: true);
-      return;
-    }
-
-    try {
-      await _supabase.auth.resetPasswordForEmail(email);
-      _showFeedback("Password reset email sent!", isError: false);
-    } on AuthException catch (e) {
-      _showFeedback(e.message, isError: true);
-    }
+    await showInfoDialog(
+      context,
+      title: "Forgot Your Password?",
+      message:
+          "Password resets are handled by your HOA admin for account security. "
+          "Please contact your HOA office to have your password reset.",
+      icon: Icons.lock_reset_rounded,
+    );
   }
 
   void _showFeedback(String message, {required bool isError}) =>
