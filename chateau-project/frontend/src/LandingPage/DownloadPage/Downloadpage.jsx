@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Smartphone, Download, CheckCircle2, CalendarCheck, CreditCard, Megaphone, Vote } from 'lucide-react';
+import { supabase } from '../../HOA Page/supabaseAdmin';
 
 const features = [
   { icon: CalendarCheck, text: 'Reserve facilities with Panorama view'           },
@@ -9,8 +10,13 @@ const features = [
   { icon: CheckCircle2,  text: 'Receive real-time announcements'                 },
 ];
 
+const DEFAULT_QR_URL = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=CHATEAU-APP-DOWNLOAD&color=006837';
+
 const Downloadpage = () => {
   const [visible, setVisible] = useState(false);
+  const [qrUrl, setQrUrl] = useState(DEFAULT_QR_URL);
+  const [apkUrl, setApkUrl] = useState(null);
+  const [apkFilename, setApkFilename] = useState(null);
   const ref = useRef(null);
 
   useEffect(() => {
@@ -18,6 +24,28 @@ const Downloadpage = () => {
     if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
+
+  // Admin-uploaded QR code / APK — set from HOA Page > Website Settings.
+  useEffect(() => {
+    supabase.from('website_settings')
+      .select('download_qr_url, app_apk_url, app_apk_filename')
+      .eq('id', 1).maybeSingle()
+      .then(({ data }) => {
+        if (data?.download_qr_url) setQrUrl(data.download_qr_url);
+        if (data?.app_apk_url) setApkUrl(data.app_apk_url);
+        if (data?.app_apk_filename) setApkFilename(data.app_apk_filename);
+      });
+  }, []);
+
+  const handleDownloadClick = () => {
+    if (!apkUrl) return;
+    const a = document.createElement('a');
+    a.href = apkUrl;
+    a.download = apkFilename || 'chateau-app.apk';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
 
   return (
     <section id="download" ref={ref}
@@ -62,9 +90,10 @@ const Downloadpage = () => {
               ))}
             </ul>
 
-            <button className="flex items-center gap-3 bg-[#006837] hover:bg-[#004d29] text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-2xl shadow-[#006837]/30 hover:-translate-y-1 hover:shadow-[#006837]/50 active:scale-95 cursor-pointer group">
+            <button onClick={handleDownloadClick} disabled={!apkUrl} title={apkUrl ? undefined : 'Coming soon'}
+              className="flex items-center gap-3 bg-[#006837] hover:bg-[#004d29] text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-2xl shadow-[#006837]/30 hover:-translate-y-1 hover:shadow-[#006837]/50 active:scale-95 cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-[#006837]/30">
               <Download size={18} className="group-hover:translate-y-0.5 transition-transform" />
-              Download Now
+              {apkUrl ? 'Download Now' : 'Coming Soon'}
             </button>
           </div>
 
@@ -88,7 +117,7 @@ const Downloadpage = () => {
 
                   <div className="bg-white p-4 rounded-3xl shadow-xl border border-slate-100">
                     <img
-                      src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=CHATEAU-APP-DOWNLOAD&color=006837"
+                      src={qrUrl}
                       alt="QR Code"
                       className="w-36 h-36" />
                   </div>
