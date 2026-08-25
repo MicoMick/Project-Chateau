@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
 import 'app_dialogs.dart';
+import 'app_theme.dart';
 import 'signup_page.dart';
 import 'home_page.dart';
 class LoginPage extends StatefulWidget {
@@ -94,14 +95,121 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   }
 
   Future<void> _handleForgotPassword() async {
-    await showInfoDialog(
-      context,
-      title: "Forgot Your Password?",
-      message:
-          "Password resets are handled by your HOA admin for account security. "
-          "Please contact your HOA office to have your password reset.",
-      icon: Icons.lock_reset_rounded,
+    final emailController = TextEditingController(text: _emailController.text.trim());
+    bool isSubmitting = false;
+
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+          contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: chateuPrimary.withAlpha(16), shape: BoxShape.circle),
+                child: Icon(Icons.lock_reset_rounded, color: chateuPrimary, size: 32),
+              ),
+              const SizedBox(height: 16),
+              Text('Forgot Your Password?', textAlign: TextAlign.center, style: AppText.titleLarge),
+              const SizedBox(height: 8),
+              Text(
+                "Enter your account email. Your HOA admin will be notified and will reset your password for you.",
+                textAlign: TextAlign.center,
+                style: AppText.bodyMedium.copyWith(color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                autofocus: true,
+                enabled: !isSubmitting,
+                decoration: InputDecoration(
+                  hintText: 'you@email.com',
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: isSubmitting ? null : () => Navigator.pop(dialogContext, false),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.grey.shade300),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: Text('Cancel', style: AppText.labelMedium.copyWith(color: Colors.grey.shade700)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            final email = emailController.text.trim();
+                            if (email.isEmpty || !email.contains('@')) {
+                              showAppSnack(context, 'Enter a valid email address.', type: SnackType.error);
+                              return;
+                            }
+                            setDialogState(() => isSubmitting = true);
+                            try {
+                              await _supabase.functions.invoke(
+                                'request-password-reset',
+                                body: {'email': email},
+                              );
+                              if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                            } catch (_) {
+                              setDialogState(() => isSubmitting = false);
+                              if (context.mounted) {
+                                showAppSnack(context, 'Something went wrong. Please try again.', type: SnackType.error);
+                              }
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: chateuPrimary,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: isSubmitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : Text('Send Request', style: AppText.labelMedium.copyWith(color: Colors.white)),
+                  ),
+                ),
+              ]),
+            ],
+          ),
+        ),
+      ),
     );
+
+    emailController.dispose();
+
+    if (submitted == true && mounted) {
+      await showInfoDialog(
+        context,
+        title: "Request Sent",
+        message:
+            "If that email matches an account, your HOA admin has been notified "
+            "and will reset your password soon.",
+        icon: Icons.mark_email_read_rounded,
+      );
+    }
   }
 
   void _showFeedback(String message, {required bool isError}) =>
