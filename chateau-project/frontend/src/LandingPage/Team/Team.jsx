@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { supabase } from '../../HOA Page/supabaseAdmin';
 import RaffyTuvilla     from '../../assets/RaffyTuvilla.png';
 import MichaelNocum     from '../../assets/MichaelNocum.png';
 import JanetVillar      from '../../assets/JanetVillar.png';
@@ -31,6 +32,9 @@ const teamMembers = [
 ];
 
 const Team = () => {
+  const [photoOverrides, setPhotoOverrides] = useState({});
+  const [rosterOverrides, setRosterOverrides] = useState({});
+
   useEffect(() => {
     const obs = new IntersectionObserver(
       entries => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('tc-visible'); obs.unobserve(e.target); }}),
@@ -40,8 +44,24 @@ const Team = () => {
     return () => obs.disconnect();
   }, []);
 
-  // Separate President for feature spotlight
-  const [president, ...rest] = teamMembers;
+  // Admin-uploaded photo/name/position overrides — set from HOA Page > Website Settings.
+  useEffect(() => {
+    supabase.from('website_settings').select('team_photos, team_roster').eq('id', 1).maybeSingle()
+      .then(({ data }) => {
+        if (data?.team_photos) setPhotoOverrides(data.team_photos);
+        if (data?.team_roster) setRosterOverrides(data.team_roster);
+      });
+  }, []);
+
+  // Separate President for feature spotlight — overrides are keyed by each
+  // member's original/default name, so lookups always use m.name, not the
+  // (possibly overridden) display name.
+  const [president, ...rest] = teamMembers.map(m => ({
+    ...m,
+    url:  photoOverrides[m.name] || m.url,
+    role: rosterOverrides[m.name]?.role || m.role,
+    name: rosterOverrides[m.name]?.name || m.name,
+  }));
 
   return (
     <section id="team" className="py-28 bg-white overflow-hidden relative">

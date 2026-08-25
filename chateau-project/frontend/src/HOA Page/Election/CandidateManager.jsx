@@ -141,6 +141,40 @@ const PhotoViewer = ({ candidate, canManage, onClose, onEdit }) => {
 
 // ─── Add / Edit Form Panel (slide-in) ─────────────────────────────────────────
 const CandidateFormPanel = ({ isOpen, isEditing, onClose, form, setForm, onSubmit, uploading, isSubmitting, onImageUpload }) => {
+  const [residentResults, setResidentResults] = useState([]);
+  const [searchingResidents, setSearchingResidents] = useState(false);
+  const [showResidentDropdown, setShowResidentDropdown] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) { setShowResidentDropdown(false); setResidentResults([]); }
+  }, [isOpen]);
+
+  const searchResidents = async (query) => {
+    setSearchingResidents(true);
+    let q = supabase.from('profiles').select('id, full_name, avatar_url, block, lot, street').order('full_name');
+    if (query) q = q.ilike('full_name', `%${query}%`);
+    const { data, error } = await q;
+    setResidentResults(error ? [] : (data || []));
+    setSearchingResidents(false);
+  };
+
+  const handleNameFocus = () => {
+    setShowResidentDropdown(true);
+    searchResidents(form.full_name);
+  };
+
+  const handleNameChange = (e) => {
+    const val = e.target.value;
+    setForm(p => ({ ...p, full_name: val }));
+    setShowResidentDropdown(true);
+    searchResidents(val);
+  };
+
+  const handleSelectResident = (resident) => {
+    setForm(p => ({ ...p, full_name: resident.full_name, photo_url: resident.avatar_url || p.photo_url }));
+    setShowResidentDropdown(false);
+  };
+
   if (!isOpen) return null;
   const inputCls = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#006837]/20 focus:border-[#006837] transition-all";
   const labelCls = "block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5";
@@ -193,11 +227,42 @@ const CandidateFormPanel = ({ isOpen, isEditing, onClose, form, setForm, onSubmi
           </div>
 
           {/* Name */}
-          <div>
+          <div className="relative">
             <label className={labelCls}>Full Name <span className="text-red-400">*</span></label>
-            <input type="text" required placeholder="Enter candidate's full name"
-              value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))}
+            <input type="text" required placeholder="Search resident by name…" autoComplete="off"
+              value={form.full_name}
+              onChange={handleNameChange}
+              onFocus={handleNameFocus}
+              onBlur={() => setTimeout(() => setShowResidentDropdown(false), 150)}
               className={inputCls} />
+            {showResidentDropdown && (
+              <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                {searchingResidents ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 size={14} className="animate-spin text-[#006837]" />
+                  </div>
+                ) : residentResults.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-4">No residents found.</p>
+                ) : (
+                  residentResults.map(r => (
+                    <button type="button" key={r.id} onClick={() => handleSelectResident(r)}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-[#006837]/5 text-left cursor-pointer">
+                      <div className="w-8 h-8 rounded-lg bg-[#006837]/10 flex items-center justify-center shrink-0 overflow-hidden">
+                        {r.avatar_url ? <img src={r.avatar_url} alt="" className="w-full h-full object-cover" /> : <User size={14} className="text-[#006837]" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-700 truncate">{r.full_name}</p>
+                        {(r.block || r.lot || r.street) && (
+                          <p className="text-[10px] text-slate-400 truncate">
+                            {[r.street, r.block && `Blk ${r.block}`, r.lot && `Lot ${r.lot}`].filter(Boolean).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           {/* Position */}
