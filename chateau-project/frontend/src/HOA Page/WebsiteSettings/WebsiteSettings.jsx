@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseAdmin";
 import {
   Camera, CheckCircle, AlertCircle, Loader2, RotateCcw, Globe, Users, Image as ImageIcon, Save,
+  QrCode, FileArchive, Trash2, UploadCloud,
 } from "lucide-react";
 import logger from '../auditLogger';
 
@@ -45,6 +46,9 @@ const ABOUT_SLIDES = [
 const ROLE_OPTIONS = ['President', 'Vice President', 'Treasurer', 'Secretary', 'Auditor', 'Board of Directors'];
 
 const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+// Fallback QR shown in DownloadPage.jsx until an admin uploads a real one.
+const DEFAULT_QR_URL = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=CHATEAU-APP-DOWNLOAD&color=006837';
 
 // ─── Notification Modal ───────────────────────────────────────────────────────
 const NotifModal = ({ n, onClose }) => {
@@ -93,6 +97,36 @@ const PhotoCard = ({ label, sublabel, imgUrl, isOverridden, uploading, onUpload,
           </button>
         )}
       </div>
+    </div>
+  </div>
+);
+
+// ─── APK Card — the file the public "Download Now" button serves ─────────────
+const ApkCard = ({ filename, uploading, onUpload, onRemove }) => (
+  <div className="bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md hover:border-[#006837]/20 transition-all overflow-hidden p-5">
+    <div className="flex items-center gap-3 mb-4">
+      <div className="w-11 h-11 rounded-xl bg-[#006837]/10 flex items-center justify-center shrink-0">
+        {uploading ? <Loader2 size={18} className="animate-spin text-[#006837]" /> : <FileArchive size={18} className="text-[#006837]" />}
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-black text-slate-900">Android App (.apk)</p>
+        {filename
+          ? <p className="text-xs text-slate-400 truncate" title={filename}>{filename}</p>
+          : <p className="text-xs text-slate-400">No APK uploaded yet — "Download Now" is disabled on the site.</p>}
+      </div>
+    </div>
+    <div className="flex gap-2">
+      <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-[#006837]/10 hover:bg-[#006837]/20 text-[#006837] rounded-xl text-xs font-bold cursor-pointer transition-all">
+        <UploadCloud size={13} /> {uploading ? 'Uploading…' : filename ? 'Replace APK' : 'Upload APK'}
+        <input type="file" accept=".apk" className="hidden" disabled={uploading}
+          onChange={e => { const file = e.target.files[0]; e.target.value = ''; if (file) onUpload(file); }} />
+      </label>
+      {filename && (
+        <button type="button" onClick={onRemove} disabled={uploading} title="Remove APK"
+          className="px-3 py-2.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-all cursor-pointer disabled:opacity-50">
+          <Trash2 size={13} />
+        </button>
+      )}
     </div>
   </div>
 );
@@ -177,9 +211,13 @@ const WebsiteSettings = () => {
   const [teamPhotos,  setTeamPhotos]  = useState({});
   const [teamRoster,  setTeamRoster]  = useState({}); // { [defaultName]: { name, role } }
   const [aboutPhotos, setAboutPhotos] = useState({});
+  const [qrUrl,       setQrUrl]       = useState(null);
+  const [apkUrl,      setApkUrl]      = useState(null);
+  const [apkFilename, setApkFilename] = useState(null);
   const [loading,     setLoading]     = useState(true);
   const [uploadingKey, setUploadingKey] = useState(null); // `${section}:${key}`
   const [savingRosterKey, setSavingRosterKey] = useState(null); // defaultName
+  const [uploadingApk, setUploadingApk] = useState(false);
   const [notification, setNotification] = useState({ show: false, title: '', message: '', type: 'success' });
 
   const notify = (title, message, type = 'success') =>
@@ -189,12 +227,15 @@ const WebsiteSettings = () => {
     setLoading(true);
     const { data } = await supabase
       .from('website_settings')
-      .select('team_photos, team_roster, about_photos')
+      .select('team_photos, team_roster, about_photos, download_qr_url, app_apk_url, app_apk_filename')
       .eq('id', 1)
       .maybeSingle();
     setTeamPhotos(data?.team_photos || {});
     setTeamRoster(data?.team_roster || {});
     setAboutPhotos(data?.about_photos || {});
+    setQrUrl(data?.download_qr_url || null);
+    setApkUrl(data?.app_apk_url || null);
+    setApkFilename(data?.app_apk_filename || null);
     setLoading(false);
   };
 
@@ -294,6 +335,101 @@ const WebsiteSettings = () => {
     }
   };
 
+  const handleUploadQr = async (file) => {
+    setUploadingKey('download:qr');
+    try {
+      const ext = file.name.split('.').pop() || 'png';
+      const path = `download/qr-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('website-photos').upload(path, file);
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = supabase.storage.from('website-photos').getPublicUrl(path);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error: saveErr } = await supabase.from('website_settings').upsert({
+        id: 1,
+        download_qr_url: publicUrl,
+        updated_at: new Date().toISOString(),
+        updated_by: user?.id || null,
+      });
+      if (saveErr) throw saveErr;
+
+      setQrUrl(publicUrl);
+      logger.info('Download page QR code updated');
+      notify('QR Code Updated', 'The new QR code is now live on the landing page.');
+    } catch (err) {
+      notify('Upload Error', err.message, 'error');
+    } finally {
+      setUploadingKey(null);
+    }
+  };
+
+  const handleResetQr = async () => {
+    try {
+      const { error } = await supabase.from('website_settings').upsert({
+        id: 1,
+        download_qr_url: null,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      setQrUrl(null);
+      logger.info('Download page QR code reset to default');
+      notify('Reset', 'QR code reverted to the default.');
+    } catch (err) {
+      notify('Error', err.message, 'error');
+    }
+  };
+
+  const handleUploadApk = async (file) => {
+    if (!file.name.toLowerCase().endsWith('.apk')) {
+      notify('Invalid File', 'Please choose a .apk file.', 'error');
+      return;
+    }
+    setUploadingApk(true);
+    try {
+      const path = `apk/${Date.now()}-${file.name}`;
+      const { error: upErr } = await supabase.storage.from('app-releases').upload(path, file);
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = supabase.storage.from('app-releases').getPublicUrl(path);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error: saveErr } = await supabase.from('website_settings').upsert({
+        id: 1,
+        app_apk_url: publicUrl,
+        app_apk_filename: file.name,
+        updated_at: new Date().toISOString(),
+        updated_by: user?.id || null,
+      });
+      if (saveErr) throw saveErr;
+
+      setApkUrl(publicUrl);
+      setApkFilename(file.name);
+      logger.info('App APK updated', { filename: file.name });
+      notify('APK Uploaded', '"Download Now" on the landing page will now serve this file.');
+    } catch (err) {
+      notify('Upload Error', err.message, 'error');
+    } finally {
+      setUploadingApk(false);
+    }
+  };
+
+  const handleRemoveApk = async () => {
+    try {
+      const { error } = await supabase.from('website_settings').upsert({
+        id: 1,
+        app_apk_url: null,
+        app_apk_filename: null,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      setApkUrl(null);
+      setApkFilename(null);
+      logger.info('App APK removed');
+      notify('Removed', '"Download Now" is disabled until a new APK is uploaded.');
+    } catch (err) {
+      notify('Error', err.message, 'error');
+    }
+  };
+
   return (
     <div className="p-6 space-y-5 animate-in fade-in duration-300">
       <NotifModal n={notification} onClose={() => setNotification({ ...notification, show: false })} />
@@ -374,6 +510,36 @@ const WebsiteSettings = () => {
                   onReset={() => handleReset('about', s.key)}
                 />
               ))}
+            </div>
+          </div>
+
+          {/* ── Download page: QR code + APK ── */}
+          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-9 h-9 bg-[#006837]/10 rounded-xl flex items-center justify-center">
+                <QrCode size={15} className="text-[#006837]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Download Page</h3>
+                <p className="text-xs text-slate-400">QR code &amp; app file used by the "Download Now" section.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <PhotoCard
+                label="QR Code"
+                sublabel="Shown on the phone mockup"
+                imgUrl={qrUrl || DEFAULT_QR_URL}
+                isOverridden={!!qrUrl}
+                uploading={uploadingKey === 'download:qr'}
+                onUpload={handleUploadQr}
+                onReset={handleResetQr}
+              />
+              <ApkCard
+                filename={apkFilename}
+                uploading={uploadingApk}
+                onUpload={handleUploadApk}
+                onRemove={handleRemoveApk}
+              />
             </div>
           </div>
         </>
