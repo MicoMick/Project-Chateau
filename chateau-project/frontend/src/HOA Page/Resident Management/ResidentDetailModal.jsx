@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, Mail, Phone, Home, MapPin, Users, ShieldCheck, Clock,
   CreditCard, CheckCircle2, AlertCircle, AlertTriangle, Loader2, Package,
-  User, Settings, ChevronLeft, ChevronRight, X,
+  User, Settings, ChevronLeft, ChevronRight, X, Cake,
 } from 'lucide-react';
 import { supabase } from '../supabaseAdmin';
 
@@ -396,11 +396,93 @@ const BorrowedItems = ({ userId }) => {
   );
 };
 
+// ─── Family Members Section ───────────────────────────────────────────────────
+// Read-only — only the resident themselves (owner or tenant) decides who to
+// add or remove from their own household. Staff can view, not manage.
+const FamilyMembers = ({ userId }) => {
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchMembers = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('family_members')
+      .select('id, full_name, relationship, birth_date, contact_number, created_at')
+      .eq('resident_id', userId)
+      .order('created_at', { ascending: false });
+    setMembers(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (!userId) return;
+    fetchMembers();
+  }, [userId]);
+
+  const { paginated, page, setPage, totalPages, total } = usePagination(members);
+
+  return (
+    <div>
+      {/* Section header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-[#006837]/10 flex items-center justify-center">
+            <Users size={15} className="text-[#006837]" />
+          </div>
+          <div>
+            <p className="text-xs font-black text-slate-700 uppercase tracking-widest">Family Members</p>
+            <p className="text-[10px] text-slate-400">Household members living with this resident</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-10 gap-2">
+          <Loader2 size={16} className="animate-spin text-[#006837]" />
+          <p className="text-xs text-slate-400">Loading family members…</p>
+        </div>
+      )}
+
+      {/* No record */}
+      {!loading && members.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+          <Users size={24} className="text-slate-300 mb-1.5" />
+          <p className="text-xs font-semibold text-slate-400">No family members recorded yet</p>
+        </div>
+      )}
+
+      {/* List */}
+      {!loading && members.length > 0 && (
+        <div className="space-y-2">
+          {paginated.map(m => (
+            <div key={m.id} className="flex items-center gap-2.5 px-4 py-3 rounded-xl border bg-slate-50 border-slate-200">
+              <div className="w-8 h-8 rounded-lg bg-[#006837]/10 flex items-center justify-center shrink-0">
+                <User size={13} className="text-[#006837]" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-700 truncate">{m.full_name}</p>
+                <p className="text-[10px] text-slate-400 flex items-center gap-2 flex-wrap">
+                  {m.relationship && <span>{m.relationship}</span>}
+                  {m.birth_date && <span className="flex items-center gap-1"><Cake size={10} /> {fmtDate(m.birth_date)}</span>}
+                  {m.contact_number && <span className="flex items-center gap-1"><Phone size={10} /> {m.contact_number}</span>}
+                </p>
+              </div>
+            </div>
+          ))}
+          <PaginationBar page={page} totalPages={totalPages} setPage={setPage} total={total} accent="text-[#006837]" />
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Tab config ───────────────────────────────────────────────────────────────
 const TABS = [
-  { key: 'profile', label: 'Profile Details', icon: User        },
-  { key: 'dues',    label: 'Monthly Dues',    icon: CreditCard   },
-  { key: 'items',   label: 'Borrowed Items',  icon: Package      },
+  { key: 'profile', label: 'Profile Details',  icon: User        },
+  { key: 'dues',    label: 'Monthly Dues',     icon: CreditCard   },
+  { key: 'items',   label: 'Borrowed Items',   icon: Package      },
+  { key: 'family',  label: 'Family Members',   icon: Users        },
 ];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -541,8 +623,9 @@ const ResidentDetailModal = ({ profile, onClose }) => {
                 )}
               </div>
             )}
-            {activeTab === 'dues'  && <DuesStanding userId={profile.id} />}
-            {activeTab === 'items' && <BorrowedItems userId={profile.id} />}
+            {activeTab === 'dues'   && <DuesStanding userId={profile.id} />}
+            {activeTab === 'items'  && <BorrowedItems userId={profile.id} />}
+            {activeTab === 'family' && <FamilyMembers userId={profile.id} />}
           </div>
 
         </div>
