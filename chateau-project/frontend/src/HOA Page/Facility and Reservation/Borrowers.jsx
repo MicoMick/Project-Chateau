@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import {
   Search, Package, Clock, CheckCircle2, ShieldCheck,
-  AlertTriangle, X, Wrench, Loader2, XCircle,
+  AlertTriangle, X, Wrench, Loader2, XCircle, Camera, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { supabase } from '../supabaseAdmin';
 import { logAudit } from '../auditLogger';
+import BorrowersDetailModal from './BorrowersDetailModal';
 
 // ─── Pagination ───────────────────────────────────────────────────────────────
 const usePagination = (items, rowsPerPage = 10) => {
@@ -52,7 +53,7 @@ const PaginationBar = ({ page, totalPages, setPage, total, rowsPerPage }) => {
 };
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
-const fmtDate = (d) => {
+export const fmtDate = (d) => {
   if (!d) return 'N/A';
   try {
     const dt = new Date(d);
@@ -65,13 +66,14 @@ const STATUS = {
   pending:          { label: 'Pending',          dot: 'bg-amber-400',   pill: 'bg-amber-50 text-amber-700 border-amber-200'      },
   approved:         { label: 'Approved',         dot: 'bg-[#006837]',   pill: 'bg-emerald-50 text-[#006837] border-emerald-200'  },
   'approved and paid':{ label: 'Approved & Paid',dot: 'bg-teal-500',    pill: 'bg-teal-50 text-teal-700 border-teal-200'         },
+  'return pending': { label: 'Return Pending',   dot: 'bg-blue-500',    pill: 'bg-blue-50 text-blue-700 border-blue-200'         },
   completed:        { label: 'Completed',        dot: 'bg-blue-500',    pill: 'bg-blue-50 text-blue-700 border-blue-200'         },
   rejected:         { label: 'Rejected',         dot: 'bg-red-500',     pill: 'bg-red-50 text-red-600 border-red-200'            },
   cancelled:        { label: 'Cancelled',        dot: 'bg-slate-400',   pill: 'bg-slate-100 text-slate-500 border-slate-200'     },
 };
 const getStatus = (s) => STATUS[(s || '').toLowerCase()] || { label: s || '—', dot: 'bg-slate-400', pill: 'bg-slate-100 text-slate-500 border-slate-200' };
 
-const StatusPill = ({ status }) => {
+export const StatusPill = ({ status }) => {
   const st = getStatus(status);
   return (
     <span className={`inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-full border uppercase tracking-wide ${st.pill}`}>
@@ -98,7 +100,7 @@ const KpiCard = ({ label, value, icon: Icon, color, bg }) => (
 );
 
 // ─── Condition badge — shown once a return has been verified ────────────────
-const ConditionBadge = ({ r }) => {
+export const ConditionBadge = ({ r }) => {
   if (!r.returned_at && !r.return_condition) return <span className="text-xs text-slate-300">—</span>;
   const missing = r.return_missing_qty || 0;
   const damaged = r.return_condition === 'Damaged';
@@ -148,10 +150,15 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
   const [verifyCondition,  setVerifyCondition]  = useState('Good'); // 'Good' | 'Damaged'
   const [verifyMissingQty, setVerifyMissingQty] = useState(0);
   const [verifyNotes,      setVerifyNotes]      = useState('');
+  const [verifyPhotoFile,  setVerifyPhotoFile]  = useState(null); // optional — staff-attached return photo
+  const [photoPreview,     setPhotoPreview]     = useState(null); // borrow_condition_photo_url shown in lightbox
+  const [photoZoomed,      setPhotoZoomed]      = useState(false);
+  const [selectedRow,      setSelectedRow]      = useState(null); // reservation shown in the row detail modal
 
   const amenityItems    = reservations.filter(r => r.facilities?.category === 'Amenity Item');
   const pendingItems    = amenityItems.filter(r => r.status === 'Pending');
   const currentBorrowed = amenityItems.filter(r => r.status === 'Approved');
+  const pendingReturns  = amenityItems.filter(r => r.status === 'Return Pending');
   const history         = amenityItems.filter(r => r.status === 'Completed');
   const declined        = amenityItems.filter(r => ['Rejected', 'Cancelled'].includes(r.status));
 
@@ -160,14 +167,22 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
     (r.profiles?.full_name || '').toLowerCase().includes(term) ||
     (r.facilities?.name    || '').toLowerCase().includes(term);
 
-  const list = (tab === 'pending' ? pendingItems : tab === 'current' ? currentBorrowed : tab === 'history' ? history : declined).filter(filterR);
+  const listByTab = {
+    pending: pendingItems, current: currentBorrowed, pendingReturn: pendingReturns,
+    history, declined,
+  };
+  const list = (listByTab[tab] || pendingItems).filter(filterR);
   const { paginated, page, setPage, totalPages, total } = usePagination(list, 10);
 
+  // Pre-fill from the resident's own return report when there is one (they
+  // already told us the condition/missing count/notes) — the admin's job
+  // here is to confirm or correct it, not start from a blank form.
   const openVerify = (res) => {
     setVerifyTarget(res);
-    setVerifyCondition('Good');
-    setVerifyMissingQty(0);
-    setVerifyNotes('');
+    setVerifyCondition(res.return_condition || 'Good');
+    setVerifyMissingQty(res.return_missing_qty || 0);
+    setVerifyNotes(res.return_notes || '');
+    setVerifyPhotoFile(null);
   };
 
   // ── Confirm the return — only units that are both accounted for AND in
@@ -183,6 +198,16 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
 
     setReturning(res.id);
     try {
+      let returnPhotoUrl = null;
+      if (verifyPhotoFile) {
+        const ext = verifyPhotoFile.name.split('.').pop() || 'jpg';
+        const path = `${res.user_id}/reservations/return-${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('borrow-condition-photos').upload(path, verifyPhotoFile);
+        if (upErr) throw upErr;
+        const { data: { publicUrl } } = supabase.storage.from('borrow-condition-photos').getPublicUrl(path);
+        returnPhotoUrl = publicUrl;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       const { error } = await supabase.from('reservations').update({
         status: 'Completed',
@@ -191,6 +216,7 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
         return_notes:        verifyNotes.trim() || null,
         returned_at:          new Date().toISOString(),
         verified_by:          user?.id || null,
+        ...(returnPhotoUrl ? { return_condition_photo_url: returnPhotoUrl } : {}),
       }).eq('id', res.id);
       if (error) throw error;
 
@@ -218,11 +244,12 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
   return (
     <div className="space-y-4">
       {/* Stat cards — item borrowing stats, separate from Facility Reservations */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <KpiCard label="Total Items"        value={amenityItems.length}       icon={Package}       color="text-slate-600" bg="bg-slate-100" />
         <KpiCard label="Pending Requests"   value={pendingItems.length}       icon={AlertTriangle} color="text-orange-600" bg="bg-orange-50" />
         <KpiCard label="Currently Borrowed" value={currentBorrowed.length}    icon={Clock}        color="text-amber-600" bg="bg-amber-50"  />
-        <KpiCard label="Returned"           value={history.length}            icon={CheckCircle2} color="text-blue-600"  bg="bg-blue-50"   />
+        <KpiCard label="Pending Returns"    value={pendingReturns.length}     icon={ShieldCheck}  color="text-blue-600"  bg="bg-blue-50"   />
+        <KpiCard label="Returned"           value={history.length}            icon={CheckCircle2} color="text-emerald-600" bg="bg-emerald-50" />
         <KpiCard label="Rejected/Cancelled" value={declined.length}           icon={XCircle}      color="text-red-500"   bg="bg-red-50"    />
       </div>
 
@@ -238,6 +265,11 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer
               ${tab === 'current' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
             <Clock size={12} /> Currently Borrowed ({currentBorrowed.length})
+          </button>
+          <button onClick={() => setTab('pendingReturn')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer
+              ${tab === 'pendingReturn' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            <ShieldCheck size={12} /> Pending Returns ({pendingReturns.length})
           </button>
           <button onClick={() => setTab('history')}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer
@@ -262,22 +294,25 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
         <table className="w-full text-left">
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>{[
-              'Resident', 'Item', 'Qty', 'Requested On', 'Date', 'Status',
-              ...(tab === 'pending' || tab === 'current' ? ['Action'] : tab === 'history' ? ['Condition', 'Completed On'] : []),
+              'Resident', 'Item', 'Qty', 'Requested On', 'Borrow Date',
+              ...(['current', 'pendingReturn', 'history'].includes(tab) ? ['Date Returned'] : []),
+              'Status',
+              ...(['pending', 'current', 'pendingReturn'].includes(tab) ? ['Action'] : tab === 'history' ? ['Condition'] : []),
             ].map(h => (
               <th key={h} className="px-5 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
             ))}</tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {paginated.length === 0 ? (
-              <tr><td colSpan={tab === 'pending' || tab === 'current' ? 7 : tab === 'history' ? 8 : 6} className="py-16 text-center">
+              <tr><td colSpan={tab === 'pending' ? 7 : tab === 'declined' ? 6 : 8} className="py-16 text-center">
                 <Package size={32} className="mx-auto text-slate-200 mb-2" />
                 <p className="text-sm font-bold text-slate-400">
-                  {tab === 'pending' ? 'No pending requests' : tab === 'current' ? 'No items currently borrowed' : tab === 'history' ? 'No return history yet' : 'No rejected or cancelled requests'}
+                  {tab === 'pending' ? 'No pending requests' : tab === 'current' ? 'No items currently borrowed' : tab === 'pendingReturn' ? 'No returns awaiting verification' : tab === 'history' ? 'No return history yet' : 'No rejected or cancelled requests'}
                 </p>
               </td></tr>
             ) : paginated.map(r => (
-              <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
+              <tr key={r.id} onClick={() => setSelectedRow(r)}
+                className="hover:bg-slate-50/80 transition-colors cursor-pointer group">
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 text-xs font-black uppercase shrink-0">
@@ -289,15 +324,35 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
                     </div>
                   </div>
                 </td>
-                <td className="px-5 py-4 text-sm font-semibold text-slate-700">{r.facilities?.name || '—'}</td>
+                <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-700">{r.facilities?.name || '—'}</span>
+                    {r.borrow_condition_photo_url && (
+                      <button onClick={() => { setPhotoPreview(r.borrow_condition_photo_url); setPhotoZoomed(false); }}
+                        title="View condition photo submitted at borrow time"
+                        className="w-6 h-6 shrink-0 flex items-center justify-center rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 cursor-pointer transition-all">
+                        <Camera size={12} />
+                      </button>
+                    )}
+                  </div>
+                </td>
                 <td className="px-5 py-4 text-sm text-slate-600 text-center">{r.quantity || '—'}</td>
                 <td className="px-5 py-4 text-sm text-slate-400 whitespace-nowrap">{fmtDate(r.created_at)}</td>
                 <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{fmtDate(r.date)}</td>
+                {['current', 'pendingReturn', 'history'].includes(tab) && (
+                  <td className="px-5 py-4 whitespace-nowrap">
+                    {r.status === 'Completed'
+                      ? <span className="flex items-center gap-1 text-sm text-emerald-600 font-semibold"><CheckCircle2 size={12} /> {fmtDate(r.returned_at)}</span>
+                      : r.status === 'Return Pending'
+                        ? <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-full border uppercase tracking-wide bg-blue-50 text-blue-700 border-blue-200"><ShieldCheck size={10} /> Reported {fmtDate(r.returned_at)}</span>
+                        : <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-full border uppercase tracking-wide bg-amber-50 text-amber-700 border-amber-200"><Clock size={10} /> Not Returned Yet</span>}
+                  </td>
+                )}
                 <td className="px-5 py-4">
                   <StatusPill status={r.status} />
                 </td>
                 {tab === 'pending' ? (
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                     {allowedToReturn.includes(currentUserRole) && (
                       <div className="flex items-center gap-1.5">
                         <button
@@ -315,24 +370,19 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
                       </div>
                     )}
                   </td>
-                ) : tab === 'current' ? (
-                  <td className="px-5 py-4">
+                ) : tab === 'current' || tab === 'pendingReturn' ? (
+                  <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                     {allowedToReturn.includes(currentUserRole) && (
                       <button onClick={() => openVerify(r)} disabled={returning === r.id}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 whitespace-nowrap">
                         {returning === r.id
                           ? <><span className="w-3 h-3 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin" /> Saving…</>
-                          : <><ShieldCheck size={12} /> Verify Return</>}
+                          : <><ShieldCheck size={12} /> {tab === 'pendingReturn' ? 'Confirm Return' : 'Verify Return'}</>}
                       </button>
                     )}
                   </td>
                 ) : tab === 'history' ? (
-                  <>
-                    <td className="px-5 py-4"><ConditionBadge r={r} /></td>
-                    <td className="px-5 py-4 text-sm text-emerald-600 font-semibold whitespace-nowrap">
-                      {r.status === 'Completed' ? <span className="flex items-center gap-1"><CheckCircle2 size={12} /> {fmtDate(r.returned_at) !== 'N/A' ? fmtDate(r.returned_at) : 'Returned'}</span> : '—'}
-                    </td>
-                  </>
+                  <td className="px-5 py-4"><ConditionBadge r={r} /></td>
                 ) : null}
               </tr>
             ))}
@@ -340,6 +390,17 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
         </table>
         <PaginationBar page={page} totalPages={totalPages} setPage={setPage} total={total} rowsPerPage={10} />
       </div>
+
+      {/* ── Row detail modal ────────────────────────────────────────────────── */}
+      <BorrowersDetailModal
+        row={selectedRow}
+        onClose={() => setSelectedRow(null)}
+        canManage={allowedToReturn.includes(currentUserRole)}
+        onApprove={() => { updateStatus(selectedRow.id, 'Approved'); setSelectedRow(null); }}
+        onReject={() => { updateStatus(selectedRow.id, 'Rejected'); setSelectedRow(null); }}
+        onVerifyReturn={() => { openVerify(selectedRow); setSelectedRow(null); }}
+        onViewPhoto={url => { setPhotoPreview(url); setPhotoZoomed(false); }}
+      />
 
       {/* ── Verify Return modal ─────────────────────────────────────────────── */}
       {verifyTarget && (
@@ -352,7 +413,7 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
                   <ShieldCheck size={18} className="text-blue-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-slate-900">Verify Return</h2>
+                  <h2 className="text-lg font-black text-slate-900">{verifyTarget.status === 'Return Pending' ? 'Confirm Return' : 'Verify Return'}</h2>
                   <p className="text-xs text-slate-400">{verifyTarget.facilities?.name} · {verifyTarget.profiles?.full_name}</p>
                 </div>
               </div>
@@ -362,6 +423,22 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
             </div>
 
             <div className="p-6 space-y-5">
+              {verifyTarget.status === 'Return Pending' && (
+                <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                  <ShieldCheck size={14} className="text-blue-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700 font-semibold">
+                    The resident already reported this return — the fields below are pre-filled from what they submitted. Review and confirm, or correct anything before saving.
+                  </p>
+                </div>
+              )}
+
+              {verifyTarget.return_condition_photo_url && (
+                <button onClick={() => { setPhotoPreview(verifyTarget.return_condition_photo_url); setPhotoZoomed(false); }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-blue-200 hover:border-blue-400 text-blue-600 text-xs font-bold rounded-xl cursor-pointer transition-all">
+                  <Camera size={13} /> View Resident's Return Photo
+                </button>
+              )}
+
               <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <span className="text-xs font-semibold text-slate-500">Units Borrowed</span>
                 <span className="text-sm font-bold text-slate-800">{verifyTarget.quantity || 1} unit(s)</span>
@@ -405,6 +482,22 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition-all placeholder-slate-400" />
               </div>
 
+              {/* Staff-attached return photo — optional, for when the
+                  resident didn't submit one themselves (or as a second one) */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                  {verifyTarget.return_condition_photo_url ? "Replace Resident's Photo (optional)" : 'Return Photo (optional)'}
+                </label>
+                <label className="flex items-center gap-2.5 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm cursor-pointer hover:border-blue-300 transition-all">
+                  <Camera size={16} className={verifyPhotoFile ? 'text-blue-600' : 'text-slate-400'} />
+                  <span className={`flex-1 truncate ${verifyPhotoFile ? 'text-blue-600 font-semibold' : 'text-slate-400'}`}>
+                    {verifyPhotoFile ? verifyPhotoFile.name : 'Attach a photo of the item as returned'}
+                  </span>
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={e => setVerifyPhotoFile(e.target.files[0] || null)} />
+                </label>
+              </div>
+
               {(verifyCondition === 'Damaged' || Number(verifyMissingQty) > 0) && (
                 <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
                   <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
@@ -426,6 +519,39 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
                   ? <><Loader2 size={15} className="animate-spin" /> Saving…</>
                   : <><CheckCircle2 size={15} /> Confirm Return</>}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Condition photo lightbox ────────────────────────────────────────── */}
+      {photoPreview && (
+        <div className="fixed inset-0 z-[2100] flex items-center justify-center p-4"
+          onClick={() => { setPhotoPreview(null); setPhotoZoomed(false); }}>
+          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" />
+          <div className={`relative bg-white rounded-2xl shadow-2xl overflow-hidden w-full flex flex-col transition-all duration-200
+              ${photoZoomed ? 'max-w-5xl max-h-[94vh]' : 'max-w-lg max-h-[85vh]'}`}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
+              <p className="text-sm font-black text-slate-800 flex items-center gap-1.5">
+                <Camera size={14} className="text-blue-600" /> Condition Photo
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => setPhotoZoomed(z => !z)}
+                  className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 cursor-pointer transition-all"
+                  title={photoZoomed ? 'Zoom out' : 'Zoom in'}>
+                  {photoZoomed ? <ZoomOut size={16} /> : <ZoomIn size={16} />}
+                </button>
+                <button onClick={() => { setPhotoPreview(null); setPhotoZoomed(false); }}
+                  className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 cursor-pointer transition-all">
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="overflow-auto p-4 flex items-center justify-center bg-slate-50 flex-1">
+              <img src={photoPreview} alt="Item condition" onClick={() => setPhotoZoomed(z => !z)}
+                className={`rounded-lg object-contain transition-all duration-200 cursor-zoom-in
+                  ${photoZoomed ? 'max-w-none max-h-none w-auto cursor-zoom-out' : 'max-w-full max-h-[65vh]'}`} />
             </div>
           </div>
         </div>
