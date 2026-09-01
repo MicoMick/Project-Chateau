@@ -267,6 +267,8 @@ class _ReservePageState extends State<ReservePage>
         return chateuPrimary; // #006837
       case 'approved and paid':
         return chateuSecondary; // #007D42
+      case 'return pending':
+        return const Color(0xFF2563EB); // blue — reported, awaiting admin verification
       case 'completed':
         return chateuPrimary; // #006837 (with yellow accent label)
       case 'rejected':
@@ -285,6 +287,8 @@ class _ReservePageState extends State<ReservePage>
         return 'Approved';
       case 'approved and paid':
         return 'Approved & Paid';
+      case 'return pending':
+        return 'Return Pending — Awaiting Verification';
       case 'completed':
         return 'Completed';
       case 'rejected':
@@ -1062,6 +1066,9 @@ class _BookSheetState extends State<_BookSheet> {
   XFile? _proofFile;
   Uint8List? _proofBytes;
 
+  XFile? _conditionPhotoFile;
+  Uint8List? _conditionPhotoBytes;
+
   int get _maxQuantity => widget.facility.availableQuantity ?? 0;
 
   @override
@@ -1081,6 +1088,20 @@ class _BookSheetState extends State<_BookSheet> {
       });
     } else {
       setState(() => _proofFile = file);
+    }
+  }
+
+  Future<void> _pickConditionPhoto() async {
+    final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (file == null) return;
+    if (kIsWeb) {
+      final bytes = await file.readAsBytes();
+      setState(() {
+        _conditionPhotoFile = file;
+        _conditionPhotoBytes = bytes;
+      });
+    } else {
+      setState(() => _conditionPhotoFile = file);
     }
   }
 
@@ -1165,6 +1186,12 @@ class _BookSheetState extends State<_BookSheet> {
             type: SnackType.error);
         return;
       }
+      if (_conditionPhotoFile == null) {
+        showAppSnack(context,
+            'Please attach a photo showing the item\'s current condition.',
+            type: SnackType.error);
+        return;
+      }
     }
 
     setState(() => _isSubmitting = true);
@@ -1193,6 +1220,28 @@ class _BookSheetState extends State<_BookSheet> {
         proofUrl = _supabase.storage.from('payment-proofs').getPublicUrl(path);
       }
 
+      String? conditionPhotoUrl;
+      if (widget.facility.isQuantityBased && _conditionPhotoFile != null) {
+        final ext = kIsWeb
+            ? 'jpg'
+            : (_conditionPhotoFile!.path.contains('.')
+                ? _conditionPhotoFile!.path.split('.').last
+                : 'jpg');
+        final path =
+            '$userId/reservations/${DateTime.now().millisecondsSinceEpoch}.$ext';
+        if (kIsWeb) {
+          await _supabase.storage.from('borrow-condition-photos').uploadBinary(
+              path, _conditionPhotoBytes!,
+              fileOptions: const FileOptions(upsert: true));
+        } else {
+          await _supabase.storage.from('borrow-condition-photos').upload(
+              path, File(_conditionPhotoFile!.path),
+              fileOptions: const FileOptions(upsert: true));
+        }
+        conditionPhotoUrl =
+            _supabase.storage.from('borrow-condition-photos').getPublicUrl(path);
+      }
+
       await _supabase.from('reservations').insert({
         'facility_id': widget.facility.id,
         'user_id': userId,
@@ -1207,6 +1256,7 @@ class _BookSheetState extends State<_BookSheet> {
         if (fee != null) 'reference_no': reference,
         if (proofUrl != null) 'proof_url': proofUrl,
         if (widget.facility.isQuantityBased) 'quantity': _quantity,
+        if (conditionPhotoUrl != null) 'borrow_condition_photo_url': conditionPhotoUrl,
       });
 
       if (mounted) {
@@ -1385,6 +1435,55 @@ class _BookSheetState extends State<_BookSheet> {
                       color: _maxQuantity > 0
                           ? Colors.grey.shade500
                           : const Color(0xFFDC2626))),
+
+              const SizedBox(height: AppSpacing.lg),
+              Text('Item Condition Photo *',
+                  style: AppText.labelMedium.copyWith(color: chateuText)),
+              const SizedBox(height: 4),
+              Text(
+                'A photo of the item as you\'re receiving it — this protects '
+                'you if there\'s ever a dispute about its condition on return.',
+                style: AppText.caption.copyWith(color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              GestureDetector(
+                onTap: _pickConditionPhoto,
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: chateuBackground,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(
+                        color: _conditionPhotoFile != null
+                            ? chateuPrimary.withAlpha(80)
+                            : Colors.black12),
+                  ),
+                  child: Row(children: [
+                    Icon(
+                      _conditionPhotoFile != null
+                          ? Icons.check_circle_rounded
+                          : Icons.camera_alt_rounded,
+                      size: 20,
+                      color: _conditionPhotoFile != null
+                          ? chateuPrimary
+                          : Colors.black38,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        _conditionPhotoFile != null
+                            ? _conditionPhotoFile!.name
+                            : 'Upload a photo of the item\'s condition',
+                        style: AppText.caption.copyWith(
+                            color: _conditionPhotoFile != null
+                                ? chateuPrimary
+                                : Colors.grey.shade500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
             ],
 
             const SizedBox(height: AppSpacing.lg),
@@ -1658,10 +1757,14 @@ class _ReturnSheet extends StatefulWidget {
 
 class _ReturnSheetState extends State<_ReturnSheet> {
   final _supabase = Supabase.instance.client;
+  final _picker = ImagePicker();
   final _notesCtrl = TextEditingController();
   String _condition = 'Good';
   int _missingQty = 0;
   bool _isSubmitting = false;
+
+  XFile? _photoFile;
+  Uint8List? _photoBytes;
 
   int get _borrowedQty => widget.reservation.quantity ?? 0;
 
@@ -1671,17 +1774,63 @@ class _ReturnSheetState extends State<_ReturnSheet> {
     super.dispose();
   }
 
+  Future<void> _pickPhoto() async {
+    final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (file == null) return;
+    if (kIsWeb) {
+      final bytes = await file.readAsBytes();
+      setState(() {
+        _photoFile = file;
+        _photoBytes = bytes;
+      });
+    } else {
+      setState(() => _photoFile = file);
+    }
+  }
+
   Future<void> _submit() async {
+    if (_photoFile == null) {
+      showAppSnack(context,
+          'Please attach a photo showing the item\'s condition on return.',
+          type: SnackType.error);
+      return;
+    }
+
     setState(() => _isSubmitting = true);
     try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) throw Exception('Not authenticated');
+
+      final ext = kIsWeb
+          ? 'jpg'
+          : (_photoFile!.path.contains('.')
+              ? _photoFile!.path.split('.').last
+              : 'jpg');
+      final path =
+          '$userId/reservations/return-${DateTime.now().millisecondsSinceEpoch}.$ext';
+      if (kIsWeb) {
+        await _supabase.storage.from('borrow-condition-photos').uploadBinary(
+            path, _photoBytes!,
+            fileOptions: const FileOptions(upsert: true));
+      } else {
+        await _supabase.storage.from('borrow-condition-photos').upload(
+            path, File(_photoFile!.path),
+            fileOptions: const FileOptions(upsert: true));
+      }
+      final photoUrl =
+          _supabase.storage.from('borrow-condition-photos').getPublicUrl(path);
+
+      // Not 'Completed' yet — an HOA admin still has to verify this return
+      // (confirm condition, restock the item) before it's actually done.
       await _supabase.from('reservations').update({
-        'status': 'Completed',
+        'status': 'Return Pending',
         'returned_at': DateTime.now().toIso8601String(),
         'return_condition': _condition,
         'return_missing_qty': _missingQty,
         'return_notes': _notesCtrl.text.trim().isEmpty
             ? null
             : _notesCtrl.text.trim(),
+        'return_condition_photo_url': photoUrl,
       }).eq('id', widget.reservation.id);
 
       if (!mounted) return;
@@ -1782,6 +1931,52 @@ class _ReturnSheetState extends State<_ReturnSheet> {
                         : null,
                   ),
                 ]),
+              ),
+
+              const SizedBox(height: AppSpacing.lg),
+              Text('Condition Photo *',
+                  style: AppText.labelMedium.copyWith(color: chateuText)),
+              const SizedBox(height: 4),
+              Text(
+                'A photo of the item as you\'re returning it.',
+                style: AppText.caption.copyWith(color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              GestureDetector(
+                onTap: _pickPhoto,
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: chateuBackground,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(
+                        color: _photoFile != null
+                            ? chateuPrimary.withAlpha(80)
+                            : Colors.black12),
+                  ),
+                  child: Row(children: [
+                    Icon(
+                      _photoFile != null
+                          ? Icons.check_circle_rounded
+                          : Icons.camera_alt_rounded,
+                      size: 20,
+                      color: _photoFile != null ? chateuPrimary : Colors.black38,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        _photoFile != null
+                            ? _photoFile!.name
+                            : 'Upload a photo of the item\'s condition',
+                        style: AppText.caption.copyWith(
+                            color: _photoFile != null
+                                ? chateuPrimary
+                                : Colors.grey.shade500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ]),
+                ),
               ),
 
               const SizedBox(height: AppSpacing.lg),
