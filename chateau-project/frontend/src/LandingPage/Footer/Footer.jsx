@@ -43,7 +43,7 @@ const Footer = () => {
 
           {/* Quick links */}
           <div className="reveal reveal-delay-1">
-            <h3 className="font-black text-base mb-5 text-[#FFF200] uppercase tracking-widest text-xs">Quick Links</h3>
+            <h3 className="font-black text-sm mb-5 text-[#FFF200] uppercase tracking-widest">Quick Links</h3>
             <ul className="space-y-3">
               {links.map(l => (
                 <li key={l.label}>
@@ -59,7 +59,7 @@ const Footer = () => {
 
           {/* Contact */}
           <div className="reveal reveal-delay-2">
-            <h3 className="font-black text-base mb-5 text-[#FFF200] uppercase tracking-widest text-xs">Contact Us</h3>
+            <h3 className="font-black text-sm mb-5 text-[#FFF200] uppercase tracking-widest">Contact Us</h3>
             <div className="space-y-4">
               <a href="https://www.facebook.com/share/g/1EB3Q4yPB6/" target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-3 text-white/70 hover:text-white transition-colors group">

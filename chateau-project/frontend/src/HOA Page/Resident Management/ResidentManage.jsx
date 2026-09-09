@@ -31,6 +31,13 @@ const buildBlockLot = (block, lot) => {
   return parts.join(', ') || null;
 };
 
+// ── Duplicate-name detection ──────────────────────────────────────────────
+// No signup flow in this app checks for an existing profile before creating
+// a new one (registration happens outside this codebase), so the same person
+// can end up with two `profiles` rows. Flags matching names so staff can spot
+// and resolve it (e.g. deactivate/delete the duplicate) here.
+const normalizeName = (name) => (name || '').toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
+
 // ─── Pagination hook ─────────────────────────────────────────────────────────
 const usePagination = (items, rowsPerPage = 10) => {
   const [page, setPage] = React.useState(1);
@@ -230,6 +237,15 @@ const ResidentManage = () => {
   });
   const { paginated: paginatedResidents, page: resPage, setPage: setResPage, totalPages: resTotalPages, total: filteredTotal } = usePagination(filtered, 5);
 
+  // Name → count across ALL residents regardless of status.
+  const nameCounts = residents.reduce((acc, r) => {
+    const key = normalizeName(r.full_name);
+    if (key) acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const isPossibleDuplicate = (r) => nameCounts[normalizeName(r.full_name)] > 1;
+  const duplicateCount = Object.values(nameCounts).filter(c => c > 1).length;
+
   const now          = new Date();
   const newThisMonth = residents.filter(r => {
     if (!r.created_at) return false;
@@ -279,12 +295,13 @@ const ResidentManage = () => {
       </div>
 
       {/* ── KPI cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
           { title: 'Total',       value: residents.length,                                                                                  icon: Users,     iconBg: 'bg-blue-50',    iconColor: 'text-blue-600'    },
           { title: 'Pending',     value: statusCounts.pending || 0,                                                                         icon: UserCheck, iconBg: 'bg-amber-50',   iconColor: 'text-amber-600'   },
           { title: 'Delinquent',  value: statusCounts.delinquent || 0,                                                                      icon: AlertTriangle, iconBg: 'bg-orange-50', iconColor: 'text-orange-600' },
           { title: 'New / Month', value: newThisMonth,                                                                                      icon: UserPlus,  iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
+          { title: 'Possible Duplicates', value: duplicateCount,                                                                            icon: AlertTriangle, iconBg: 'bg-amber-50',  iconColor: 'text-amber-600'   },
         ].map(k => (
           <div key={k.title} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between">
@@ -381,7 +398,16 @@ const ResidentManage = () => {
                               {r.avatar_url ? <img src={r.avatar_url} alt="" className="w-full h-full object-cover" /> : (r.first_name?.charAt(0) || r.username?.charAt(0) || '?')}
                             </div>
                             <div className="min-w-0">
-                              <p className="text-sm font-bold text-slate-800 truncate">{r.full_name || r.username}</p>
+                              <p className="text-sm font-bold text-slate-800 truncate flex items-center gap-1.5">
+                                {r.full_name || r.username}
+                                {isPossibleDuplicate(r) && (
+                                  <span
+                                    title="Another profile in the system has this same name — likely a duplicate account for the same resident."
+                                    className="inline-flex items-center gap-1 shrink-0 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                    <AlertTriangle size={9} /> Possible Duplicate
+                                  </span>
+                                )}
+                              </p>
                               <p className="text-xs text-slate-400 truncate">@{r.username || '—'}</p>
                             </div>
                           </div>

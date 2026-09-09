@@ -46,24 +46,15 @@ const FAQs = () => {
 
   return (
     <section id="faqs" className="py-28 bg-white overflow-hidden relative">
-      {/* Background decoration */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#006837]/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-[#FFF200]/10 rounded-full blur-[120px]" />
-      </div>
 
-      <div className="container mx-auto px-6 lg:px-16 relative z-10 max-w-3xl">
+      <div className="container mx-auto px-6 lg:px-16 relative z-10 max-w-4xl">
 
         {/* Header */}
         <div className="text-center mb-16 reveal">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#006837]/10 border border-[#006837]/20 rounded-full text-[#006837] text-xs font-black uppercase tracking-widest mb-5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#006837]" />
-            Got Questions?
-          </div>
-          <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tight">
+          <h2 className="text-5xl md:text-6xl font-black text-slate-900 mb-4 tracking-tight">
             Frequently Asked <span className="text-[#006837]">Questions</span>
           </h2>
-          <p className="max-w-xl mx-auto text-slate-500 text-base leading-relaxed">
+          <p className="max-w-2xl mx-auto text-slate-500 text-lg leading-relaxed">
             Everything you need to know about using the CHATEAU App as a resident of Chateau Real Executive Village.
           </p>
         </div>
@@ -91,7 +82,7 @@ const FAQs = () => {
                   className="grid transition-all duration-300 ease-in-out"
                   style={{ gridTemplateRows: isOpen ? '1fr' : '0fr' }}>
                   <div className="overflow-hidden">
-                    <p className="px-6 pb-5 pl-[2.9rem] text-slate-600 text-sm leading-relaxed">
+                    <p className="px-6 pb-5 pl-[2.9rem] text-slate-600 text-base leading-relaxed">
                       {faq.answer}
                     </p>
                   </div>

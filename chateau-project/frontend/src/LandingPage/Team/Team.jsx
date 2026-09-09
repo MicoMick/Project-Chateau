@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../../HOA Page/supabaseAdmin';
 import RaffyTuvilla     from '../../assets/RaffyTuvilla.png';
 import MichaelNocum     from '../../assets/MichaelNocum.png';
@@ -9,15 +10,6 @@ import DaisyJimenez     from '../../assets/DaisyJimenez.png';
 import BabyArboleda     from '../../assets/BabyArboleda.png';
 import RonelSantos      from '../../assets/RonelSantos.png';
 import MarkAlvinTahir   from '../../assets/MarkAlvinTahir.png';
-
-const ROLE_COLORS = {
-  'President':         'bg-[#006837]/10 text-[#006837] border-[#006837]/20',
-  'Vice President':    'bg-blue-50 text-blue-700 border-blue-100',
-  'Treasurer':         'bg-amber-50 text-amber-700 border-amber-100',
-  'Secretary':         'bg-violet-50 text-violet-700 border-violet-100',
-  'Auditor':           'bg-rose-50 text-rose-700 border-rose-100',
-  'Board of Directors':'bg-slate-100 text-slate-600 border-slate-200',
-};
 
 const teamMembers = [
   { name: 'Raffy Tuvilla',     role: 'President',          url: RaffyTuvilla    },
@@ -31,9 +23,42 @@ const teamMembers = [
   { name: 'Mark Alvin Tahir',  role: 'Board of Directors', url: MarkAlvinTahir },
 ];
 
+// Seniority, highest first — used to build the hierarchy layout below.
+const ROLE_RANK = {
+  'President': 0,
+  'Vice President': 1,
+  'Treasurer': 2,
+  'Secretary': 3,
+  'Auditor': 4,
+  'Board of Directors': 5,
+};
+
+// Puts the most senior member dead center, then alternates the next-most-senior
+// members outward to the right and left, so rank fans out symmetrically from
+// the middle of the carousel (e.g. President | VP | Treasurer | Secretary...).
+const buildHierarchyOrder = (list) => {
+  const sorted = [...list].sort(
+    (a, b) => (ROLE_RANK[a.role] ?? 99) - (ROLE_RANK[b.role] ?? 99)
+  );
+  const n = sorted.length;
+  const center = Math.floor(n / 2);
+  const result = new Array(n);
+  result[center] = sorted[0];
+  let left = center - 1;
+  let right = center + 1;
+  let goRight = true;
+  for (let i = 1; i < n; i++) {
+    if (goRight) { result[right] = sorted[i]; right++; }
+    else         { result[left]  = sorted[i]; left--; }
+    goRight = !goRight;
+  }
+  return { ordered: result, centerIndex: center };
+};
+
 const Team = () => {
   const [photoOverrides, setPhotoOverrides] = useState({});
   const [rosterOverrides, setRosterOverrides] = useState({});
+  const trackRef = useRef(null);
 
   useEffect(() => {
     const obs = new IntersectionObserver(
@@ -53,15 +78,29 @@ const Team = () => {
       });
   }, []);
 
-  // Separate President for feature spotlight — overrides are keyed by each
-  // member's original/default name, so lookups always use m.name, not the
-  // (possibly overridden) display name.
-  const [president, ...rest] = teamMembers.map(m => ({
+  // Overrides are keyed by each member's original/default name, so lookups
+  // always use m.name, not the (possibly overridden) display name.
+  const members = teamMembers.map(m => ({
     ...m,
     url:  photoOverrides[m.name] || m.url,
     role: rosterOverrides[m.name]?.role || m.role,
     name: rosterOverrides[m.name]?.name || m.name,
   }));
+
+  const { ordered: orderedMembers, centerIndex } = buildHierarchyOrder(members);
+
+  const scrollByCard = (dir) => {
+    trackRef.current?.scrollBy({ left: dir * 300, behavior: 'smooth' });
+  };
+
+  // Center the carousel on the President's card once everything has rendered.
+  useEffect(() => {
+    const track = trackRef.current;
+    const centerCard = track?.children[centerIndex];
+    if (track && centerCard) {
+      track.scrollLeft = centerCard.offsetLeft - (track.clientWidth - centerCard.clientWidth) / 2;
+    }
+  }, [members.length, centerIndex]);
 
   return (
     <section id="team" className="py-28 bg-white overflow-hidden relative">
@@ -72,6 +111,8 @@ const Team = () => {
         }
         .tc-card { opacity:0; }
         .tc-card.tc-visible { animation: tcPop 0.6s cubic-bezier(.22,.68,0,1.2) forwards; }
+        .tc-scrollbar-hide::-webkit-scrollbar { display: none; }
+        .tc-scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
       {/* Subtle top gradient band */}
@@ -81,59 +122,55 @@ const Team = () => {
 
         {/* Header */}
         <div className="text-center mb-16 reveal">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#006837]/10 border border-[#006837]/20 rounded-full text-[#006837] text-xs font-black uppercase tracking-widest mb-4">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#006837]" />
-            Meet Our People
-          </div>
-          <h2 className="text-5xl md:text-6xl font-black text-slate-900 mb-4 tracking-tight">
-            Board of <span className="text-[#006837]">Directors</span>
+          <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tight">
+            The Board of <span className="text-[#006837]">Directors</span>
           </h2>
-          <p className="max-w-2xl mx-auto text-slate-500 text-lg leading-relaxed">
+          <p className="max-w-2xl mx-auto text-slate-500 text-base leading-relaxed">
             The Board of Directors is here to serve{' '}
             <span className="text-[#006837] font-semibold">Chateau Real</span>,
             dedicated to delivering a simple, trusted, and secure neighborhood experience.
           </p>
         </div>
 
-        {/* President spotlight */}
-        <div className="tc-card flex justify-center mb-12" style={{ animationDelay: '0ms' }}>
-          <div className="group bg-gradient-to-br from-[#006837] to-[#004d29] rounded-3xl p-8 flex flex-col items-center text-center w-72 shadow-2xl shadow-[#006837]/20 hover:-translate-y-2 transition-all duration-300 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-20 translate-x-20 pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#FFF200]/10 rounded-full translate-y-16 -translate-x-10 pointer-events-none" />
-            {/* ── Photo: fixed-size square container with object-cover ── */}
-            <div className="relative w-28 h-28 rounded-2xl overflow-hidden border-4 border-white/30 shadow-xl mb-5 shrink-0">
-              <img src={president.url} alt={president.name}
-                className="w-full h-full object-cover object-top group-hover:scale-110 transition-transform duration-500" />
-            </div>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FFF200] text-[#006837] rounded-full text-[10px] font-black uppercase tracking-widest mb-3">
-              {president.role}
-            </span>
-            <h3 className="text-xl font-black text-white">{president.name}</h3>
-          </div>
-        </div>
+        {/* Carousel */}
+        <div className="relative">
+          {/* Arrows */}
+          <button onClick={() => scrollByCard(-1)}
+            className="hidden md:flex absolute -left-5 top-1/2 -translate-y-1/2 z-10 w-11 h-11 items-center justify-center rounded-full bg-white border border-slate-200 shadow-lg text-slate-700 hover:text-[#006837] hover:border-[#006837]/30 transition-colors cursor-pointer">
+            <ChevronLeft size={20} />
+          </button>
+          <button onClick={() => scrollByCard(1)}
+            className="hidden md:flex absolute -right-5 top-1/2 -translate-y-1/2 z-10 w-11 h-11 items-center justify-center rounded-full bg-white border border-slate-200 shadow-lg text-slate-700 hover:text-[#006837] hover:border-[#006837]/30 transition-colors cursor-pointer">
+            <ChevronRight size={20} />
+          </button>
 
-        {/* Rest of team */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {rest.map((member, i) => {
-            const roleColor = ROLE_COLORS[member.role] || ROLE_COLORS['Board of Directors'];
-            return (
-              <div key={i}
-                className="tc-card group bg-white border border-slate-100 rounded-2xl p-6 flex flex-col items-center text-center shadow-sm hover:shadow-xl hover:border-[#006837]/20 hover:-translate-y-1 transition-all duration-300"
-                style={{ animationDelay: `${(i + 1) * 80}ms` }}>
+          <div ref={trackRef}
+            className="tc-scrollbar-hide flex items-center gap-6 overflow-x-auto snap-x snap-mandatory px-1 py-2">
+            {orderedMembers.map((member, i) => {
+              const isPresident = i === centerIndex;
+              return (
+                <div key={i}
+                  className={`tc-card relative shrink-0 snap-center rounded-2xl overflow-hidden shadow-lg ${
+                    isPresident
+                      ? 'w-60 h-80 sm:w-64 sm:h-96 -translate-y-3 z-10 shadow-xl'
+                      : 'w-52 h-72 sm:w-60 sm:h-80'
+                  }`}
+                  style={{ animationDelay: `${i * 80}ms` }}>
 
-                {/* ── Photo: fixed square, object-cover object-top ── */}
-                <div className="relative w-24 h-24 rounded-2xl overflow-hidden border-2 border-slate-100 shadow-md mb-4 shrink-0 group-hover:border-[#006837]/20 transition-colors">
+                  {/* Photo — tall frame, top-aligned crop so the torso stays in view */}
                   <img src={member.url} alt={member.name}
-                    className="w-full h-full object-cover object-top group-hover:scale-110 transition-transform duration-500" />
-                </div>
+                    className="absolute inset-0 w-full h-full object-cover object-top" />
 
-                <h3 className="text-base font-black text-slate-900 mb-2">{member.name}</h3>
-                <span className={`inline-flex text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${roleColor}`}>
-                  {member.role}
-                </span>
-              </div>
-            );
-          })}
+                  {/* Bottom scrim + label — plain text, no pill background */}
+                  <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/85 via-black/35 to-transparent pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 right-0 p-5">
+                    <h3 className="text-white font-black text-base leading-tight">{member.name}</h3>
+                    <p className="text-white/80 text-xs font-semibold tracking-wide">{member.role}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </section>

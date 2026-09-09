@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 640" width="320" height="640">
+  <defs><clipPath id="frame"><rect x="0" y="0" width="320" height="640" rx="28"/></clipPath></defs>
+  <g clip-path="url(#frame)">
+    <rect width="320" height="640" fill="#ffffff"/>
+    <text x="30" y="52" font-family="Arial, sans-serif" font-size="18" fill="#006837">‹</text>
+    <text x="160" y="52" font-family="Arial, sans-serif" font-size="20" font-weight="800" fill="#0f172a" text-anchor="middle">Voting</text>
+    <line x1="0" y1="76" x2="320" y2="76" stroke="#e2e8f0"/>
+    <rect x="0" y="76" width="320" height="564" fill="#f6f8f6"/>
+
+    <g>
+      <rect x="16" y="92" width="288" height="128" rx="18" fill="#ffffff"/>
+      <rect x="32" y="106" width="76" height="22" rx="11" fill="#fde3e3"/>
+      <circle cx="45" cy="117" r="3" fill="#dc2626"/>
+      <text x="72" y="121" font-family="Arial, sans-serif" font-size="8.5" font-weight="800" fill="#dc2626" text-anchor="middle">CLOSED</text>
+      <line x1="16" y1="140" x2="304" y2="140" stroke="#f1f5f9"/>
+      <text x="32" y="164" font-family="Arial, sans-serif" font-size="14" font-weight="800" fill="#0f172a">Election Testing 8/5/2026</text>
+      <text x="32" y="182" font-family="Arial, sans-serif" font-size="10" fill="#94a3b8">Testing on deployed site</text>
+      <text x="32" y="206" font-family="Arial, sans-serif" font-size="9.5" fill="#334155">▶ Start: Aug 5, 2026</text>
+      <text x="180" y="206" font-family="Arial, sans-serif" font-size="9.5" fill="#334155">⏹ End: Aug 6, 2026</text>
+    </g>
+
+    <g>
+      <rect x="16" y="232" width="288" height="128" rx="18" fill="#ffffff"/>
+      <rect x="32" y="246" width="76" height="22" rx="11" fill="#fde3e3"/>
+      <circle cx="45" cy="257" r="3" fill="#dc2626"/>
+      <text x="72" y="261" font-family="Arial, sans-serif" font-size="8.5" font-weight="800" fill="#dc2626" text-anchor="middle">CLOSED</text>
+      <line x1="16" y1="280" x2="304" y2="280" stroke="#f1f5f9"/>
+      <text x="32" y="304" font-family="Arial, sans-serif" font-size="14" font-weight="800" fill="#0f172a">Election 6/8/2026</text>
+      <text x="32" y="322" font-family="Arial, sans-serif" font-size="10" fill="#94a3b8">Election this 6/8/2026</text>
+      <text x="32" y="346" font-family="Arial, sans-serif" font-size="9.5" fill="#334155">▶ Start: Jun 8, 2026</text>
+      <text x="180" y="346" font-family="Arial, sans-serif" font-size="9.5" fill="#334155">⏹ End: Jun 9, 2026</text>
+    </g>
+
+    <g>
+      <rect x="16" y="372" width="288" height="128" rx="18" fill="#ffffff"/>
+      <rect x="32" y="386" width="76" height="22" rx="11" fill="#fde3e3"/>
+      <circle cx="45" cy="397" r="3" fill="#dc2626"/>
+      <text x="72" y="401" font-family="Arial, sans-serif" font-size="8.5" font-weight="800" fill="#dc2626" text-anchor="middle">CLOSED</text>
+      <line x1="16" y1="420" x2="304" y2="420" stroke="#f1f5f9"/>
+      <text x="32" y="444" font-family="Arial, sans-serif" font-size="14" font-weight="800" fill="#0f172a">Testing Election 6/7</text>
+      <text x="32" y="462" font-family="Arial, sans-serif" font-size="10" fill="#94a3b8">67 67 67 67 67 67 67</text>
+      <text x="32" y="486" font-family="Arial, sans-serif" font-size="9.5" fill="#334155">▶ Start: Jun 7, 2026</text>
+      <text x="180" y="486" font-family="Arial, sans-serif" font-size="9.5" fill="#334155">⏹ End: Jun 8, 2026</text>
+    </g>
+
+    <g>
+      <rect x="16" y="512" width="288" height="120" rx="18" fill="#ffffff"/>
+      <rect x="32" y="526" width="76" height="22" rx="11" fill="#fde3e3"/>
+      <circle cx="45" cy="537" r="3" fill="#dc2626"/>
+      <text x="72" y="541" font-family="Arial, sans-serif" font-size="8.5" font-weight="800" fill="#dc2626" text-anchor="middle">CLOSED</text>
+      <line x1="16" y1="560" x2="304" y2="560" stroke="#f1f5f9"/>
+      <text x="32" y="584" font-family="Arial, sans-serif" font-size="14" font-weight="800" fill="#0f172a">Testing Election 6/6/26</text>
+      <text x="32" y="602" font-family="Arial, sans-serif" font-size="10" fill="#94a3b8">Testing lang natin ito</text>
+      <text x="32" y="622" font-family="Arial, sans-serif" font-size="9.5" fill="#334155">▶ Start: Jun 6, 2026</text>
+    </g>
+  </g>
+</svg>

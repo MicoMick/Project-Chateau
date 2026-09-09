@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Megaphone, FileEdit, Plus, Search, MoreVertical, Pin,
   AlertTriangle, X, Paperclip, Calendar, Trash2, CheckCircle2,
@@ -234,7 +235,7 @@ const ModalForm = ({
   newCategory, setNewCategory, isEmergency, setIsEmergency,
   startDate, setStartDate, endDate, setEndDate,
   attachmentUrl, isUploading, handleFileUpload,
-}) => (
+}) => createPortal(
   <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
     <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
       <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
@@ -316,7 +317,8 @@ const ModalForm = ({
         </button>
       </div>
     </div>
-  </div>
+  </div>,
+  document.body
 );
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -606,7 +608,7 @@ const Announcements = () => {
       )}
 
       {/* Details modal */}
-      {showDetails && selectedAnn && (
+      {showDetails && selectedAnn && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
             <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between shrink-0">
@@ -643,7 +645,8 @@ const Announcements = () => {
               </p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Page Header ── */}

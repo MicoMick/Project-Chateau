@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft, Mail, Phone, Home, MapPin, Users, ShieldCheck, Clock,
   CreditCard, CheckCircle2, AlertCircle, AlertTriangle, Loader2, Package,
@@ -514,7 +515,7 @@ const ResidentDetailModal = ({ profile, onClose }) => {
     { icon: Clock,       label: 'Date Joined',   value: fmtDate(profile.created_at) },
   ];
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-in fade-in duration-200"
       onClick={onClose}
@@ -651,7 +652,8 @@ const ResidentDetailModal = ({ profile, onClose }) => {
           />
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 };
 

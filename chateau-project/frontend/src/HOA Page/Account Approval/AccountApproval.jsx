@@ -97,6 +97,15 @@ const fullName = (p) =>
   [p.first_name, p.middle_initial ? p.middle_initial + '.' : '', p.last_name]
     .filter(Boolean).join(' ') || p.username || 'Unknown';
 
+// ── Duplicate-name detection ──────────────────────────────────────────────
+// No signup flow in this app checks whether a resident already has a profile
+// before creating a new one (registration happens outside this codebase, via
+// Supabase Auth), so the same person can end up with two separate `profiles`
+// rows — e.g. one abandoned mid-registration with no address, one completed
+// later. This flags matching names so staff catch it here, before approving
+// a duplicate turns into a second resident being billed monthly dues.
+const normalizeName = (name) => (name || '').toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
+
 const formatDate = (d) =>
   d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
 
@@ -200,6 +209,15 @@ const AccountApproval = ({ embedded = false, onDataChange }) => {
     return acc;
   }, {});
   const { paginated: paginatedFiltered, page: accPage, setPage: setAccPage, totalPages: accTotalPages } = usePagination(filtered, 10);
+
+  // Name → count across ALL profiles regardless of status, so a pending
+  // applicant is flagged even against an already-active resident.
+  const nameCounts = profiles.reduce((acc, p) => {
+    const key = normalizeName(fullName(p));
+    if (key) acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const isPossibleDuplicate = (p) => nameCounts[normalizeName(fullName(p))] > 1;
 
   // ─── Back-fill past dues (new approvals only)
   const backfillPastDues = async (profile) => {
@@ -385,7 +403,16 @@ const AccountApproval = ({ embedded = false, onDataChange }) => {
                             {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" /> : (profile.first_name?.charAt(0) || '?')}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-bold text-slate-800 truncate">{fullName(profile)}</p>
+                            <p className="text-sm font-bold text-slate-800 truncate flex items-center gap-1.5">
+                              {fullName(profile)}
+                              {isPossibleDuplicate(profile) && (
+                                <span
+                                  title="Another profile in the system has this same name — check before approving to avoid billing a duplicate resident."
+                                  className="inline-flex items-center gap-1 shrink-0 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                  <AlertTriangle size={9} /> Possible Duplicate
+                                </span>
+                              )}
+                            </p>
                             <p className="text-xs text-slate-400 truncate">@{profile.username || '—'}</p>
                           </div>
                         </div>

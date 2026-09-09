@@ -16,6 +16,7 @@ const Header = () => {
     { name: 'How it Works', id: 'how-it-works' },
     { name: 'About Us',     id: 'about'        },
     { name: 'Download',     id: 'download'     },
+    { name: 'FAQ',          id: 'faqs'         },
   ];
 
   const scrollToSection = (id) => (e) => {
@@ -36,7 +37,7 @@ const Header = () => {
       `}</style>
 
       <nav className={`fixed w-full z-50 transition-all duration-500
-        ${scrolled
+        ${scrolled || isOpen
           ? 'bg-[#006837]/96 backdrop-blur-xl shadow-2xl shadow-black/20 py-2'
           : 'bg-transparent py-5'}`}>
 
@@ -57,7 +58,7 @@ const Header = () => {
                 </a>
               ))}
               <a href="#download" onClick={scrollToSection('download')}
-                className="ml-2 px-5 py-2.5 bg-[#006837] hover:bg-[#006837]-300 text-white rounded-xl text-sm font-semibold transition-all duration-200 shadow-lg shadow-[#006837]-400/20 hover:-translate-y-0.5">
+                className="ml-2 px-5 py-2.5 bg-[#006837] hover:bg-[#004d29] text-white rounded-xl text-sm font-semibold transition-all duration-200 shadow-md shadow-black/30 hover:-translate-y-0.5">
                 Get the App
               </a>
             </div>
@@ -82,7 +83,7 @@ const Header = () => {
               </a>
             ))}
             <a href="#download" onClick={(e) => { scrollToSection('download')(e); setIsOpen(false); }}
-              className="flex items-center justify-center mt-3 py-3 bg-[#FFF200] text-[#006837] rounded-xl font-black text-sm">
+              className="flex items-center justify-center mt-3 py-3 bg-[#006837] hover:bg-[#004d29] text-white rounded-xl font-black text-sm shadow-md shadow-black/30 transition-all duration-200">
               Get the App
             </a>
           </div>

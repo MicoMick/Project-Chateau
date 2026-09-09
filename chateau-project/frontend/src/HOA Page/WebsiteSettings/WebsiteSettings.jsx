@@ -19,6 +19,12 @@ import MarkAlvinTahir   from '../../assets/MarkAlvinTahir.png';
 import CoverdCourt      from '../../assets/CoverdCourt.jpg';
 import ModelHouse1      from '../../assets/ModelHouse1.jpg';
 import House2           from '../../assets/House2.jpg';
+import ScreenHome          from '../../assets/app-previews/home.svg';
+import ScreenPayments      from '../../assets/app-previews/payments.svg';
+import ScreenNotifications from '../../assets/app-previews/notifications.svg';
+import ScreenReport        from '../../assets/app-previews/report.svg';
+import ScreenReserve       from '../../assets/app-previews/reserve.svg';
+import ScreenVoting        from '../../assets/app-previews/voting.svg';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Keys here must match the `name` / `caption` used in Team.jsx and AboutUs.jsx —
@@ -39,6 +45,19 @@ const ABOUT_SLIDES = [
   { key: 'Covered Basketball Court', fallback: CoverdCourt },
   { key: 'Modern Home Interior',     fallback: ModelHouse1 },
   { key: 'Beautiful Home Exterior',  fallback: House2      },
+];
+
+// Keys here must match the `name` used in Downloadpage.jsx's carousel — that's
+// how it looks up an override in `website_settings.app_screenshots`. Fallbacks
+// are placeholder mockups (not real screenshots) shown until an admin uploads
+// the actual app screenshot for that screen.
+const APP_SCREENSHOTS = [
+  { key: 'Home Dashboard',     fallback: ScreenHome,          sublabel: 'Balance, HOA calendar & announcements' },
+  { key: 'Payments',           fallback: ScreenPayments,       sublabel: 'Dues and payment history'              },
+  { key: 'Notifications',      fallback: ScreenNotifications,  sublabel: 'Announcements & due-date alerts'       },
+  { key: 'Submit a Report',    fallback: ScreenReport,         sublabel: 'Maintenance, noise, security & more'   },
+  { key: 'Reserve a Facility', fallback: ScreenReserve,        sublabel: 'Book amenities and check availability' },
+  { key: 'Vote in Elections',  fallback: ScreenVoting,         sublabel: 'Cast your vote securely'               },
 ];
 
 // Position options offered in the editor — matches ROLE_COLORS in Team.jsx so
@@ -211,6 +230,7 @@ const WebsiteSettings = () => {
   const [teamPhotos,  setTeamPhotos]  = useState({});
   const [teamRoster,  setTeamRoster]  = useState({}); // { [defaultName]: { name, role } }
   const [aboutPhotos, setAboutPhotos] = useState({});
+  const [appScreenshots, setAppScreenshots] = useState({}); // { [screenName]: url } — Download page carousel
   const [qrUrl,       setQrUrl]       = useState(null);
   const [apkUrl,      setApkUrl]      = useState(null);
   const [apkFilename, setApkFilename] = useState(null);
@@ -227,16 +247,24 @@ const WebsiteSettings = () => {
     setLoading(true);
     const { data } = await supabase
       .from('website_settings')
-      .select('team_photos, team_roster, about_photos, download_qr_url, app_apk_url, app_apk_filename')
+      .select('team_photos, team_roster, about_photos, app_screenshots, download_qr_url, app_apk_url, app_apk_filename')
       .eq('id', 1)
       .maybeSingle();
     setTeamPhotos(data?.team_photos || {});
     setTeamRoster(data?.team_roster || {});
     setAboutPhotos(data?.about_photos || {});
+    setAppScreenshots(data?.app_screenshots || {});
     setQrUrl(data?.download_qr_url || null);
     setApkUrl(data?.app_apk_url || null);
     setApkFilename(data?.app_apk_filename || null);
     setLoading(false);
+  };
+
+  // Section → { column on website_settings, current state map, setter }
+  const SECTION_MAP = {
+    team:        { column: 'team_photos',     get: () => teamPhotos,       set: setTeamPhotos       },
+    about:       { column: 'about_photos',     get: () => aboutPhotos,      set: setAboutPhotos      },
+    screenshots: { column: 'app_screenshots',  get: () => appScreenshots,   set: setAppScreenshots   },
   };
 
   useEffect(() => { fetchSettings(); }, []);
@@ -251,9 +279,8 @@ const WebsiteSettings = () => {
       if (upErr) throw upErr;
       const { data: { publicUrl } } = supabase.storage.from('website-photos').getPublicUrl(path);
 
-      const column = section === 'team' ? 'team_photos' : 'about_photos';
-      const currentMap = section === 'team' ? teamPhotos : aboutPhotos;
-      const updatedMap = { ...currentMap, [key]: publicUrl };
+      const { column, get, set } = SECTION_MAP[section];
+      const updatedMap = { ...get(), [key]: publicUrl };
 
       const { data: { user } } = await supabase.auth.getUser();
       const { error: saveErr } = await supabase.from('website_settings').upsert({
@@ -264,7 +291,7 @@ const WebsiteSettings = () => {
       });
       if (saveErr) throw saveErr;
 
-      if (section === 'team') setTeamPhotos(updatedMap); else setAboutPhotos(updatedMap);
+      set(updatedMap);
       logger.info('Website photo updated', { section, key });
       notify('Photo Updated', `"${key}" has been updated on the landing page.`);
     } catch (err) {
@@ -275,9 +302,8 @@ const WebsiteSettings = () => {
   };
 
   const handleReset = async (section, key) => {
-    const column = section === 'team' ? 'team_photos' : 'about_photos';
-    const currentMap = section === 'team' ? teamPhotos : aboutPhotos;
-    const updatedMap = { ...currentMap };
+    const { column, get, set } = SECTION_MAP[section];
+    const updatedMap = { ...get() };
     delete updatedMap[key];
     try {
       const { error } = await supabase.from('website_settings').upsert({
@@ -286,7 +312,7 @@ const WebsiteSettings = () => {
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
-      if (section === 'team') setTeamPhotos(updatedMap); else setAboutPhotos(updatedMap);
+      set(updatedMap);
       logger.info('Website photo reset to default', { section, key });
       notify('Reset', `"${key}" reverted to its default photo.`);
     } catch (err) {
@@ -508,6 +534,32 @@ const WebsiteSettings = () => {
                   uploading={uploadingKey === `about:${s.key}`}
                   onUpload={file => handleUpload('about', s.key, file)}
                   onReset={() => handleReset('about', s.key)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* ── App screenshots — Download page carousel ── */}
+          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-9 h-9 bg-[#006837]/10 rounded-xl flex items-center justify-center">
+                <ImageIcon size={15} className="text-[#006837]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900">App Preview Carousel</h3>
+                <p className="text-xs text-slate-400">Screenshots shown in the "Download" section's app preview carousel. Placeholders are shown until replaced.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {APP_SCREENSHOTS.map(s => (
+                <PhotoCard key={s.key}
+                  label={s.key}
+                  sublabel={s.sublabel}
+                  imgUrl={appScreenshots[s.key] || s.fallback}
+                  isOverridden={!!appScreenshots[s.key]}
+                  uploading={uploadingKey === `screenshots:${s.key}`}
+                  onUpload={file => handleUpload('screenshots', s.key, file)}
+                  onReset={() => handleReset('screenshots', s.key)}
                 />
               ))}
             </div>
