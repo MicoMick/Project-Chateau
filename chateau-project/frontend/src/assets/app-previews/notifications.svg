@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 640" width="320" height="640">
+  <defs><clipPath id="frame"><rect x="0" y="0" width="320" height="640" rx="28"/></clipPath></defs>
+  <g clip-path="url(#frame)">
+    <rect width="320" height="640" fill="#f3f6f2"/>
+    <rect x="0" y="0" width="320" height="70" fill="#e7efe7"/>
+    <text x="30" y="42" font-family="Arial, sans-serif" font-size="18" fill="#006837">‹</text>
+    <text x="160" y="42" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#0f172a" text-anchor="middle">Notifications</text>
+
+    <!-- card generator, 4 cards -->
+    <g>
+      <rect x="14" y="82" width="292" height="98" rx="18" fill="#ffffff"/>
+      <rect x="30" y="98" width="42" height="42" rx="12" fill="#fdf6d8"/>
+      <text x="51" y="125" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">📢</text>
+      <text x="84" y="106" font-family="Arial, sans-serif" font-size="13" font-weight="800" fill="#0f172a">Monthly HOA Dues —</text>
+      <text x="84" y="122" font-family="Arial, sans-serif" font-size="13" font-weight="800" fill="#0f172a">September 2026</text>
+      <text x="294" y="102" font-family="Arial, sans-serif" font-size="9" fill="#94a3b8" text-anchor="end">1/9/2026</text>
+      <text x="84" y="140" font-family="Arial, sans-serif" font-size="9.5" fill="#64748b">Monthly HOA dues of ₱150 are due for</text>
+      <text x="84" y="152" font-family="Arial, sans-serif" font-size="9.5" fill="#64748b">September 2026. Due date: 2026-09-29.</text>
+      <rect x="84" y="160" width="70" height="16" rx="8" fill="#fdf6d8"/>
+      <text x="119" y="171" font-family="Arial, sans-serif" font-size="8" font-weight="800" fill="#8a7415" text-anchor="middle">Broadcast</text>
+    </g>
+
+    <g>
+      <rect x="14" y="192" width="292" height="98" rx="18" fill="#ffffff"/>
+      <rect x="30" y="208" width="42" height="42" rx="12" fill="#fdf6d8"/>
+      <text x="51" y="235" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">📢</text>
+      <text x="84" y="216" font-family="Arial, sans-serif" font-size="13" font-weight="800" fill="#0f172a">Announcement:</text>
+      <text x="84" y="232" font-family="Arial, sans-serif" font-size="13" font-weight="800" fill="#0f172a">Announcement 8/23/26</text>
+      <text x="294" y="212" font-family="Arial, sans-serif" font-size="9" fill="#94a3b8" text-anchor="end">23/8/2026</text>
+      <text x="84" y="250" font-family="Arial, sans-serif" font-size="9.5" fill="#64748b">Testing testing testing…</text>
+      <rect x="84" y="260" width="70" height="16" rx="8" fill="#fdf6d8"/>
+      <text x="119" y="271" font-family="Arial, sans-serif" font-size="8" font-weight="800" fill="#8a7415" text-anchor="middle">Broadcast</text>
+    </g>
+
+    <g>
+      <rect x="14" y="302" width="292" height="112" rx="18" fill="#ffffff"/>
+      <rect x="30" y="318" width="42" height="42" rx="12" fill="#fdf6d8"/>
+      <text x="51" y="345" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">📢</text>
+      <text x="84" y="326" font-family="Arial, sans-serif" font-size="13" font-weight="800" fill="#0f172a">Announcement:</text>
+      <text x="84" y="342" font-family="Arial, sans-serif" font-size="13" font-weight="800" fill="#0f172a">Announcement again for</text>
+      <text x="84" y="358" font-family="Arial, sans-serif" font-size="13" font-weight="800" fill="#0f172a">testing 8/23/26</text>
+      <text x="294" y="322" font-family="Arial, sans-serif" font-size="9" fill="#94a3b8" text-anchor="end">23/8/2026</text>
+      <text x="84" y="374" font-family="Arial, sans-serif" font-size="9.5" fill="#64748b">Announcement again this 23 of August…</text>
+      <rect x="84" y="384" width="70" height="16" rx="8" fill="#fdf6d8"/>
+      <text x="119" y="395" font-family="Arial, sans-serif" font-size="8" font-weight="800" fill="#8a7415" text-anchor="middle">Broadcast</text>
+    </g>
+
+    <g>
+      <rect x="14" y="426" width="292" height="150" rx="18" fill="#ffffff"/>
+      <rect x="30" y="442" width="42" height="42" rx="12" fill="#fdf6d8"/>
+      <text x="51" y="469" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">📢</text>
+      <text x="84" y="450" font-family="Arial, sans-serif" font-size="13" font-weight="800" fill="#0f172a">Announcement:</text>
+      <text x="84" y="466" font-family="Arial, sans-serif" font-size="13" font-weight="800" fill="#0f172a">Announcement this Aug 23,</text>
+      <text x="84" y="482" font-family="Arial, sans-serif" font-size="13" font-weight="800" fill="#0f172a">2026</text>
+      <text x="294" y="446" font-family="Arial, sans-serif" font-size="9" fill="#94a3b8" text-anchor="end">23/8/2026</text>
+      <text x="84" y="498" font-family="Arial, sans-serif" font-size="9.5" fill="#64748b">👋 Isang mainit na pagbati sa inyong lahat</text>
+      <text x="84" y="512" font-family="Arial, sans-serif" font-size="9.5" fill="#64748b">ngayong araw!</text>
+      <text x="84" y="526" font-family="Arial, sans-serif" font-size="9.5" fill="#64748b">Sana ay masarap ang gising ninyo at maay…</text>
+      <rect x="84" y="536" width="70" height="16" rx="8" fill="#fdf6d8"/>
+      <text x="119" y="547" font-family="Arial, sans-serif" font-size="8" font-weight="800" fill="#8a7415" text-anchor="middle">Broadcast</text>
+    </g>
+
+    <rect x="130" y="614" width="60" height="4" rx="2" fill="#64748b"/>
+  </g>
+</svg>

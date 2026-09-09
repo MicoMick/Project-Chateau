@@ -76,7 +76,7 @@ const Mainpage = () => {
         <h1 className={`hero-fade-up ${visible ? 'visible' : ''} text-6xl md:text-7xl lg:text-8xl font-black tracking-tight leading-[0.92] mb-6 text-white`}
           style={{ transitionDelay: '150ms' }}>
           <span className="block mb-2">Welcome to</span>
-          <span className="block text-[#006837]">
+          <span className="block text-white">
             Chateau Real
           </span>
         </h1>

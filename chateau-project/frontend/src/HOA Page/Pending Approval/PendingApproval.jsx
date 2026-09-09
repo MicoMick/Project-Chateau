@@ -204,12 +204,44 @@ const PendingApproval = () => {
         if (delErr) throw delErr;
 
       } else if (request.action_type === 'UPDATE' && request.requested_data) {
-        // Profile update — apply the new_data to profiles
+        // Generic UPDATE — applies to profiles (profile edits) and payments
+        // (e.g. a Treasurer's "historical settlement" request, marking a
+        // pre-app due paid once the President confirms it). `details` is a
+        // display-only field for this review table (see the Details column
+        // below) — it isn't a real column on either table, so it must never
+        // be sent in the actual update or Postgrest rejects the whole request.
+        const { details, ...updateFields } = request.requested_data;
         const { error: upErr } = await supabase
           .from(request.target_table)
-          .update(request.requested_data)
+          .update(updateFields)
           .eq('id', request.target_id);
         if (upErr) throw upErr;
+
+        // Marking a payment 'paid' here (historical settlement) bypasses the
+        // normal Edit Transaction flow, which also auto-reactivates a
+        // delinquent resident once their last unpaid due is cleared — so
+        // mirror that here too, or a resident could stay wrongly flagged
+        // delinquent even after every due is settled.
+        if (request.target_table === 'payments' && updateFields.status === 'paid') {
+          const { data: paymentRow } = await supabase
+            .from('payments').select('user_id').eq('id', request.target_id).single();
+          if (paymentRow?.user_id) {
+            const { data: residentData } = await supabase
+              .from('profiles').select('id, full_name, account_status').eq('id', paymentRow.user_id).single();
+            if (residentData?.account_status === 'delinquent') {
+              const { data: remainingUnpaid } = await supabase
+                .from('payments').select('id')
+                .eq('user_id', paymentRow.user_id)
+                .in('status', ['unpaid', 'overdue', 'pending', 'pending_verification'])
+                .neq('id', request.target_id)
+                .limit(1);
+              if (!remainingUnpaid?.length) {
+                await supabase.from('profiles').update({ account_status: 'active' }).eq('id', paymentRow.user_id);
+                await logAudit('AUTO_REACTIVATE', `${residentData.full_name} auto-reactivated — all dues are now settled.`);
+              }
+            }
+          }
+        }
 
       } else if (request.action_type === 'DELETE') {
         // Generic delete on any table

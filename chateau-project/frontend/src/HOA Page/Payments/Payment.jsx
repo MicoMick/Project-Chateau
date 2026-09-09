@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Search, Plus, CreditCard, AlertCircle, CheckCircle2, DollarSign,
   Edit2, Trash2, X, Filter, Loader2, Download,
   Calendar, Users, ChevronDown, LayoutList, TableProperties, Printer, Mail,
-  Eye, FileText, XCircle, QrCode, Upload, RefreshCw, ZoomIn, ZoomOut,
+  Eye, FileText, XCircle, QrCode, Upload, RefreshCw, ZoomIn, ZoomOut, History,
 } from 'lucide-react';
 import { supabase } from '../supabaseAdmin';
 import { logAudit } from '../auditLogger';
@@ -140,6 +141,26 @@ const stripLabel = (val, label) => {
   const re = new RegExp(`^${label}\\.?\\s*`, 'i');
   return String(val).replace(re, '').trim();
 };
+
+// ── Duplicate-name detection ──────────────────────────────────────────────
+// No signup flow in this app checks for an existing profile before creating
+// a new one (registration happens outside this codebase, via Supabase Auth),
+// so the same person can end up with two separate `profiles` rows — each then
+// billed its own monthly dues. Flags matching names so Treasurer/President
+// catch it here rather than paying/tracking two accounts for one resident.
+const normalizeName = (name) => (name || '').toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
+const buildNameCounts = (list) => list.reduce((acc, r) => {
+  const key = normalizeName(r.full_name);
+  if (key) acc[key] = (acc[key] || 0) + 1;
+  return acc;
+}, {});
+const DuplicateBadge = () => (
+  <span
+    title="Another resident profile has this same name — likely a duplicate account for the same person."
+    className="inline-flex items-center gap-1 shrink-0 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+    <AlertCircle size={9} /> Possible Duplicate
+  </span>
+);
 
 const buildFullAddress = (block, lot, street) => {
   const parts = [];
@@ -535,6 +556,8 @@ const StandingLedger = ({ residentsList, payments, monthlyDue }) => {
   // 'pending_verification'.
   const monthsCoveredBy = (amount) => Math.max(1, Math.round(Number(amount || 0) / (monthlyDue || 1)));
 
+  const nameCounts = buildNameCounts(residentsList);
+
   // Build one row per resident
   const rows = residentsList.map(r => {
     const rPayments = payments.filter(p => p.user_id === r.id);
@@ -562,6 +585,7 @@ const StandingLedger = ({ residentsList, payments, monthlyDue }) => {
     return {
       id:           r.id,
       full_name:    r.full_name || '—',
+      isDuplicate:  nameCounts[normalizeName(r.full_name)] > 1,
       block:        r.block || '—',
       lot:          r.lot   || '—',
       street:       r.street || '—',
@@ -823,7 +847,10 @@ const StandingLedger = ({ residentsList, payments, monthlyDue }) => {
             ) : paginatedPayment.map(r => (
               <tr key={r.id} className="hover:bg-slate-50/60 transition-colors">
                 <td className="px-4 py-3">
-                  <p className="text-sm font-bold text-slate-800">{r.full_name}</p>
+                  <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                    {r.full_name}
+                    {r.isDuplicate && <DuplicateBadge />}
+                  </p>
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-500">{r.block}</td>
                 <td className="px-4 py-3 text-sm text-slate-500">{r.lot}</td>
@@ -898,6 +925,14 @@ const Payment = () => {
   const [isUnpaidBreakdownOpen, setIsUnpaidBreakdownOpen] = useState(false);
   const [breakdownPayments,     setBreakdownPayments]     = useState([]);
   const [residentsList,     setResidentsList]     = useState([]);
+
+  // ── Historical settlement (pre-app dues paid in real life, no in-app proof) ──
+  // A Treasurer can't mark these paid directly — that's the same abuse risk as
+  // marking any due paid without proof. Instead this sends a request to
+  // approval_requests, which only takes effect once the President approves it
+  // in Pending Approval — same two-step pattern already used for Void.
+  const [historicalSettlementPayment, setHistoricalSettlementPayment] = useState(null);
+  const [historicalNote,              setHistoricalNote]              = useState('');
 
   const [transaction,          setTransaction]          = useState({ status: null, message: '' });
   const [editFormData,         setEditFormData]         = useState({ amount: '', status: '', due_date: '', reference_no: '', paid_at: '', payer_reference_no: '' });
@@ -1184,6 +1219,57 @@ const Payment = () => {
     return { success: true, count: rows.length, month: MONTHS[month], year };
   };
 
+  // ── Back-fill past dues for a resident with NO payment records at all ────────
+  // Mirrors AccountApproval.jsx's backfillPastDues, but callable on-demand
+  // from this page. A brand-new resident normally gets Jan→current-month dues
+  // generated the moment their account is approved — but if that step was
+  // skipped, failed silently, or their account predates the feature, they're
+  // left with zero payment rows and show up here as "No Record" with no way
+  // to open their detail view. This regenerates the missing months (as
+  // 'pending', same as a fresh approval) so View Detail always has something
+  // to show. Months after the current one are left alone — those keep coming
+  // from the regular auto-generate-dues job, not from here.
+  const backfillPastDuesForResident = async (residentId) => {
+    try {
+      const lineItems = buildLineItemBreakdown(monthlyDue);
+      const now = new Date();
+      const year = now.getFullYear();
+      const currentMonth = now.getMonth();
+
+      const { data: existing } = await supabase.from('payments').select('due_date').eq('user_id', residentId);
+      const existingMonths = new Set((existing || []).map(p => (p.due_date || '').slice(0, 7)));
+
+      const rows = [];
+      for (let m = 0; m <= currentMonth; m++) {
+        const lastDay = new Date(year, m + 1, 0).getDate();
+        const dueDate = `${year}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        if (existingMonths.has(dueDate.slice(0, 7))) continue;
+        rows.push({
+          user_id:        residentId,
+          amount:         monthlyDue,
+          statement_date: `${year}-${String(m + 1).padStart(2, '0')}-01`,
+          due_date:       dueDate,
+          status:         'pending',
+          reference_no:   generateRefNo(m, year, residentId),
+          line_items:     lineItems,
+        });
+      }
+      if (!rows.length) return [];
+
+      const { data: inserted, error } = await supabase.from('payments').insert(rows).select();
+      if (error) throw error;
+
+      const residentName = residentsList.find(res => res.id === residentId)?.full_name || 'Resident';
+      await logAudit('BACKFILL_DUES',
+        `${residentName} — back-filled ${rows.length} past due(s) as Pending (${MONTHS[0]}–${MONTHS[currentMonth]} ${year}) for Treasurer verification`);
+
+      return inserted || [];
+    } catch (e) {
+      console.error('Back-filling past dues failed:', e.message);
+      return [];
+    }
+  };
+
   // ── Balance-based delinquency check ──────────────────────────────────────
   // Flags any active resident whose total unpaid balance is ≥ ₱450 (3 months).
   // The graceDays param is kept for backward-compat but no longer used.
@@ -1398,6 +1484,56 @@ const Payment = () => {
     }
   };
 
+  // ── Historical settlement request ─────────────────────────────────────────
+  // For a 'pending' due (back-filled — see backfillPastDuesForResident above)
+  // that the resident actually already paid in real life before the app
+  // existed. There's no in-app proof to submit for a month that already
+  // happened, so this can't go through the normal proof-of-payment flow — but
+  // a Treasurer also can't just flip it to 'paid' directly (that's exactly the
+  // one-click abuse risk the Edit Transaction form already refuses to allow).
+  // Instead this sends a request to approval_requests; it only takes effect
+  // once the President reviews the note and approves it in Pending Approval.
+  const requestHistoricalSettlement = async () => {
+    if (!historicalSettlementPayment) return;
+    const note = historicalNote.trim();
+    if (note.length < 10) {
+      setTransaction({ status: 'error', message: 'Please describe how this was verified (OR#, ledger entry, date paid, etc.) — at least a sentence.' });
+      return;
+    }
+    setTransaction({ status: 'loading', message: 'Submitting settlement request…' });
+    try {
+      const p = historicalSettlementPayment;
+      const residentName = (Array.isArray(p.profiles) ? p.profiles[0]?.full_name : p.profiles?.full_name)
+        || residentsList.find(r => r.id === p.user_id)?.full_name || 'Resident';
+      const monthLabel = formatMonthCoverage(p.due_date, monthsCoveredBy(p.amount));
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from('approval_requests').insert([{
+        target_table: 'payments', target_id: p.id, action_type: 'UPDATE',
+        requested_data: {
+          status: 'paid',
+          paid_at: new Date().toISOString(),
+          payer_reference_no: 'Historical/Manual settlement — pre-app payment',
+          reference_no: p.reference_no,
+          amount: p.amount,
+          // Display-only for the Pending Approval review table — stripped
+          // before the actual payments update runs (see PendingApproval.jsx).
+          details: `${residentName} — ${monthLabel}: ${note}`,
+        },
+        status: 'PENDING', requested_by: user?.id || null,
+      }]);
+      if (error) throw error;
+
+      await logAudit('REQUEST_HISTORICAL_SETTLEMENT',
+        `Requested historical settlement for ${residentName} — ${monthLabel}: ${note}`);
+      setHistoricalSettlementPayment(null);
+      setHistoricalNote('');
+      setTransaction({ status: 'success', message: 'Sent to the President for approval. It stays Pending until then.' });
+    } catch (e) {
+      setTransaction({ status: 'error', message: 'Failed: ' + e.message });
+    }
+  };
+
   // A due can only become 'paid' through the proof-of-verification step — a
   // month only reaches 'pending_verification' once the resident has actually
   // submitted a payer_reference_no + proof_url. This modal is a read-only
@@ -1453,6 +1589,7 @@ const Payment = () => {
   // ── Resident-based table rows — one row per resident, always ─────────────────
   // Amount = unpaid balance (grows as months are generated, resets to ₱0 when paid).
   // Paid receipts are NOT shown as separate rows — the table is resident-centric.
+  const mainNameCounts = buildNameCounts(residentsList);
   const residentRows = residentsList.map(r => {
     const rPayments = payments.filter(p => p.user_id === r.id);
     const unpaidList = rPayments.filter(p =>
@@ -1488,6 +1625,7 @@ const Payment = () => {
       _residentRow: true,
       user_id:      r.id,
       full_name:    r.full_name || '—',
+      isDuplicate:  mainNameCounts[normalizeName(r.full_name)] > 1,
       street:       r.street || 'N/A',
       fullAddress:  buildFullAddress(r.block, r.lot, r.street),
       block:        r.block || '',
@@ -1595,7 +1733,15 @@ const Payment = () => {
         onClose={() => { setTransaction({ status: null, message: '' }); fetchPayments(); }} />
 
       {/* ── Unpaid Breakdown / Mark All Paid Modal ── */}
-      {isUnpaidBreakdownOpen && (
+      {/* Rendered through a portal straight to <body> — same fix as the SOA
+          modal below. A `fixed inset-0` overlay nested this deep only covers
+          the viewport if every ancestor stays free of transform/filter/
+          contain/perspective/will-change; any one of those (now or added
+          later) silently shrinks it to that ancestor's box instead, leaving
+          part of the real page uncovered/undimmed behind it. A portal makes
+          the overlay a direct child of <body>, so it's always guaranteed to
+          be truly viewport-relative regardless of what's above it in the tree. */}
+      {isUnpaidBreakdownOpen && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsUnpaidBreakdownOpen(false)} />
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative animate-in fade-in zoom-in-95 duration-200 overflow-hidden z-10">
@@ -1699,6 +1845,18 @@ const Payment = () => {
                         className="text-red-500 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-all cursor-pointer" title="Void this month only">
                         <Trash2 size={13} />
                       </button>
+                      {st === 'pending' && (
+                        <button
+                          onClick={() => {
+                            setHistoricalSettlementPayment(p);
+                            setHistoricalNote('');
+                            setIsUnpaidBreakdownOpen(false);
+                          }}
+                          className="text-amber-600 bg-amber-50 hover:bg-amber-100 p-1.5 rounded-lg transition-all cursor-pointer"
+                          title="Already paid in real life, before the app — request historical settlement">
+                          <History size={13} />
+                        </button>
+                      )}
                     </div>
                   </div>
                   );
@@ -1743,7 +1901,8 @@ const Payment = () => {
 
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Void confirm ── */}
@@ -1761,6 +1920,36 @@ const Payment = () => {
           </p>
         </div>
       </ModalOverlay>
+
+      {/* ── Historical settlement request (pre-app due, paid in real life) ── */}
+      <ModalOverlay
+        isOpen={!!historicalSettlementPayment} onClose={() => setHistoricalSettlementPayment(null)}
+        title="Request Historical Settlement"
+        subtitle="This requires President approval before the month is marked Paid."
+        actionLabel="Send for Approval"
+        onAction={requestHistoricalSettlement}
+      >
+        <div className="p-4 bg-amber-50 text-amber-700 rounded-2xl flex items-start gap-3">
+          <History size={18} className="shrink-0 mt-0.5" />
+          <p className="text-sm font-semibold">
+            Only use this for dues from before the app existed, paid in real life (cash/manual) with no in-app proof to submit.
+            The Treasurer can't mark a due Paid directly — the President must confirm it first, the same way Void requests work.
+          </p>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            How was this verified? <span className="text-red-500">*required</span>
+          </label>
+          <textarea
+            value={historicalNote}
+            onChange={e => setHistoricalNote(e.target.value)}
+            rows={3}
+            placeholder="e.g. OR#1042, paid cash to the previous Treasurer on Jan 5 2026, confirmed against the physical ledger"
+            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#006837]/20"
+          />
+        </div>
+      </ModalOverlay>
+
       {/* ── Edit transaction ── */}
       <ModalOverlay isOpen={isEditTransactionOpen} onClose={() => setIsEditTransactionOpen(false)}
         title="Edit Transaction" subtitle="Update resident payment details"
@@ -1833,7 +2022,7 @@ const Payment = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <CreditCard size={22} className="text-[#006837]" /> Payment Management
+            <CreditCard size={22} className="text-[#006837]" /> Monthly Dues Management
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">Manage dues, issue bills, and track resident standing</p>
         </div>
@@ -2165,7 +2354,9 @@ const Payment = () => {
       )}
 
       {/* ── Per-resident SOA print — content choice modal ── */}
-      {soaPrintTarget && (
+      {/* Portal to <body>, same reason as the Unpaid Breakdown modal above —
+          guarantees this overlay is always truly viewport-relative. */}
+      {soaPrintTarget && createPortal(
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4"
           onClick={() => setSoaPrintTarget(null)}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
@@ -2210,7 +2401,8 @@ const Payment = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── KPI cards ── */}
@@ -2386,6 +2578,7 @@ const Payment = () => {
                         <div className="flex items-center gap-2">
                           <span className={`w-2 h-2 rounded-full shrink-0 ${hasBalance ? 'bg-red-400' : 'bg-emerald-400'}`} />
                           <span className="text-sm font-bold text-slate-800">{r.full_name}</span>
+                          {r.isDuplicate && <DuplicateBadge />}
                         </div>
                       </td>
 
@@ -2468,27 +2661,32 @@ const Payment = () => {
                               </button>
                             </RequireRole>
                           )}
-                          {(hasBalance || r.standing === 'Settled') && (
-                            <RequireRole userRole={currentUserRole} allowedRoles={['treasurer']}>
-                              <button
-                                onClick={() => {
-                                  const anchorList = r.unpaidList.length ? r.unpaidList : r.allPayments;
-                                  setBreakdownPayments(anchorList.map(p => ({
-                                    ...p,
-                                    profiles: payments.find(x => x.id === p.id)?.profiles
-                                      ?? residentsList.find(res => res.id === r.user_id) ?? null,
-                                  })));
-                                  setIsUnpaidBreakdownOpen(true);
-                                }}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                                  hasBalance
-                                    ? 'bg-[#006837] hover:bg-[#004d29] text-white'
-                                    : 'bg-white border border-slate-200 hover:border-[#006837] hover:text-[#006837] text-slate-500'
-                                }`}>
-                                <Eye size={12} /> View Detail
-                              </button>
-                            </RequireRole>
-                          )}
+                          <RequireRole userRole={currentUserRole} allowedRoles={['treasurer']}>
+                            <button
+                              onClick={async () => {
+                                let anchorList = r.unpaidList.length ? r.unpaidList : r.allPayments;
+                                // Brand-new account with zero payment rows at all ("No Record") —
+                                // generate Jan→current-month dues on the fly so there's something
+                                // to review, instead of the button doing nothing.
+                                if (r.standing === 'No Record') {
+                                  anchorList = await backfillPastDuesForResident(r.user_id);
+                                  fetchPayments();
+                                }
+                                setBreakdownPayments(anchorList.map(p => ({
+                                  ...p,
+                                  profiles: payments.find(x => x.id === p.id)?.profiles
+                                    ?? residentsList.find(res => res.id === r.user_id) ?? null,
+                                })));
+                                setIsUnpaidBreakdownOpen(true);
+                              }}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+                                hasBalance
+                                  ? 'bg-[#006837] hover:bg-[#004d29] text-white'
+                                  : 'bg-white border border-slate-200 hover:border-[#006837] hover:text-[#006837] text-slate-500'
+                              }`}>
+                              <Eye size={12} /> View Detail
+                            </button>
+                          </RequireRole>
                         </div>
                       </td>
 

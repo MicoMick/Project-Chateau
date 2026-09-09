@@ -503,16 +503,18 @@ const Reservation = () => {
                 ${pageTab === 'reservations' ? 'bg-white text-[#006837] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
               <CalendarDays size={13} /> Reservations
             </button>
-            <button onClick={() => setPageTab('borrowers')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer
-                ${pageTab === 'borrowers' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-              <Package size={13} /> Borrowers
-              {reservations.filter(r => r.facilities?.category === 'Amenity Item' && r.status === 'Pending').length > 0 && (
-                <span className="bg-orange-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
-                  {reservations.filter(r => r.facilities?.category === 'Amenity Item' && r.status === 'Pending').length}
-                </span>
-              )}
-            </button>
+            {currentUserRole !== 'treasurer' && (
+              <button onClick={() => setPageTab('borrowers')}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer
+                  ${pageTab === 'borrowers' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                <Package size={13} /> Borrowers
+                {reservations.filter(r => r.facilities?.category === 'Amenity Item' && r.status === 'Pending').length > 0 && (
+                  <span className="bg-orange-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                    {reservations.filter(r => r.facilities?.category === 'Amenity Item' && r.status === 'Pending').length}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
           <button onClick={() => setIsCalendarOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-[#006837] hover:bg-[#004d29] text-white text-sm font-bold rounded-xl shadow-lg shadow-[#006837]/20 cursor-pointer transition-all">
@@ -601,7 +603,7 @@ const Reservation = () => {
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
           onClick={() => setSelectedRes(null)}>
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
-          <div className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+          <div className="relative bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}>
 
             {/* Status gradient header */}
@@ -626,103 +628,108 @@ const Reservation = () => {
               </div>
             </div>
 
-            {/* Details */}
-            <div className="p-6 space-y-3">
-              {[
-                { icon: MapPin,      label: 'Facility',       value: selectedRes.facilities?.name || '—' },
-                ...(selectedRes.facilities?.category === 'Amenity Item'
-                  ? [{ icon: Package, label: 'Quantity Requested', value: selectedRes.quantity ? `${selectedRes.quantity} unit(s)` : 'Not specified yet' }]
-                  : [
-                      { icon: CalendarDays,label: 'Scheduled Date', value: fmtDate(selectedRes.date) },
-                      { icon: Clock,       label: 'Time Slot',      value: `${fmt12(selectedRes.start_time)} – ${fmt12(selectedRes.end_time)}` },
-                    ]),
-                { icon: Calendar,    label: 'Requested On',   value: fmtDate(selectedRes.created_at)     },
-              ].map(f => (
-                <div key={f.label} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <div className="w-8 h-8 rounded-lg bg-[#006837]/10 flex items-center justify-center shrink-0">
-                    <f.icon size={14} className="text-[#006837]" />
+            {/* Details — landscape: reservation info and payment info side by side once there's payment data to show */}
+            <div className={`p-6 grid gap-5 ${
+              (selectedRes.fee != null || selectedRes.proof_url || selectedRes.payment_status) ? 'md:grid-cols-2' : 'grid-cols-1'
+            }`}>
+              {/* Left column — reservation info */}
+              <div className="space-y-3">
+                {[
+                  { icon: MapPin,      label: 'Facility',       value: selectedRes.facilities?.name || '—' },
+                  ...(selectedRes.facilities?.category === 'Amenity Item'
+                    ? [{ icon: Package, label: 'Quantity Requested', value: selectedRes.quantity ? `${selectedRes.quantity} unit(s)` : 'Not specified yet' }]
+                    : [
+                        { icon: CalendarDays,label: 'Scheduled Date', value: fmtDate(selectedRes.date) },
+                        { icon: Clock,       label: 'Time Slot',      value: `${fmt12(selectedRes.start_time)} – ${fmt12(selectedRes.end_time)}` },
+                      ]),
+                  { icon: Calendar,    label: 'Requested On',   value: fmtDate(selectedRes.created_at)     },
+                ].map(f => (
+                  <div key={f.label} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="w-8 h-8 rounded-lg bg-[#006837]/10 flex items-center justify-center shrink-0">
+                      <f.icon size={14} className="text-[#006837]" />
+                    </div>
+                    <div className="flex-1 min-w-0 flex items-center justify-between">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{f.label}</p>
+                      <p className="text-sm font-bold text-slate-800">{f.value}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0 flex items-center justify-between">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{f.label}</p>
-                    <p className="text-sm font-bold text-slate-800">{f.value}</p>
-                  </div>
-                </div>
-              ))}
+                ))}
 
-              {/* Stock check info — only shown while still Pending, purely informational */}
-              {selectedRes.facilities?.category === 'Amenity Item' && selectedRes.status === 'Pending' && (
-                <div className={`p-3 rounded-xl border flex items-start gap-2.5 ${
-                  (selectedRes.facilities?.amount ?? 0) >= (selectedRes.quantity || 1)
-                    ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
-                  {(selectedRes.facilities?.amount ?? 0) >= (selectedRes.quantity || 1)
-                    ? <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-                    : <AlertTriangle size={14} className="text-red-500 shrink-0 mt-0.5" />}
-                  <p className={`text-xs font-semibold ${
-                    (selectedRes.facilities?.amount ?? 0) >= (selectedRes.quantity || 1) ? 'text-emerald-700' : 'text-red-700'}`}>
+                {/* Stock check info — only shown while still Pending, purely informational */}
+                {selectedRes.facilities?.category === 'Amenity Item' && selectedRes.status === 'Pending' && (
+                  <div className={`p-3 rounded-xl border flex items-start gap-2.5 ${
+                    (selectedRes.facilities?.amount ?? 0) >= (selectedRes.quantity || 1)
+                      ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
                     {(selectedRes.facilities?.amount ?? 0) >= (selectedRes.quantity || 1)
-                      ? `${selectedRes.facilities?.amount ?? 0} unit(s) in stock — enough to approve this request.`
-                      : `Only ${selectedRes.facilities?.amount ?? 0} unit(s) left in stock — not enough to approve ${selectedRes.quantity || 1} requested.`}
+                      ? <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+                      : <AlertTriangle size={14} className="text-red-500 shrink-0 mt-0.5" />}
+                    <p className={`text-xs font-semibold ${
+                      (selectedRes.facilities?.amount ?? 0) >= (selectedRes.quantity || 1) ? 'text-emerald-700' : 'text-red-700'}`}>
+                      {(selectedRes.facilities?.amount ?? 0) >= (selectedRes.quantity || 1)
+                        ? `${selectedRes.facilities?.amount ?? 0} unit(s) in stock — enough to approve this request.`
+                        : `Only ${selectedRes.facilities?.amount ?? 0} unit(s) left in stock — not enough to approve ${selectedRes.quantity || 1} requested.`}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Right column — Payment Details, only shown once a fee/proof has been submitted */}
+              {(selectedRes.fee != null || selectedRes.proof_url || selectedRes.payment_status) && (
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                    <DollarSign size={12} /> Payment Details
                   </p>
+                  <div className="bg-slate-50 rounded-xl border border-slate-100 divide-y divide-slate-100">
+                    <div className="flex items-center justify-between p-3">
+                      <span className="text-xs font-semibold text-slate-500">Fee</span>
+                      <span className="text-sm font-bold text-slate-800">{fmtPeso(selectedRes.fee)}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-3">
+                      <span className="text-xs font-semibold text-slate-500">Reference No.</span>
+                      <span className="text-sm font-bold text-slate-800">{selectedRes.reference_no || '—'}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-3">
+                      <span className="text-xs font-semibold text-slate-500">Payment Status</span>
+                      <PaymentStatusPill status={selectedRes.payment_status} />
+                    </div>
+                    {selectedRes.paid_at && (
+                      <div className="flex items-center justify-between p-3">
+                        <span className="text-xs font-semibold text-slate-500">Paid On</span>
+                        <span className="text-sm font-bold text-slate-800">{fmtDate(selectedRes.paid_at)}</span>
+                      </div>
+                    )}
+                    {selectedRes.proof_url && (
+                      <div className="p-3">
+                        <button onClick={() => { setProofPreview(selectedRes.proof_url); setProofZoomed(false); }}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 hover:border-[#006837] hover:text-[#006837] text-slate-600 text-xs font-bold rounded-xl cursor-pointer transition-all">
+                          <Eye size={13} /> View Proof of Payment
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Accept / reject the submitted proof — treasurer/president only, while pending */}
+                  <RequireRole userRole={currentUserRole} allowedRoles={['treasurer','president','board_member']}>
+                    {selectedRes.proof_url && (selectedRes.payment_status || '').toLowerCase() === 'pending' && (
+                      <div className="flex gap-2.5 mt-3">
+                        <button
+                          onClick={() => handlePaymentDecision(selectedRes.id, 'Paid')}
+                          disabled={payingId === selectedRes.id}
+                          className="flex-1 py-2.5 bg-[#006837] hover:bg-[#004d29] text-white font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-[#006837]/20 transition-all disabled:opacity-50">
+                          <CheckCircle2 size={14} /> {payingId === selectedRes.id ? 'Saving…' : 'Accept Payment'}
+                        </button>
+                        <button
+                          onClick={() => handlePaymentDecision(selectedRes.id, 'Rejected')}
+                          disabled={payingId === selectedRes.id}
+                          className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-red-500/20 transition-all disabled:opacity-50">
+                          <XCircle size={14} /> Reject Proof
+                        </button>
+                      </div>
+                    )}
+                  </RequireRole>
                 </div>
               )}
             </div>
-
-            {/* Payment Details — only shown once a fee/proof has been submitted */}
-            {(selectedRes.fee != null || selectedRes.proof_url || selectedRes.payment_status) && (
-              <div className="px-6 pb-2">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                  <DollarSign size={12} /> Payment Details
-                </p>
-                <div className="bg-slate-50 rounded-xl border border-slate-100 divide-y divide-slate-100">
-                  <div className="flex items-center justify-between p-3">
-                    <span className="text-xs font-semibold text-slate-500">Fee</span>
-                    <span className="text-sm font-bold text-slate-800">{fmtPeso(selectedRes.fee)}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3">
-                    <span className="text-xs font-semibold text-slate-500">Reference No.</span>
-                    <span className="text-sm font-bold text-slate-800">{selectedRes.reference_no || '—'}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3">
-                    <span className="text-xs font-semibold text-slate-500">Payment Status</span>
-                    <PaymentStatusPill status={selectedRes.payment_status} />
-                  </div>
-                  {selectedRes.paid_at && (
-                    <div className="flex items-center justify-between p-3">
-                      <span className="text-xs font-semibold text-slate-500">Paid On</span>
-                      <span className="text-sm font-bold text-slate-800">{fmtDate(selectedRes.paid_at)}</span>
-                    </div>
-                  )}
-                  {selectedRes.proof_url && (
-                    <div className="p-3">
-                      <button onClick={() => { setProofPreview(selectedRes.proof_url); setProofZoomed(false); }}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 hover:border-[#006837] hover:text-[#006837] text-slate-600 text-xs font-bold rounded-xl cursor-pointer transition-all">
-                        <Eye size={13} /> View Proof of Payment
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Accept / reject the submitted proof — treasurer/president only, while pending */}
-                <RequireRole userRole={currentUserRole} allowedRoles={['treasurer','president','board_member']}>
-                  {selectedRes.proof_url && (selectedRes.payment_status || '').toLowerCase() === 'pending' && (
-                    <div className="flex gap-2.5 mt-3">
-                      <button
-                        onClick={() => handlePaymentDecision(selectedRes.id, 'Paid')}
-                        disabled={payingId === selectedRes.id}
-                        className="flex-1 py-2.5 bg-[#006837] hover:bg-[#004d29] text-white font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-[#006837]/20 transition-all disabled:opacity-50">
-                        <CheckCircle2 size={14} /> {payingId === selectedRes.id ? 'Saving…' : 'Accept Payment'}
-                      </button>
-                      <button
-                        onClick={() => handlePaymentDecision(selectedRes.id, 'Rejected')}
-                        disabled={payingId === selectedRes.id}
-                        className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-red-500/20 transition-all disabled:opacity-50">
-                        <XCircle size={14} /> Reject Proof
-                      </button>
-                    </div>
-                  )}
-                </RequireRole>
-              </div>
-            )}
 
             {/* Action buttons */}
             <div className="px-6 pb-6 pt-4 flex flex-col gap-2.5">

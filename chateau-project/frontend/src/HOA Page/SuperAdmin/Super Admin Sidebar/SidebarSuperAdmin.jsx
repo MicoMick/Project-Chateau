@@ -101,8 +101,8 @@ const SidebarSuperAdmin = () => {
 
   return (
     <>
-      <aside className={`sticky top-0 h-screen flex flex-col transition-all duration-300 ease-in-out shadow-2xl z-40
-        ${isCollapsed ? 'w-20' : 'w-72'} 
+      <aside className={`sticky top-0 h-screen flex flex-col transition-all duration-300 ease-in-out shadow-2xl z-50
+        ${isCollapsed ? 'w-20' : 'w-72'}
         bg-gradient-to-b from-[#006837] to-[#004d29]`}>
         
         <div className="absolute bottom-0 left-0 w-full h-1/2 bg-[#FFF200] opacity-10 blur-[100px] pointer-events-none"></div>
