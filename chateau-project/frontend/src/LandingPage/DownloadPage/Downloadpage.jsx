@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Smartphone, Download, CheckCircle2, CalendarCheck, CreditCard, Megaphone, Vote } from 'lucide-react';
+import { Download, CheckCircle2, CalendarCheck, CreditCard, Megaphone, Vote } from 'lucide-react';
 import { supabase } from '../../HOA Page/supabaseAdmin';
 
 const features = [
@@ -51,41 +51,34 @@ const Downloadpage = () => {
     <section id="download" ref={ref}
       className="relative py-24 md:py-32 overflow-hidden bg-slate-950">
 
-      {/* Background glows */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/2 left-0 -translate-y-1/2 w-[600px] h-[600px] bg-[#006837]/20 rounded-full blur-[140px]" />
-        <div className="absolute top-1/2 right-0 -translate-y-1/2 w-96 h-96 bg-[#FFF200]/5 rounded-full blur-[120px]" />
-      </div>
-
       <div className="container mx-auto px-6 lg:px-16 relative z-10">
         <div className="flex flex-col lg:flex-row items-center justify-between gap-16">
 
           {/* Left text */}
           <div className={`w-full lg:w-1/2 text-white transition-all duration-1000 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-16'}`}>
 
-            <div className="inline-flex items-center gap-2.5 px-4 py-2 bg-[#006837]/20 border border-[#006837]/30 rounded-full text-xs font-bold mb-7 tracking-widest uppercase">
-              <Smartphone size={14} className="text-[#006837]" />
-              <span className="text-white/80">Mobile App for Residents</span>
+            <div className="inline-flex items-center mb-6 tracking-widest uppercase">
+              <span className="text-white/80 text-sm font-bold">A Mobile App for Residents</span>
             </div>
 
-            <h2 className="text-5xl md:text-6xl font-black mb-6 leading-tight tracking-tight">
+            <h2 className="text-4xl md:text-5xl font-black mb-5 leading-tight tracking-tight">
               Download{' '}
               <span className="text-[#006837]">CHATEAU</span>
               <br />App on Your Phone
             </h2>
 
-            <p className="text-slate-400 text-lg leading-relaxed mb-10 max-w-xl">
+            <p className="text-slate-400 text-base leading-relaxed mb-8 max-w-xl">
               "Everything about your community, one tap away. Scan the QR code or click down below to download the CHATEAU app and take charge of your community life today."
             </p>
 
             {/* Feature list */}
-            <ul className="space-y-3.5 mb-12">
+            <ul className="space-y-3 mb-10">
               {features.map((f, i) => (
                 <li key={i} className="flex items-center gap-4">
                   <div className="w-8 h-8 rounded-xl bg-[#006837]/20 border border-[#006837]/30 flex items-center justify-center shrink-0">
                     <f.icon size={14} className="text-[#006837]" />
                   </div>
-                  <span className="text-slate-300 text-sm font-medium">{f.text}</span>
+                  <span className="text-slate-300 text-base font-medium">{f.text}</span>
                 </li>
               ))}
             </ul>
@@ -99,12 +92,9 @@ const Downloadpage = () => {
 
           {/* Phone mockup */}
           <div className={`w-full lg:w-auto flex justify-center transition-all duration-1000 delay-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-16'}`}>
-            <div className="relative group">
-              {/* Glow ring */}
-              <div className="absolute inset-0 bg-[#006837]/20 rounded-[3.5rem] blur-2xl scale-105 group-hover:scale-110 transition-transform duration-500" />
-
+            <div className="relative">
               {/* Phone frame */}
-              <div className="relative w-[280px] h-[560px] bg-slate-900 border-[6px] border-slate-700 rounded-[3rem] p-3 shadow-2xl group-hover:scale-105 transition-transform duration-500">
+              <div className="relative w-[290px] h-[580px] bg-slate-900 border-[6px] border-slate-700 rounded-[3rem] p-3 shadow-2xl">
                 {/* Screen */}
                 <div className="w-full h-full bg-slate-50 rounded-[2.4rem] flex flex-col items-center justify-center p-6 text-center overflow-hidden relative">
                   {/* Status bar pill */}
@@ -119,7 +109,7 @@ const Downloadpage = () => {
                     <img
                       src={qrUrl}
                       alt="QR Code"
-                      className="w-36 h-36" />
+                      className="w-40 h-40" />
                   </div>
 
                   <p className="mt-5 text-[10px] text-slate-400 font-bold uppercase tracking-widest">

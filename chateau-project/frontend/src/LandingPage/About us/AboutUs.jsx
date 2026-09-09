@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, X, Maximize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { supabase } from '../../HOA Page/supabaseAdmin';
 import CoverdCourt from '../../assets/CoverdCourt.jpg';
 import ModelHouse1 from '../../assets/ModelHouse1.jpg';
@@ -28,8 +28,6 @@ const AboutUs = () => {
   const next = () => setCurrent(p => (p === slides.length - 1 ? 0 : p + 1));
   const prev = () => setCurrent(p => (p === 0 ? slides.length - 1 : p - 1));
 
-  useEffect(() => { const t = setInterval(next, 5000); return () => clearInterval(t); }, []);
-
   useEffect(() => {
     const obs = new IntersectionObserver(
       ([e]) => { if (e.isIntersecting) { setSectionVisible(true); obs.disconnect(); }},
@@ -50,50 +48,34 @@ const AboutUs = () => {
       `}</style>
 
       <div className="container mx-auto px-6 lg:px-16">
-        <div className="flex flex-col lg:flex-row items-center gap-16">
+        <div className="flex flex-col lg:flex-row items-start gap-10">
 
           {/* ── Left: text ── */}
-          <div className={`w-full lg:w-1/2 au-fade ${sectionVisible ? 'visible' : ''}`}>
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#006837]/10 border border-[#006837]/20 rounded-full text-[#006837] text-xs font-black uppercase tracking-widest mb-5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#006837]" />
-              Our Community
-            </div>
-
-            <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight tracking-tight">
+          <div className={`w-full lg:w-2/5 au-fade ${sectionVisible ? 'visible' : ''}`}>
+            <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-5 leading-tight tracking-tight">
               Elevate Your Living<br />
               Experience at{' '}
               <span className="text-[#006837]">Chateau</span>
             </h2>
 
-            <div className="space-y-4 text-slate-600 leading-relaxed">
+            <div className="space-y-4 text-slate-600 text-base leading-relaxed text-justify">
               <p>
-                Chateau isn't just a place to live, it's a premier community designed for those who value security, comfort, and connection. 
-                Nestled in modern architecture and lush greenery, our subdivision offers a sanctuary away from the hustle, without compromising on convenience. 
-                Here, quiet mornings on tree-lined streets and friendly chats with neighbors are simply part of everyday life. Familiar faces, shared spaces, and a genuine sense of belonging make every day feel a little more like home. 
-                With reliable security and well-kept surroundings, Chateau offers the comfort and peace of mind every resident deserves. It's more than a subdivision, it's the place where you call it home.
-              </p>
-              <p className="font-semibold text-slate-800">
-                Why wait in line at the HOA office when you can manage your home from your fingertips?
+                Chateau is a premier community built for those who value security, comfort, and connection. Amid modern architecture and lush greenery, it offers a quiet sanctuary without compromising on convenience, where friendly neighbors and well-kept surroundings turn every day into a true sense of home.
               </p>
               <p>
-                The CHATEAU App is your key to a seamless lifestyle, instant access to facility bookings,
-                real-time community updates, and a direct line to your HOA board.
+                <span className="font-semibold text-slate-800">Why wait in line at the HOA office when you can manage your home from your fingertips? </span>
+                The CHATEAU App is your key to a seamless lifestyle, instant access to facility bookings, real-time community updates, and a direct line to your HOA board.
               </p>
-               <p className="font-semibold text-slate-800">
-                A platform, built exclusively for our community.
-              </p>
-                <p>
-                Access to the CHATEAU App is strictly limited to verified residents and HOA officers of Chateau Real Executive Village. 
-                Every account is validated against our official homeowner records before activation, no outsiders, no exceptions.
-                Resident data, financial records, and community communications are kept confidential and are never shared beyond the Chateau community. 
-                This ensures that the same trust and security you feel walking through our gates extends to every interaction you have on the app."
+              <p>
+                <span className="font-semibold text-slate-800">A platform, built exclusively for our community. </span>
+                Access is strictly limited to verified residents and HOA officers, with every account validated against our official homeowner records, no outsiders, no exceptions. Resident data, financial records, and community communications stay confidential within Chateau, so the same trust and security you feel at our gates extends to the app.
               </p>
             </div>
           </div>
 
           {/* ── Right: slideshow (no lightbox) ── */}
-          <div className={`w-full lg:w-1/2 au-fade-r ${sectionVisible ? 'visible' : ''}`}>
-            <div className="relative group rounded-3xl overflow-hidden shadow-2xl border-4 border-white cursor-pointer"
+          <div className={`w-full lg:w-3/5 au-fade-r ${sectionVisible ? 'visible' : ''}`}>
+            <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white cursor-pointer"
               onClick={() => setLightboxOpen(true)}>
 
               {/* Slides */}
@@ -102,16 +84,10 @@ const AboutUs = () => {
                   <div key={i}
                     className={`absolute inset-0 transition-opacity duration-1000 ${i === current ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                     <img src={slide.url} alt={slide.caption}
-                      className="w-full h-full object-cover scale-105 group-hover:scale-100 transition-transform duration-700" />
-                    {/* Hover overlay hint */}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-center justify-center">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white/20 backdrop-blur-md p-4 rounded-2xl text-white">
-                        <Maximize2 size={28} />
-                      </div>
-                    </div>
+                      className="w-full h-full object-cover" />
                     {/* Caption */}
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6">
-                      <p className="text-white font-bold text-lg">{slide.caption}</p>
+                      <p className="text-white font-bold text-base">{slide.caption}</p>
                     </div>
                   </div>
                 ))}
@@ -123,7 +99,7 @@ const AboutUs = () => {
                 { fn: next, icon: ChevronRight, pos: 'right-3' },
               ].map(b => (
                 <button key={b.pos} onClick={e => { e.stopPropagation(); b.fn(); }}
-                  className={`absolute ${b.pos} top-1/2 -translate-y-1/2 w-11 h-11 bg-black/30 hover:bg-white hover:text-slate-900 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-all opacity-0 group-hover:opacity-100 z-10`}>
+                  className={`absolute ${b.pos} top-1/2 -translate-y-1/2 w-11 h-11 bg-black/30 backdrop-blur-md rounded-full flex items-center justify-center text-white z-10`}>
                   <b.icon size={22} />
                 </button>
               ))}
@@ -132,7 +108,7 @@ const AboutUs = () => {
               <div className="absolute bottom-4 right-4 flex gap-1.5 z-10">
                 {slides.map((_, i) => (
                   <button key={i} onClick={e => { e.stopPropagation(); setCurrent(i); }}
-                    className={`rounded-full transition-all cursor-pointer ${i === current ? 'w-6 h-2 bg-white' : 'w-2 h-2 bg-white/50 hover:bg-white/80'}`} />
+                    className={`rounded-full cursor-pointer ${i === current ? 'w-6 h-2 bg-white' : 'w-2 h-2 bg-white/50'}`} />
                 ))}
               </div>
             </div>
