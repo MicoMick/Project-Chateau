@@ -34,7 +34,7 @@ const SplashScreen = ({ duration = 2200, onFinish }) => {
         />
         <div className="text-center">
           <h1 className="text-2xl font-semibold tracking-wide text-white">Chateau Real</h1>
-          <p className="text-sm text-slate-400 mt-1">Loading your community…</p>
+          <p className="text-sm text-slate-400 mt-1">Loading…</p>
         </div>
         <div className="w-10 h-10 border-4 border-[#006837]/20 border-t-[#006837] rounded-full animate-spin" />
       </div>
