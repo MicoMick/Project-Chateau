@@ -406,8 +406,8 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
       {verifyTarget && (
         <div className="fixed inset-0 z-[1600] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !returning && setVerifyTarget(null)} />
-          <div className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="relative bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
                   <ShieldCheck size={18} className="text-blue-600" />
@@ -422,7 +422,7 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
               </button>
             </div>
 
-            <div className="p-6 space-y-5">
+            <div className="p-6 space-y-5 overflow-y-auto">
               {verifyTarget.status === 'Return Pending' && (
                 <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-200 rounded-xl">
                   <ShieldCheck size={14} className="text-blue-500 shrink-0 mt-0.5" />
@@ -432,70 +432,80 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
                 </div>
               )}
 
-              {verifyTarget.return_condition_photo_url && (
-                <button onClick={() => { setPhotoPreview(verifyTarget.return_condition_photo_url); setPhotoZoomed(false); }}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-blue-200 hover:border-blue-400 text-blue-600 text-xs font-bold rounded-xl cursor-pointer transition-all">
-                  <Camera size={13} /> View Resident's Return Photo
-                </button>
-              )}
+              {/* Landscape: what the resident reported (left) vs staff review (right) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-xs font-semibold text-slate-500">Units Borrowed</span>
-                <span className="text-sm font-bold text-slate-800">{verifyTarget.quantity || 1} unit(s)</span>
-              </div>
+                {/* Left column — context */}
+                <div className="space-y-5">
+                  {verifyTarget.return_condition_photo_url && (
+                    <button onClick={() => { setPhotoPreview(verifyTarget.return_condition_photo_url); setPhotoZoomed(false); }}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-blue-200 hover:border-blue-400 text-blue-600 text-xs font-bold rounded-xl cursor-pointer transition-all">
+                      <Camera size={13} /> View Resident's Return Photo
+                    </button>
+                  )}
 
-              {/* Condition */}
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Is the item fixed / undamaged?</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => setVerifyCondition('Good')}
-                    className={`flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold border-2 transition-all cursor-pointer
-                      ${verifyCondition === 'Good' ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>
-                    <ShieldCheck size={16} /> Good
-                  </button>
-                  <button onClick={() => setVerifyCondition('Damaged')}
-                    className={`flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold border-2 transition-all cursor-pointer
-                      ${verifyCondition === 'Damaged' ? 'bg-red-50 border-red-400 text-red-600' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>
-                    <Wrench size={16} /> Damaged
-                  </button>
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-xs font-semibold text-slate-500">Units Borrowed</span>
+                    <span className="text-sm font-bold text-slate-800">{verifyTarget.quantity || 1} unit(s)</span>
+                  </div>
+
+                  {/* Condition */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Is the item fixed / undamaged?</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button onClick={() => setVerifyCondition('Good')}
+                        className={`flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold border-2 transition-all cursor-pointer
+                          ${verifyCondition === 'Good' ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                        <ShieldCheck size={16} /> Good
+                      </button>
+                      <button onClick={() => setVerifyCondition('Damaged')}
+                        className={`flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold border-2 transition-all cursor-pointer
+                          ${verifyCondition === 'Damaged' ? 'bg-red-50 border-red-400 text-red-600' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                        <Wrench size={16} /> Damaged
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Missing units */}
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                  Missing units (not returned)
-                </label>
-                <input type="number" min="0" max={verifyTarget.quantity || 1} value={verifyMissingQty}
-                  onChange={e => setVerifyMissingQty(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition-all" />
-                <p className="text-[10px] text-slate-400 mt-1.5">
-                  Out of {verifyTarget.quantity || 1} unit(s) borrowed. Missing or damaged units won't be added back to available stock.
-                </p>
-              </div>
+                {/* Right column — staff input */}
+                <div className="space-y-5">
+                  {/* Missing units */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                      Missing units (not returned)
+                    </label>
+                    <input type="number" min="0" max={verifyTarget.quantity || 1} value={verifyMissingQty}
+                      onChange={e => setVerifyMissingQty(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition-all" />
+                    <p className="text-[10px] text-slate-400 mt-1.5">
+                      Out of {verifyTarget.quantity || 1} unit(s) borrowed. Missing or damaged units won't be added back to available stock.
+                    </p>
+                  </div>
 
-              {/* Notes */}
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Notes (optional)</label>
-                <textarea rows={2} value={verifyNotes} onChange={e => setVerifyNotes(e.target.value)}
-                  placeholder="e.g. one chair leg bent, tent pole missing…"
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition-all placeholder-slate-400" />
-              </div>
+                  {/* Notes */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Notes (optional)</label>
+                    <textarea rows={2} value={verifyNotes} onChange={e => setVerifyNotes(e.target.value)}
+                      placeholder="e.g. one chair leg bent, tent pole missing…"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition-all placeholder-slate-400" />
+                  </div>
 
-              {/* Staff-attached return photo — optional, for when the
-                  resident didn't submit one themselves (or as a second one) */}
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                  {verifyTarget.return_condition_photo_url ? "Replace Resident's Photo (optional)" : 'Return Photo (optional)'}
-                </label>
-                <label className="flex items-center gap-2.5 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm cursor-pointer hover:border-blue-300 transition-all">
-                  <Camera size={16} className={verifyPhotoFile ? 'text-blue-600' : 'text-slate-400'} />
-                  <span className={`flex-1 truncate ${verifyPhotoFile ? 'text-blue-600 font-semibold' : 'text-slate-400'}`}>
-                    {verifyPhotoFile ? verifyPhotoFile.name : 'Attach a photo of the item as returned'}
-                  </span>
-                  <input type="file" accept="image/*" className="hidden"
-                    onChange={e => setVerifyPhotoFile(e.target.files[0] || null)} />
-                </label>
+                  {/* Staff-attached return photo — optional, for when the
+                      resident didn't submit one themselves (or as a second one) */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                      {verifyTarget.return_condition_photo_url ? "Replace Resident's Photo (optional)" : 'Return Photo (optional)'}
+                    </label>
+                    <label className="flex items-center gap-2.5 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm cursor-pointer hover:border-blue-300 transition-all">
+                      <Camera size={16} className={verifyPhotoFile ? 'text-blue-600' : 'text-slate-400'} />
+                      <span className={`flex-1 truncate ${verifyPhotoFile ? 'text-blue-600 font-semibold' : 'text-slate-400'}`}>
+                        {verifyPhotoFile ? verifyPhotoFile.name : 'Attach a photo of the item as returned'}
+                      </span>
+                      <input type="file" accept="image/*" className="hidden"
+                        onChange={e => setVerifyPhotoFile(e.target.files[0] || null)} />
+                    </label>
+                  </div>
+                </div>
               </div>
 
               {(verifyCondition === 'Damaged' || Number(verifyMissingQty) > 0) && (
@@ -508,7 +518,7 @@ const Borrowers = ({ reservations, search, setSearch, tab, setTab, returning, se
               )}
             </div>
 
-            <div className="px-6 pb-6 flex gap-3">
+            <div className="px-6 pb-6 pt-2 flex gap-3 shrink-0">
               <button onClick={() => setVerifyTarget(null)} disabled={returning === verifyTarget.id}
                 className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl cursor-pointer transition-all disabled:opacity-50">
                 Cancel

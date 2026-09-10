@@ -233,6 +233,12 @@ const AccountApproval = ({ embedded = false, onDataChange }) => {
       const { data: existing } = await supabase.from('payments').select('due_date').eq('user_id', profile.id);
       const existingMonths = new Set((existing || []).map(p => (p.due_date || '').slice(0, 7)));
 
+      // Only months strictly BEFORE the current one are "real-life" dues the
+      // resident may have already settled outside the app — those land as
+      // 'pending' for the Treasurer to confirm (on the President's say-so)
+      // against actual records. The current month just started under this
+      // account, so there's no ambiguity: it's billed as a normal 'unpaid'
+      // due, same as any other resident, payable straight from the app.
       const rows = [];
       for (let m = 0; m <= currentMonth; m++) {
         const lastDay = new Date(year, m + 1, 0).getDate();
@@ -243,7 +249,7 @@ const AccountApproval = ({ embedded = false, onDataChange }) => {
           amount: monthlyDue,
           statement_date: `${year}-${String(m + 1).padStart(2, '0')}-01`,
           due_date: dueDate,
-          status: 'pending',
+          status: m === currentMonth ? 'unpaid' : 'pending',
           reference_no: generateRefNo(m, year, profile.id),
           line_items: lineItems,
         });
@@ -252,7 +258,13 @@ const AccountApproval = ({ embedded = false, onDataChange }) => {
 
       const { error } = await supabase.from('payments').insert(rows);
       if (error) throw error;
-      await logAudit('BACKFILL_DUES', `${fullName(profile)} — back-filled ${rows.length} past due(s) as Pending (Jan–${MONTHS[currentMonth]} ${year}) for Treasurer verification`);
+
+      const pastCount = rows.filter(r => r.status === 'pending').length;
+      const billedCurrent = rows.some(r => r.status === 'unpaid');
+      const parts = [];
+      if (pastCount) parts.push(`${pastCount} past due(s) as Pending (Jan–${MONTHS[currentMonth - 1]} ${year}) for Treasurer verification`);
+      if (billedCurrent) parts.push(`${MONTHS[currentMonth]} ${year} as Unpaid`);
+      await logAudit('BACKFILL_DUES', `${fullName(profile)} — billed ${parts.join(' and ')}`);
     } catch (e) {
       console.error('Back-filling past dues failed:', e.message);
     }
