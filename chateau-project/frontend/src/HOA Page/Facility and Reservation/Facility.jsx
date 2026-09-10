@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   Search, Plus, Users, Clock, Eye, Edit, Trash2,
-  ChevronDown, X, Upload, CheckCircle2, AlertCircle,
+  ChevronDown, X, CheckCircle2, AlertCircle,
   Loader2, HelpCircle, Layers, Tag, DollarSign,
   WifiOff, Wrench, AlertTriangle, Building2, Package,
 } from 'lucide-react';
 import { supabase } from '../supabaseAdmin';
 import { Pannellum } from 'pannellum-react';
 import logger from '../auditLogger';
+import { fmt12, getItemAgreement, getItemAgreementText, UploadZone, inputCls, labelCls } from './facilityHelpers';
+import FacilityEditModal from './FacilityEditModal';
 
 // ─── Role guard ───────────────────────────────────────────────────────────────
 const RequireRole = ({ userRole, allowedRoles, children }) => {
@@ -24,13 +26,8 @@ const logActivity = async (supabase, userEmail, activity, severity, details) => 
   } catch (err) { console.error('Failed to log:', err); }
 };
 
-const fmt12 = (t) => {
-  if (!t) return '';
-  if (t.includes('-')) return t.split('-').map(s => fmt12(s.trim())).join(' – ');
-  const [h, m] = t.split(':');
-  const hr = parseInt(h, 10);
-  return `${hr % 12 || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`;
-};
+// fmt12, getItemAgreement, getItemAgreementText, UploadZone moved to
+// ./facilityHelpers — shared with the extracted FacilityEditModal.
 
 // ─── Status config ────────────────────────────────────────────────────────────
 const STATUS_CFG = {
@@ -41,32 +38,7 @@ const STATUS_CFG = {
 };
 const getStatus = (s) => STATUS_CFG[s] || STATUS_CFG['Available'];
 
-// ─── Liability agreement for borrowed Amenity Items ──────────────────────────
-// Builds a condensed but on-point set of terms based on the item's name.
-// Shown to homeowners whenever they view an Amenity Item, so the borrowing
-// terms are always visible and consistent across every item of that type.
-// Returns an array of {label, text} so it can render as clean bullet points.
-const getItemAgreement = (itemName = '') => {
-  const name = itemName.toLowerCase();
-  const noun = name.includes('chair') ? 'chair(s)'
-             : name.includes('tent')  ? 'tent(s)'
-             : 'item(s)';
-
-  return [
-    { label: 'Care & Use',  text: 'Received in good, working condition. For personal use only within the agreed event area — no lending to third parties.' },
-    { label: 'Damage',      text: `Borrower is responsible for the ${noun} from pickup until returned. If damaged or broken, borrower must pay full replacement cost or provide an identical brand-new replacement.` },
-    { label: 'Loss/Theft',  text: `Borrower is liable for any missing ${noun}. If lost or not returned, borrower must pay full retail cost or replace with a brand-new identical unit.` },
-    { label: 'Return',      text: 'Must be returned clean and in good condition by the agreed deadline, properly stored/packed as issued.' },
-  ];
-};
-
-// Flat single-line version — used only for storing in the DB `description` column
-const getItemAgreementText = (itemName = '') =>
-  getItemAgreement(itemName).map(t => `${t.label}: ${t.text}`).join(' ');
-
-// ─── Input ────────────────────────────────────────────────────────────────────
-const inputCls = "w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#006837]/20 focus:border-[#006837] transition-all placeholder-slate-400";
-const labelCls = "block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5";
+// inputCls, labelCls moved to ./facilityHelpers — shared with FacilityEditModal.
 
 // ─── TransactionModal ─────────────────────────────────────────────────────────
 const TransactionModal = ({ status, message, onClose }) => {
@@ -111,27 +83,6 @@ const ConfirmModal = ({ isOpen, onConfirm, onCancel }) => {
     </div>
   );
 };
-
-// ─── Upload Zone ──────────────────────────────────────────────────────────────
-const UploadZone = ({ file, onFile, is360, onIs360, inputId, hint }) => (
-  <div className="p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 hover:border-[#006837]/40 transition-all">
-    <input type="file" id={inputId} className="hidden" accept="image/*" onChange={e => onFile(e.target.files[0])} />
-    <label htmlFor={inputId} className="flex flex-col items-center gap-2 cursor-pointer py-2">
-      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
-        <Upload size={18} className="text-[#006837]" />
-      </div>
-      <div className="text-center">
-        <p className="text-xs font-bold text-slate-600">{file ? file.name : hint || 'Upload Image'}</p>
-        <p className="text-[10px] text-slate-400 mt-0.5">Click to browse</p>
-      </div>
-    </label>
-    <div className="flex items-center gap-2 justify-center border-t border-slate-200 pt-3 mt-1">
-      <input type="checkbox" id={`is360-${inputId}`} checked={is360} onChange={e => onIs360(e.target.checked)}
-        className="w-4 h-4 rounded accent-[#006837] cursor-pointer" />
-      <label htmlFor={`is360-${inputId}`} className="text-xs font-bold text-slate-600 cursor-pointer">This is a 360° image</label>
-    </div>
-  </div>
-);
 
 // ─── Facility Card ────────────────────────────────────────────────────────────
 const FacilityCard = ({ fac, onView, onEdit, onDelete, currentUserRole }) => {
@@ -238,21 +189,47 @@ const FacilityCard = ({ fac, onView, onEdit, onDelete, currentUserRole }) => {
   );
 };
 
-// ─── Add / Edit Drawer Modal ──────────────────────────────────────────────────
-const FacilityFormModal = ({ title, subtitle, onClose, onSubmit, submitLabel, children }) => (
-  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
-    <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col">
-      <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
-        <div>
-          <h2 className="text-lg font-black text-slate-900">{title}</h2>
-          {subtitle && <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-0.5">{subtitle}</p>}
+// ─── Add Facility / Add Item modal — landscape, two columns ─────────────────
+// `left` and `right` are JSX nodes rather than a flat children list, so each
+// caller controls exactly how its fields split across the two columns.
+const FacilityFormModal = ({ title, subtitle, icon: Icon, onClose, onSubmit, submitLabel, left, right }) => (
+  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[300] flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col"
+      onClick={e => e.stopPropagation()}
+    >
+      {/* Header */}
+      <div className="px-7 py-5 border-b border-slate-100 flex items-start justify-between gap-4 shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          {Icon && (
+            <div className="w-11 h-11 rounded-2xl bg-[#006837]/10 flex items-center justify-center shrink-0">
+              <Icon size={18} className="text-[#006837]" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <h2 className="text-lg font-black text-slate-900 truncate">{title}</h2>
+            {subtitle && <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">{subtitle}</p>}
+          </div>
         </div>
-        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl cursor-pointer"><X size={18} className="text-slate-400" /></button>
+        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl text-slate-500 cursor-pointer shrink-0">
+          <X size={18} />
+        </button>
       </div>
-      <div className="p-6 space-y-4 overflow-y-auto flex-1">{children}</div>
-      <div className="px-6 pb-6 shrink-0">
+
+      {/* Landscape body — two columns */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100 overflow-y-auto">
+        <div className="p-7 space-y-5">{left}</div>
+        <div className="p-7 space-y-5 bg-slate-50/50">{right}</div>
+      </div>
+
+      {/* Footer */}
+      <div className="px-7 py-5 border-t border-slate-100 flex gap-3 shrink-0">
+        <button onClick={onClose}
+          className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-2xl font-bold cursor-pointer transition-all">
+          Cancel
+        </button>
         <button onClick={onSubmit}
-          className="w-full py-3.5 bg-[#006837] hover:bg-[#004d29] text-white font-bold rounded-2xl shadow-lg shadow-[#006837]/20 cursor-pointer transition-all">
+          className="flex-1 py-3 bg-[#006837] hover:bg-[#004d29] text-white rounded-2xl font-bold shadow-lg shadow-[#006837]/20 cursor-pointer transition-all">
           {submitLabel}
         </button>
       </div>
@@ -375,7 +352,16 @@ const Facility = () => {
         else if (editingFacility.status === 'Not Available' && amt > 0) finalStatus = 'Available';
       }
 
-      const updated = { ...editingFacility, description: finalDescription, status: finalStatus, image_360_url: url, is_360: is360 };
+      // opening_time/closing_time are transient fields the edit form uses to
+      // split the DB's single `hours` string into two time inputs — they
+      // aren't real columns, so they're rebuilt into `hours` here and never
+      // sent to Supabase directly.
+      const { opening_time, closing_time, ...facilityFields } = editingFacility;
+      const finalHours = editingFacility.category === 'Amenity Facility'
+        ? `${opening_time || ''} - ${closing_time || ''}`
+        : editingFacility.hours;
+
+      const updated = { ...facilityFields, description: finalDescription, status: finalStatus, hours: finalHours, image_360_url: url, is_360: is360 };
       const { error } = await supabase.from('facilities').update(updated).eq('id', editingFacility.id);
       if (error) throw error;
       await logActivity(supabase, user?.email, 'Update Facility', 'info', `Updated: ${editingFacility.name}`);
@@ -450,14 +436,14 @@ const Facility = () => {
       {/* ── KPI Strip ── */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[
-          { label: 'Total',        value: counts.total,       color: 'text-slate-700',    bg: 'bg-slate-100'    },
-          { label: 'Available',    value: counts.available,   color: 'text-emerald-700',  bg: 'bg-emerald-50'   },
-          { label: 'Maintenance',  value: counts.maintenance, color: 'text-amber-700',    bg: 'bg-amber-50'     },
-          { label: 'Facilities',   value: counts.facilities,  color: 'text-[#006837]',    bg: 'bg-[#006837]/10' },
-          { label: 'Items',        value: counts.items,       color: 'text-blue-700',     bg: 'bg-blue-50'      },
+          { label: 'Total',        value: counts.total,       color: 'text-slate-700'    },
+          { label: 'Available',    value: counts.available,   color: 'text-emerald-700'  },
+          { label: 'Maintenance',  value: counts.maintenance, color: 'text-amber-700'    },
+          { label: 'Facilities',   value: counts.facilities,  color: 'text-[#006837]'    },
+          { label: 'Items',        value: counts.items,       color: 'text-blue-700'     },
         ].map(k => (
-          <div key={k.label} className={`${k.bg} rounded-2xl px-4 py-3 border border-white`}>
-            <p className={`text-[10px] font-black uppercase tracking-widest ${k.color} opacity-70`}>{k.label}</p>
+          <div key={k.label} className="bg-white rounded-2xl px-4 py-3 border border-slate-100 shadow-sm">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{k.label}</p>
             <p className={`text-2xl font-black ${k.color} mt-0.5`}>{k.value}</p>
           </div>
         ))}
@@ -498,7 +484,14 @@ const Facility = () => {
           {filtered.map(fac => (
             <FacilityCard key={fac.id} fac={fac} currentUserRole={currentUserRole}
               onView={setViewingFacility}
-              onEdit={f => { setEditingFacility(f); setIs360(f.is_360 || false); setFile(null); }}
+              onEdit={f => {
+                // Hours are stored as a single "HH:MM - HH:MM" string — split
+                // it back into the two time inputs the edit form now uses.
+                const [opening_time = '', closing_time = ''] = (f.hours || '').split(' - ').map(s => s.trim());
+                setEditingFacility({ ...f, opening_time, closing_time });
+                setIs360(f.is_360 || false);
+                setFile(null);
+              }}
               onDelete={id => setConfirmData({ isOpen: true, id })}
             />
           ))}
@@ -507,134 +500,94 @@ const Facility = () => {
 
       {/* ── Add Facility Modal ── */}
       {isAddFacilityOpen && (
-        <FacilityFormModal title="Add New Facility" onClose={() => setIsAddFacilityOpen(false)}
-          onSubmit={handleAddFacility} submitLabel="Create Facility">
-          <div><label className={labelCls}>Facility Name</label><input className={inputCls} placeholder="e.g. Covered Court" value={newFacility.name} onChange={e => setNewFacility(p => ({...p, name: e.target.value}))} /></div>
-          <div><label className={labelCls}>Description</label><textarea rows={3} className={inputCls} placeholder="Describe the facility…" value={newFacility.description} onChange={e => setNewFacility(p => ({...p, description: e.target.value}))} /></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className={labelCls}>Capacity</label><input className={inputCls} placeholder="e.g. 50 pax" value={newFacility.capacity} onChange={e => setNewFacility(p => ({...p, capacity: e.target.value}))} /></div>
-            <div><label className={labelCls}>Hourly Rate (₱)</label><input type="number" className={inputCls} placeholder="0.00" value={newFacility.rate} onChange={e => setNewFacility(p => ({...p, rate: e.target.value}))} /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className={labelCls}>Opening Time</label><input type="time" className={inputCls} value={newFacility.opening_time} onChange={e => setNewFacility(p => ({...p, opening_time: e.target.value}))} /></div>
-            <div><label className={labelCls}>Closing Time</label><input type="time" className={inputCls} value={newFacility.closing_time} onChange={e => setNewFacility(p => ({...p, closing_time: e.target.value}))} /></div>
-          </div>
-          <div>
-            <label className={labelCls}>Status</label>
-            <div className="relative">
-              <select className={`${inputCls} appearance-none`} value={newFacility.status} onChange={e => setNewFacility(p => ({...p, status: e.target.value}))}>
-                <option>Available</option><option>Not Available</option><option>Under Maintenance</option>
-              </select>
-              <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <FacilityFormModal title="Add New Facility" subtitle="Amenity Facility" icon={Building2}
+          onClose={() => setIsAddFacilityOpen(false)}
+          onSubmit={handleAddFacility} submitLabel="Create Facility"
+          left={<>
+            <div><label className={labelCls}>Facility Name</label><input className={inputCls} placeholder="e.g. Covered Court" value={newFacility.name} onChange={e => setNewFacility(p => ({...p, name: e.target.value}))} /></div>
+            <div>
+              <label className={labelCls}>Status</label>
+              <div className="relative">
+                <select className={`${inputCls} appearance-none cursor-pointer`} value={newFacility.status} onChange={e => setNewFacility(p => ({...p, status: e.target.value}))}>
+                  <option>Available</option><option>Not Available</option><option>Under Maintenance</option>
+                </select>
+                <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
             </div>
-          </div>
-          <UploadZone file={file} onFile={setFile} is360={is360} onIs360={setIs360} inputId="add-fac-img" hint="Upload facility photo" />
-        </FacilityFormModal>
+            <div>
+              <label className={labelCls}>Photo</label>
+              <UploadZone file={file} onFile={setFile} is360={is360} onIs360={setIs360} inputId="add-fac-img" hint="Upload facility photo" />
+            </div>
+          </>}
+          right={<>
+            <div><label className={labelCls}>Description</label><textarea rows={4} className={inputCls} placeholder="Describe the facility…" value={newFacility.description} onChange={e => setNewFacility(p => ({...p, description: e.target.value}))} /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className={labelCls}>Capacity</label><input className={inputCls} placeholder="e.g. 50 pax" value={newFacility.capacity} onChange={e => setNewFacility(p => ({...p, capacity: e.target.value}))} /></div>
+              <div><label className={labelCls}>Hourly Rate (₱)</label><input type="number" className={inputCls} placeholder="0.00" value={newFacility.rate} onChange={e => setNewFacility(p => ({...p, rate: e.target.value}))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className={labelCls}>Opening Time</label><input type="time" className={`${inputCls} cursor-pointer`} value={newFacility.opening_time} onChange={e => setNewFacility(p => ({...p, opening_time: e.target.value}))} /></div>
+              <div><label className={labelCls}>Closing Time</label><input type="time" className={`${inputCls} cursor-pointer`} value={newFacility.closing_time} onChange={e => setNewFacility(p => ({...p, closing_time: e.target.value}))} /></div>
+            </div>
+          </>}
+        />
       )}
 
       {/* ── Add Item Modal ── */}
       {isAddItemOpen && (
-        <FacilityFormModal title="Add Amenity Item" onClose={() => setIsAddItemOpen(false)}
-          onSubmit={handleAddItem} submitLabel="Add Item">
-          <div><label className={labelCls}>Item Name</label><input className={inputCls} placeholder="e.g. Folding Chairs" value={newItem.name} onChange={e => setNewItem(p => ({...p, name: e.target.value}))} /></div>
-          <div>
-            <label className={labelCls}>Total Stock</label>
-            <input type="number" min="0" className={inputCls} placeholder="e.g. 43" value={newItem.amount}
-              onChange={e => setNewItem(p => ({...p, amount: e.target.value}))} />
-            <p className="text-[10px] text-slate-400 mt-1.5">Total units the HOA owns — all of them start out available to borrow.</p>
-          </div>
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl">
-            <div className="flex items-center gap-2 mb-2.5">
-              <AlertTriangle size={14} className="text-amber-500 shrink-0" />
-              <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Borrower's Agreement</p>
-            </div>
-            <ul className="space-y-1.5">
-              {getItemAgreement(newItem.name || 'item').map(({ label, text }) => (
-                <li key={label} className="text-[11px] text-amber-800 leading-relaxed flex gap-1.5">
-                  <span className="font-black shrink-0">•</span>
-                  <span><span className="font-bold">{label}:</span> {text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <label className={labelCls}>Status</label>
-            <div className="relative">
-              <select className={`${inputCls} appearance-none`} value={newItem.status} onChange={e => setNewItem(p => ({...p, status: e.target.value}))}>
-                <option>Available</option><option>Not Available</option><option>Under Maintenance</option>
-              </select>
-              <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
-          </div>
-          <UploadZone file={file} onFile={setFile} is360={is360} onIs360={setIs360} inputId="add-item-img" hint="Upload item photo" />
-        </FacilityFormModal>
-      )}
-
-      {/* ── Edit Modal ── */}
-      {editingFacility && (
-        <FacilityFormModal title="Edit Details" subtitle={editingFacility.category}
-          onClose={() => { setEditingFacility(null); setFile(null); }}
-          onSubmit={handleUpdate} submitLabel="Save Changes">
-          <div><label className={labelCls}>Name</label><input className={inputCls} value={editingFacility.name} onChange={e => setEditingFacility(p => ({...p, name: e.target.value}))} /></div>
-          {editingFacility.category === 'Amenity Item' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelCls}>Available Stock</label>
-                <input type="number" min="0" className={inputCls} value={editingFacility.amount ?? ''}
-                  onChange={e => setEditingFacility(p => ({...p, amount: e.target.value}))} />
-                <p className="text-[10px] text-slate-400 mt-1.5">Status auto-switches to "Not Available" at 0.</p>
-              </div>
-              <div>
-                <label className={labelCls}>Total Stock</label>
-                <input type="number" min="0" className={inputCls} value={editingFacility.total_quantity ?? ''}
-                  onChange={e => setEditingFacility(p => ({...p, total_quantity: e.target.value}))} />
-                <p className="text-[10px] text-slate-400 mt-1.5">Total units the HOA owns, including borrowed ones.</p>
-              </div>
-            </div>
-          )}
-          {editingFacility.category === 'Amenity Facility' && (
+        <FacilityFormModal title="Add Amenity Item" subtitle="Amenity Item" icon={Package}
+          onClose={() => setIsAddItemOpen(false)}
+          onSubmit={handleAddItem} submitLabel="Add Item"
+          left={<>
+            <div><label className={labelCls}>Item Name</label><input className={inputCls} placeholder="e.g. Folding Chairs" value={newItem.name} onChange={e => setNewItem(p => ({...p, name: e.target.value}))} /></div>
             <div>
-              <label className={labelCls}>Description</label>
-              <textarea rows={3} className={inputCls}
-                value={editingFacility.description || ''}
-                onChange={e => setEditingFacility(p => ({...p, description: e.target.value}))} />
+              <label className={labelCls}>Status</label>
+              <div className="relative">
+                <select className={`${inputCls} appearance-none cursor-pointer`} value={newItem.status} onChange={e => setNewItem(p => ({...p, status: e.target.value}))}>
+                  <option>Available</option><option>Not Available</option><option>Under Maintenance</option>
+                </select>
+                <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
             </div>
-          )}
-          {editingFacility.category === 'Amenity Item' && (
+            <div>
+              <label className={labelCls}>Photo</label>
+              <UploadZone file={file} onFile={setFile} is360={is360} onIs360={setIs360} inputId="add-item-img" hint="Upload item photo" />
+            </div>
+          </>}
+          right={<>
+            <div>
+              <label className={labelCls}>Total Stock</label>
+              <input type="number" min="0" className={inputCls} placeholder="e.g. 43" value={newItem.amount}
+                onChange={e => setNewItem(p => ({...p, amount: e.target.value}))} />
+              <p className="text-xs text-slate-500 mt-1.5">Total units the HOA owns — all of them start out available to borrow.</p>
+            </div>
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl">
               <div className="flex items-center gap-2 mb-2.5">
                 <AlertTriangle size={14} className="text-amber-500 shrink-0" />
-                <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Auto-Generated Borrower's Agreement</p>
+                <p className="text-xs font-black text-amber-800 uppercase tracking-wider">Borrower's Agreement</p>
               </div>
               <ul className="space-y-1.5">
-                {getItemAgreement(editingFacility.name).map(({ label, text }) => (
-                  <li key={label} className="text-[11px] text-amber-800 leading-relaxed flex gap-1.5">
+                {getItemAgreement(newItem.name || 'item').map(({ label, text }) => (
+                  <li key={label} className="text-xs text-amber-900 leading-relaxed flex gap-1.5">
                     <span className="font-black shrink-0">•</span>
                     <span><span className="font-bold">{label}:</span> {text}</span>
                   </li>
                 ))}
               </ul>
             </div>
-          )}
-          {editingFacility.category === 'Amenity Facility' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div><label className={labelCls}>Capacity</label><input className={inputCls} value={editingFacility.capacity} onChange={e => setEditingFacility(p => ({...p, capacity: e.target.value}))} /></div>
-              <div><label className={labelCls}>Rate</label><input className={inputCls} value={editingFacility.rate} onChange={e => setEditingFacility(p => ({...p, rate: e.target.value}))} /></div>
-            </div>
-          )}
-          <div>
-            <label className={labelCls}>Status</label>
-            <div className="relative">
-              <select className={`${inputCls} appearance-none`} value={editingFacility.status} onChange={e => setEditingFacility(p => ({...p, status: e.target.value}))}>
-                <option>Available</option><option>Not Available</option><option>Under Maintenance</option><option>Fully Booked</option>
-              </select>
-              <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
-          </div>
-          <UploadZone file={file} onFile={setFile} is360={is360} onIs360={setIs360} inputId="edit-img"
-            hint={editingFacility.image_360_url && !file ? 'Current image kept — upload to replace' : 'Upload new image'} />
-        </FacilityFormModal>
+          </>}
+        />
       )}
+
+      {/* ── Edit Modal ── */}
+      <FacilityEditModal
+        facility={editingFacility}
+        setFacility={setEditingFacility}
+        file={file} setFile={setFile}
+        is360={is360} setIs360={setIs360}
+        onClose={() => { setEditingFacility(null); setFile(null); }}
+        onSubmit={handleUpdate}
+      />
 
       {/* ── View Modal ── */}
       {viewingFacility && (
