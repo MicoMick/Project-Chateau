@@ -1,30 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseAdmin';
 import { logAudit } from '../auditLogger';
 import {
-  ClipboardList, ChevronDown, ChevronUp, Check, X,
-  CheckCircle2, AlertCircle, AlertTriangle, RefreshCw,
-  Calendar, User, Home, FileText, Search, Filter,
-  Eye, ZoomIn, ZoomOut, MapPin, Clock, Shield,
+  ClipboardList, Check, X, CheckCircle2, AlertCircle, RefreshCw, Search, Eye,
 } from 'lucide-react';
+import { StatusPill } from './moveInClearanceHelpers';
+import ClearanceDetailModal from './ClearanceDetailModal';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const STATUS_CONFIG = {
-  pending:  { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-100',   dot: 'bg-amber-400',   label: 'Pending'  },
-  approved: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100', dot: 'bg-emerald-400', label: 'Approved' },
-  rejected: { bg: 'bg-red-50',     text: 'text-red-600',     border: 'border-red-100',     dot: 'bg-red-400',     label: 'Rejected' },
-};
-
-const StatusPill = ({ status }) => {
-  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG['pending'];
-  return (
-    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-      {cfg.label}
-    </span>
-  );
-};
 
 const Toast = ({ toast }) => {
   if (!toast.show) return null;
@@ -42,151 +25,35 @@ const Toast = ({ toast }) => {
   );
 };
 
-// ── Extract the storage path from a full Supabase Storage URL ────────────────
-// e.g. "https://….supabase.co/storage/v1/object/public/move-in-docs/proof-of-ownership/file.jpg"
-//   → "proof-of-ownership/file.jpg"
-const extractStoragePath = (value) => {
-  if (!value) return null;
-  // Already a bare path (no protocol)
-  if (!value.startsWith('http')) return value;
-  // Pull everything after the bucket name in the URL
-  const marker = '/move-in-docs/';
-  const idx = value.indexOf(marker);
-  if (idx !== -1) return value.slice(idx + marker.length);
-  return null;
-};
-
-// ── DocLink — views a signed URL for a private bucket file, in-app ───────────
-// The bucket "move-in-docs" is PRIVATE, so public URLs return 404.
-// createSignedUrl generates a short-lived (60 min) authenticated link, which
-// is then shown in an in-app lightbox (never a new tab) — images are
-// click-to-zoom, PDFs render inline via an iframe.
-const DocLink = ({ value, label }) => {
-  const [loading,    setLoading]    = React.useState(false);
-  const [err,        setErr]        = React.useState(false);
-  const [signedUrl,  setSignedUrl]  = React.useState(null);
-  const [zoomed,     setZoomed]     = React.useState(false);
-
-  const handleOpen = async () => {
-    setLoading(true);
-    setErr(false);
-    try {
-      const path = extractStoragePath(value);
-      if (!path) throw new Error('Cannot resolve path');
-      const { data, error } = await supabase.storage
-        .from('move-in-docs')
-        .createSignedUrl(path, 3600); // 1-hour signed URL
-      if (error || !data?.signedUrl) throw error || new Error('No URL');
-      setSignedUrl(data.signedUrl);
-      setZoomed(false);
-    } catch {
-      setErr(true);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const close = () => { setSignedUrl(null); setZoomed(false); };
-
-  if (err) return <span className="text-sm text-red-400 italic">Failed to open — check storage permissions</span>;
-
-  return (
-    <>
-      <button
-        onClick={handleOpen}
-        disabled={loading}
-        className="flex items-center gap-1.5 text-sm font-semibold text-[#006837] hover:underline cursor-pointer disabled:opacity-60">
-        {loading
-          ? <><span className="w-3 h-3 border-2 border-[#006837]/30 border-t-[#006837] rounded-full animate-spin" /> Opening…</>
-          : <><Eye size={12} /> View Document</>}
-      </button>
-
-      {signedUrl && (
-        <div className="fixed inset-0 z-[2100] flex items-center justify-center p-4" onClick={close}>
-          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" />
-          <div className={`relative bg-white rounded-2xl shadow-2xl overflow-hidden w-full flex flex-col transition-all duration-200
-              ${zoomed ? 'max-w-5xl max-h-[94vh]' : 'max-w-lg max-h-[85vh]'}`}
-            onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
-              <p className="text-sm font-black text-slate-800 flex items-center gap-1.5">
-                <FileText size={14} className="text-[#006837]" /> {label || 'Document'}
-              </p>
-              <div className="flex items-center gap-1.5">
-                {!/\.pdf($|\?)/i.test(signedUrl) && (
-                  <button onClick={() => setZoomed(z => !z)}
-                    className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 cursor-pointer transition-all"
-                    title={zoomed ? 'Zoom out' : 'Zoom in'}>
-                    {zoomed ? <ZoomOut size={16} /> : <ZoomIn size={16} />}
-                  </button>
-                )}
-                <button onClick={close}
-                  className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 cursor-pointer transition-all">
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
-            <div className="overflow-auto p-4 flex items-center justify-center bg-slate-50 flex-1">
-              {/\.pdf($|\?)/i.test(signedUrl)
-                ? <iframe src={signedUrl} title={label || 'Document'} className="w-full h-[70vh] rounded-lg border border-slate-200 bg-white" />
-                : <img src={signedUrl} alt={label || 'Document'} onClick={() => setZoomed(z => !z)}
-                    className={`rounded-lg object-contain transition-all duration-200 cursor-zoom-in
-                      ${zoomed ? 'max-w-none max-h-none w-auto cursor-zoom-out' : 'max-w-full max-h-[65vh]'}`} />}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-};
-
-const DetailRow = ({ label, value, url }) => {
-  if (!value) return (
-    <div className="flex items-start justify-between py-2.5 border-b border-slate-50 last:border-0">
-      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 w-40">{label}</span>
-      <span className="text-sm text-slate-300 italic">Not provided</span>
-    </div>
-  );
-
-  return (
-    <div className="flex items-start justify-between py-2.5 border-b border-slate-50 last:border-0">
-      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 w-40">{label}</span>
-      {url
-        ? <DocLink value={value} label={label} />
-        : <span className="text-sm font-semibold text-slate-700 text-right max-w-[260px] break-words">{value}</span>
-      }
-    </div>
-  );
-};
-
 // ─── Reject Notes Modal ───────────────────────────────────────────────────────
 const RejectModal = ({ request, onClose, onConfirm, loading }) => {
   const [notes, setNotes] = useState('');
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-3xl p-7 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center mb-4">
           <X size={22} className="text-red-500" />
         </div>
         <h3 className="text-lg font-black text-slate-900 mb-1">Reject Clearance?</h3>
-        <p className="text-sm text-slate-500 mb-4 leading-relaxed">
+        <p className="text-sm text-slate-600 mb-4 leading-relaxed">
           This will notify the resident that their clearance was rejected.
           You may add a note explaining why.
         </p>
         <div className="mb-5">
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-            Admin Notes <span className="text-slate-300">(optional)</span>
+          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+            Admin Notes <span className="text-slate-400">(optional)</span>
           </label>
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value)}
             rows={3}
             placeholder="e.g. Missing barangay clearance document…"
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#006837]/20 focus:border-[#006837] resize-none transition-all"
+            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#006837]/20 focus:border-[#006837] resize-none transition-all"
           />
         </div>
         <div className="flex gap-3">
           <button onClick={onClose} disabled={loading}
-            className="flex-1 py-3 rounded-2xl bg-slate-100 text-slate-600 font-bold text-sm hover:bg-slate-200 cursor-pointer disabled:opacity-50">
+            className="flex-1 py-3 rounded-2xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 cursor-pointer disabled:opacity-50">
             Cancel
           </button>
           <button onClick={() => onConfirm(notes)} disabled={loading}
@@ -199,216 +66,78 @@ const RejectModal = ({ request, onClose, onConfirm, loading }) => {
   );
 };
 
-// ─── Accordion Row ────────────────────────────────────────────────────────────
-const ClearanceRow = ({ item, onApprove, onReject, actionLoadingId }) => {
-  const [open, setOpen] = useState(false);
-
+// ─── Clearance Row ────────────────────────────────────────────────────────────
+// Compact — full detail lives in ClearanceDetailModal so it always has room
+// to breathe instead of being crammed into an expanding accordion.
+const ClearanceRow = ({ item, onView, onApprove, onReject, actionLoadingId }) => {
   const residentName = item.profiles?.full_name || 'Unknown Resident';
-  const isOwner      = (item.resident_type || '').toLowerCase() === 'owner';
-  const isMoveIn     = !!item.move_in_date;
-  const typeLabel    = isMoveIn ? 'MOVE IN' : 'MOVE OUT';
-  const isLoading    = actionLoadingId === item.id;
-
-  // Determine clearance type label to show in the accordion header
-  // e.g. "JOHN MICO — MOVE IN APPROVAL"
-  const headerLabel = `${residentName.toUpperCase()} — ${typeLabel} APPROVAL`;
+  const isMoveIn      = !!item.move_in_date;
+  const typeLabel     = isMoveIn ? 'MOVE IN' : 'MOVE OUT';
+  const isLoading     = actionLoadingId === item.id;
+  const headerLabel   = `${residentName.toUpperCase()} — ${typeLabel} APPROVAL`;
 
   return (
-    <div className={`border rounded-2xl overflow-hidden transition-all duration-200
-      ${open ? 'border-[#006837]/30 shadow-md' : 'border-slate-100 shadow-sm'}
-      ${item.status === 'approved' ? 'border-l-4 border-l-emerald-400' :
-        item.status === 'rejected' ? 'border-l-4 border-l-red-400'    :
-        'border-l-4 border-l-amber-400'}`}>
-
-      {/* ── Accordion Header / Trigger ── */}
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-4 px-5 py-4 bg-white hover:bg-slate-50/60 transition-colors cursor-pointer text-left"
-      >
+    <div className={`border rounded-2xl bg-white shadow-sm transition-all duration-200
+      ${item.status === 'approved' ? 'border-l-4 border-l-emerald-400 border-slate-100' :
+        item.status === 'rejected' ? 'border-l-4 border-l-red-400 border-slate-100'    :
+        'border-l-4 border-l-amber-400 border-slate-100'}`}>
+      <div className="flex items-center gap-4 px-5 py-4 flex-wrap sm:flex-nowrap">
         {/* Avatar */}
         <div className="w-10 h-10 rounded-xl bg-[#006837]/10 text-[#006837] flex items-center justify-center font-black text-sm uppercase shrink-0">
           {residentName.charAt(0)}
         </div>
 
         {/* Label + meta */}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-black text-slate-800 truncate">{headerLabel}</p>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full
+        <button onClick={() => onView(item)} className="flex-1 min-w-0 text-left cursor-pointer">
+          <p className="text-sm font-black text-slate-900 truncate">{headerLabel}</p>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full
               ${isMoveIn ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>
               {typeLabel}
             </span>
-            <span className="text-[10px] font-semibold text-slate-400 capitalize">
+            <span className="text-xs font-semibold text-slate-600 capitalize">
               {item.resident_type || 'Unknown type'}
             </span>
-            <span className="text-[10px] text-slate-400">
+            <span className="text-xs text-slate-500">
               Submitted {new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </span>
           </div>
-        </div>
+        </button>
 
         {/* Status pill */}
         <StatusPill status={item.status} />
 
-        {/* Chevron */}
-        <div className="text-slate-400 shrink-0">
-          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </div>
-      </button>
-
-      {/* ── Expanded Details ── */}
-      {open && (
-        <div className="border-t border-slate-100 bg-slate-50/40">
-
-          {/* Resident info header — mirrors the physical form header */}
-          <div className="px-5 pt-5 pb-4 border-b border-slate-100 bg-white">
-            <div className="flex items-start gap-3">
-              <div className="p-2.5 bg-[#006837]/10 rounded-xl shrink-0">
-                <ClipboardList size={16} className="text-[#006837]" />
-              </div>
-              <div>
-                <p className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                  CREVHAI Move In / Move Out Clearance
-                </p>
-                <p className="text-base font-black text-slate-900 mt-0.5">
-                  {residentName}
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {[
-                    item.profiles?.block && `Block ${item.profiles.block}`,
-                    item.profiles?.lot   && `Lot ${item.profiles.lot}`,
-                    item.profiles?.street,
-                  ].filter(Boolean).join(', ') || 'Chateau Real, Buenavista III, General Trias, Cavite'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Detail fields */}
-          <div className="px-5 py-4 space-y-0">
-
-            {/* Clearance type section */}
-            <div className="mb-3">
-              <p className={`text-xs font-black uppercase tracking-widest mb-2 px-2 py-1 rounded-lg inline-block
-                ${isMoveIn ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>
-                {typeLabel} Details
-              </p>
-            </div>
-
-            <DetailRow label="Resident Type" value={item.resident_type || '—'} />
-            <DetailRow label="Move In Date"  value={item.move_in_date
-              ? new Date(item.move_in_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-              : null} />
-
-            {/* Documents — using the real DB column names */}
-            {item.proof_of_ownership_url && (
-              <DetailRow label="Proof of Ownership"
-                value={item.proof_of_ownership_url} url={true} />
-            )}
-            {item.barangay_clearance_url && (
-              <DetailRow label="Barangay Clearance"
-                value={item.barangay_clearance_url} url={true} />
-            )}
-            {item.contract_copy_url && (
-              <DetailRow label="Contract Copy"
-                value={item.contract_copy_url} url={true} />
-            )}
-            {/* Show message if no documents submitted */}
-            {!item.proof_of_ownership_url && !item.barangay_clearance_url && !item.contract_copy_url && (
-              <div className="py-3 text-xs text-slate-400 italic">No documents submitted yet.</div>
-            )}
-
-            {/* Requirements checklist from the physical form */}
-            <div className="mt-4 p-4 bg-white rounded-2xl border border-slate-100">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
-                Requirements Checklist
-              </p>
-              <div className="space-y-2">
-                {isMoveIn && isOwner && [
-                  'Orientation with HOA President or HOA Treasurer',
-                ].map(req => (
-                  <div key={req} className="flex items-center gap-2 text-sm text-slate-600">
-                    <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                    {req}
-                  </div>
-                ))}
-                {isMoveIn && !isOwner && [
-                  'HOA move out clearance or Barangay Clearance submitted',
-                  'Xerox copy of contract submitted to HOA',
-                  'Orientation with HOA President or Treasurer',
-                ].map(req => (
-                  <div key={req} className="flex items-center gap-2 text-sm text-slate-600">
-                    <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                    {req}
-                  </div>
-                ))}
-                {!isMoveIn && [
-                  'Cleared in all obligations with CREVHAI',
-                  'Clearance from Homeowner or Agent (for Renter)',
-                ].map(req => (
-                  <div key={req} className="flex items-center gap-2 text-sm text-slate-600">
-                    <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                    {req}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Review info (if already actioned) */}
-            {(item.status === 'approved' || item.status === 'rejected') && (
-              <div className={`mt-4 p-4 rounded-2xl border
-                ${item.status === 'approved' ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
-                <p className={`text-[10px] font-black uppercase tracking-widest mb-2
-                  ${item.status === 'approved' ? 'text-emerald-700' : 'text-red-600'}`}>
-                  {item.status === 'approved' ? 'Approved' : 'Rejected'}
-                </p>
-                {item.reviewed_at && (
-                  <p className="text-xs text-slate-600">
-                    Reviewed on {new Date(item.reviewed_at).toLocaleDateString('en-US', {
-                      month: 'long', day: 'numeric', year: 'numeric',
-                    })}
-                  </p>
-                )}
-                {item.admin_notes && (
-                  <p className="text-sm text-slate-700 mt-1.5 leading-relaxed">
-                    <span className="font-bold">Notes: </span>{item.admin_notes}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Submission date */}
-            <DetailRow
-              label="Date Submitted"
-              value={new Date(item.created_at).toLocaleDateString('en-US', {
-                month: 'long', day: 'numeric', year: 'numeric',
-              })}
-            />
-          </div>
-
-          {/* Action buttons — only shown for pending */}
+        {/* Actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => onView(item)}
+            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors cursor-pointer"
+            title="View Details"
+          >
+            <Eye size={15} />
+          </button>
           {item.status === 'pending' && (
-            <div className="px-5 pb-5 flex gap-3">
+            <>
               <button
                 onClick={() => onReject(item)}
                 disabled={isLoading}
-                className="flex items-center gap-2 px-5 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-xl text-sm font-bold cursor-pointer disabled:opacity-50 transition-colors"
+                className="p-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                title="Reject"
               >
-                <X size={15} /> Reject
+                <X size={15} />
               </button>
               <button
                 onClick={() => onApprove(item)}
                 disabled={isLoading}
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#006837] hover:bg-[#004d29] text-white rounded-xl text-sm font-bold shadow-lg shadow-[#006837]/20 cursor-pointer disabled:opacity-50 transition-all"
+                className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                title="Approve"
               >
-                {isLoading
-                  ? <><RefreshCw size={14} className="animate-spin" /> Processing…</>
-                  : <><Check size={15} /> Approve</>}
+                {isLoading ? <RefreshCw size={15} className="animate-spin" /> : <Check size={15} />}
               </button>
-            </div>
+            </>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 };
@@ -423,9 +152,8 @@ const MoveInClearance = () => {
   const [searchTerm,      setSearchTerm]      = useState('');
   const [toast,           setToast]           = useState({ show: false, message: '', type: 'success' });
   const [rejectTarget,    setRejectTarget]    = useState(null);
+  const [viewingItem,     setViewingItem]     = useState(null);
   const [actionLoadingId, setActionLoadingId] = useState(null);
-
-  const currentUserRole = localStorage.getItem('userRole') || 'resident';
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
@@ -594,6 +322,15 @@ const MoveInClearance = () => {
     <div className="min-h-screen bg-slate-50 p-6 lg:p-8 space-y-6">
       <Toast toast={toast} />
 
+      {/* View details modal */}
+      <ClearanceDetailModal
+        item={viewingItem}
+        onClose={() => setViewingItem(null)}
+        onApprove={(item) => { setViewingItem(null); handleApprove(item); }}
+        onReject={(item) => { setViewingItem(null); setRejectTarget(item); }}
+        actionLoading={actionLoadingId === viewingItem?.id}
+      />
+
       {/* Reject modal */}
       {rejectTarget && (
         <RejectModal
@@ -611,12 +348,12 @@ const MoveInClearance = () => {
             <ClipboardList size={22} className="text-[#006837]" />
             Move In / Move Out Clearances
           </h1>
-          <p className="text-sm text-slate-400 mt-0.5">
+          <p className="text-sm text-slate-500 mt-0.5">
             Review and approve CREVHAI clearance requests from residents
           </p>
         </div>
         <button onClick={fetchClearances} disabled={loading}
-          className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 shadow-sm cursor-pointer disabled:opacity-50">
+          className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 shadow-sm cursor-pointer disabled:opacity-50">
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
         </button>
       </div>
@@ -624,15 +361,15 @@ const MoveInClearance = () => {
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Pending',  value: pendingCount,  color: 'text-amber-600',   bg: 'bg-amber-50',   dot: 'bg-amber-400',   status: 'pending'  },
-          { label: 'Approved', value: approvedCount, color: 'text-emerald-600', bg: 'bg-emerald-50', dot: 'bg-emerald-400', status: 'approved' },
-          { label: 'Rejected', value: rejectedCount, color: 'text-red-500',     bg: 'bg-red-50',     dot: 'bg-red-400',     status: 'rejected' },
+          { label: 'Pending',  value: pendingCount,  color: 'text-amber-600',   bg: 'bg-amber-50',   dot: 'bg-amber-400'   },
+          { label: 'Approved', value: approvedCount, color: 'text-emerald-600', bg: 'bg-emerald-50', dot: 'bg-emerald-400' },
+          { label: 'Rejected', value: rejectedCount, color: 'text-red-500',     bg: 'bg-red-50',     dot: 'bg-red-400'     },
         ].map(k => (
           <div key={k.label}
             className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{k.label}</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{k.label}</p>
                 <p className={`text-3xl font-black ${k.color}`}>{k.value}</p>
               </div>
               <div className={`w-10 h-10 rounded-xl ${k.bg} flex items-center justify-center`}>
@@ -650,7 +387,7 @@ const MoveInClearance = () => {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
             placeholder="Search resident name…"
-            className="w-full pl-8 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#006837]/20 focus:border-[#006837] transition-all shadow-sm" />
+            className="w-full pl-8 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#006837]/20 focus:border-[#006837] transition-all shadow-sm" />
         </div>
 
         {/* Type filter */}
@@ -662,7 +399,7 @@ const MoveInClearance = () => {
           ].map(f => (
             <button key={f.val} onClick={() => setTypeFilter(f.val)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap
-                ${typeFilter === f.val ? 'bg-white text-[#006837] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                ${typeFilter === f.val ? 'bg-white text-[#006837] shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>
               {f.label}
             </button>
           ))}
@@ -673,27 +410,27 @@ const MoveInClearance = () => {
           {['all','pending','approved','rejected'].map(s => (
             <button key={s} onClick={() => setStatusFilter(s)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer capitalize whitespace-nowrap
-                ${statusFilter === s ? 'bg-white text-[#006837] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                ${statusFilter === s ? 'bg-white text-[#006837] shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>
               {s === 'all' ? 'All Status' : s}
             </button>
           ))}
         </div>
 
-        <p className="text-xs text-slate-400 font-medium ml-auto">
+        <p className="text-xs text-slate-500 font-medium ml-auto">
           {filtered.length} clearance{filtered.length !== 1 ? 's' : ''}
         </p>
       </div>
 
-      {/* ── Accordion List ── */}
+      {/* ── Row List ── */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <div className="w-10 h-10 border-4 border-[#006837]/20 border-t-[#006837] rounded-full animate-spin" />
-          <p className="text-sm text-slate-400 font-medium animate-pulse">Loading clearances…</p>
+          <p className="text-sm text-slate-500 font-medium animate-pulse">Loading clearances…</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center justify-center py-16 text-slate-300">
           <ClipboardList size={40} className="mb-3" />
-          <p className="text-sm font-semibold text-slate-400">
+          <p className="text-sm font-semibold text-slate-500">
             {searchTerm ? 'No clearances match your search' : `No ${statusFilter === 'all' ? '' : statusFilter} clearances`}
           </p>
         </div>
@@ -703,6 +440,7 @@ const MoveInClearance = () => {
             <ClearanceRow
               key={item.id}
               item={item}
+              onView={setViewingItem}
               onApprove={handleApprove}
               onReject={(item) => setRejectTarget(item)}
               actionLoadingId={actionLoadingId}
@@ -713,7 +451,7 @@ const MoveInClearance = () => {
 
       {/* Footer count */}
       {!loading && filtered.length > 0 && (
-        <p className="text-xs text-slate-400 text-center pb-4">
+        <p className="text-xs text-slate-500 text-center pb-4">
           Showing {filtered.length} of {clearances.length} clearance requests
         </p>
       )}

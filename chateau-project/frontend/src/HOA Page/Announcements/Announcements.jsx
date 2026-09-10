@@ -7,70 +7,11 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabaseAdmin';
 import { logAudit } from '../auditLogger';
+import { getCategoryColor } from './announcementsHelpers';
+import AnnouncementDetailModal from './AnnouncementDetailModal';
 
-// ─── Formatted content renderer ──────────────────────────────────────────────
-const FormattedContent = ({ text }) => {
-  if (!text) return null;
-
-  // Respect existing line breaks; otherwise split into sentences
-  let raw = text.trim();
-  const hasLineBreaks = raw.includes('\n');
-
-  let blocks;
-  if (hasLineBreaks) {
-    blocks = raw.split(/\n+/).map(b => b.trim()).filter(Boolean);
-  } else {
-    // Sentence-boundary split
-    blocks = raw
-      .split(/(?<=[.!?])\s+(?=[A-Z])/)
-      .reduce((acc, sentence, i) => {
-        // ~2 sentences per paragraph
-        if (i % 2 === 0) acc.push(sentence);
-        else acc[acc.length - 1] += ' ' + sentence;
-        return acc;
-      }, []);
-  }
-
-  const bulletRe = /^[-*•]\s+/;
-  const numberRe = /^\d+[.)]\s+/;
-
-  // Group consecutive bullet/number lines into a single <ul>/<ol>
-  const elements = [];
-  let i = 0;
-  while (i < blocks.length) {
-    const block = blocks[i];
-    if (bulletRe.test(block)) {
-      const items = [];
-      while (i < blocks.length && bulletRe.test(blocks[i])) {
-        items.push(blocks[i].replace(bulletRe, ''));
-        i++;
-      }
-      elements.push(
-        <ul key={`ul-${i}`} className="list-disc pl-5 space-y-1.5 mb-4">
-          {items.map((it, idx) => <li key={idx} className="text-sm text-slate-600 leading-relaxed">{it}</li>)}
-        </ul>
-      );
-    } else if (numberRe.test(block)) {
-      const items = [];
-      while (i < blocks.length && numberRe.test(blocks[i])) {
-        items.push(blocks[i].replace(numberRe, ''));
-        i++;
-      }
-      elements.push(
-        <ol key={`ol-${i}`} className="list-decimal pl-5 space-y-1.5 mb-4">
-          {items.map((it, idx) => <li key={idx} className="text-sm text-slate-600 leading-relaxed">{it}</li>)}
-        </ol>
-      );
-    } else {
-      elements.push(
-        <p key={`p-${i}`} className="text-sm text-slate-600 leading-relaxed mb-3 last:mb-0">{block}</p>
-      );
-      i++;
-    }
-  }
-
-  return <div>{elements}</div>;
-};
+// FormattedContent moved to ./AnnouncementDetailModal — it's only used there,
+// the row list below shows a raw line-clamped preview instead.
 
 // ─── Pagination hook ─────────────────────────────────────────────────────────
 const usePagination = (items, rowsPerPage = 10) => {
@@ -99,8 +40,8 @@ const PaginationBar = ({ page, totalPages, setPage, total, rowsPerPage }) => {
   }
   return (
     <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between gap-4 flex-wrap">
-      <p className="text-xs text-slate-400 font-medium">
-        Showing <span className="font-bold text-slate-600">{from}–{to}</span> of <span className="font-bold text-slate-600">{total}</span>
+      <p className="text-xs text-slate-500 font-medium">
+        Showing <span className="font-bold text-slate-700">{from}–{to}</span> of <span className="font-bold text-slate-700">{total}</span>
       </p>
       <div className="flex items-center gap-1">
         <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
@@ -125,16 +66,8 @@ const RequireRole = ({ userRole, allowedRoles, children }) => {
   return null;
 };
 
-const getCategoryColor = (cat) => {
-  switch (cat?.toLowerCase()) {
-    case 'general': case 'financial': return 'bg-[#006837]/10 text-[#006837]';
-    case 'event':       return 'bg-blue-50 text-blue-700';
-    case 'maintenance': return 'bg-amber-50 text-amber-700';
-    case 'election':    return 'bg-red-50 text-red-600';
-    case 'security':    return 'bg-slate-100 text-slate-600';
-    default:            return 'bg-slate-100 text-slate-500';
-  }
-};
+// getCategoryColor moved to ./announcementsHelpers — shared with the
+// extracted AnnouncementDetailModal.
 
 const Toast = ({ toast }) => {
   if (!toast.show) return null;
@@ -176,7 +109,7 @@ const PortalMenu = ({ anchorRef, open, onClose, children }) => {
       <div className="fixed inset-0 z-[500]" onClick={onClose} />
       <div
         style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 501 }}
-        className="w-44 bg-white border border-slate-100 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className="w-44 bg-white border border-slate-100 rounded-2xl shadow-2xl overflow-hidden"
       >
         {children}
       </div>
@@ -608,46 +541,10 @@ const Announcements = () => {
       )}
 
       {/* Details modal */}
-      {showDetails && selectedAnn && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between shrink-0">
-              <div>
-                <h2 className="text-lg font-black text-slate-900 pr-4">{selectedAnn.title}</h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getCategoryColor(selectedAnn.category)}`}>
-                    {selectedAnn.category}
-                  </span>
-                  {selectedAnn.is_emergency && (
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-600">URGENT</span>
-                  )}
-                </div>
-              </div>
-              <button onClick={() => { setShowDetails(false); setSelectedAnn(null); }}
-                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 cursor-pointer shrink-0">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto">
-              <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl">
-                <FormattedContent text={selectedAnn.content} />
-                {selectedAnn.attachment_url && (
-                  <a href={selectedAnn.attachment_url} target="_blank" rel="noreferrer"
-                    className="flex items-center gap-2 text-sm font-semibold text-[#006837] hover:underline mt-3 pt-3 border-t border-slate-200">
-                    <Paperclip size={14} /> View Attachment
-                  </a>
-                )}
-              </div>
-              <p className="text-xs text-slate-400 mt-4">
-                {new Date(selectedAnn.created_at).toLocaleDateString('en-US', {
-                  month: 'long', day: 'numeric', year: 'numeric',
-                })}
-              </p>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      <AnnouncementDetailModal
+        announcement={showDetails ? selectedAnn : null}
+        onClose={() => { setShowDetails(false); setSelectedAnn(null); }}
+      />
 
       {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -655,7 +552,7 @@ const Announcements = () => {
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
             <Megaphone size={22} className="text-[#006837]" /> Announcements
           </h1>
-          <p className="text-sm text-slate-400 mt-0.5">Manage and publish community announcements</p>
+          <p className="text-sm text-slate-500 mt-0.5">Manage and publish community announcements</p>
         </div>
         <div className="flex items-center gap-2.5">
           <button onClick={fetchAnnouncements}
@@ -678,10 +575,10 @@ const Announcements = () => {
           { label: 'Drafts',    value: drafts,               icon: FileEdit,  bg: 'bg-slate-100',    color: 'text-slate-600' },
           { label: 'Total',     value: announcements.length, icon: Calendar,  bg: 'bg-blue-50',      color: 'text-blue-600'  },
         ].map(k => (
-          <div key={k.label} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+          <div key={k.label} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{k.label}</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{k.label}</p>
                 <p className="text-3xl font-black text-slate-900">{k.value}</p>
               </div>
               <div className={`p-2.5 rounded-xl ${k.bg}`}><k.icon size={18} className={k.color} /></div>
@@ -720,12 +617,12 @@ const Announcements = () => {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <div className="w-10 h-10 border-4 border-[#006837]/20 border-t-[#006837] rounded-full animate-spin" />
-              <p className="text-sm text-slate-400 animate-pulse">Loading announcements…</p>
+              <p className="text-sm text-slate-500 animate-pulse">Loading announcements…</p>
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-slate-300">
               <Megaphone size={36} className="mb-2" />
-              <p className="text-sm font-semibold text-slate-400">No announcements found</p>
+              <p className="text-sm font-semibold text-slate-500">No announcements found</p>
             </div>
           ) : paginatedAnn.map(ann => (
             <div key={ann.id}
@@ -740,26 +637,26 @@ const Announcements = () => {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className={`text-sm font-bold truncate ${ann.is_emergency ? 'text-red-700' : 'text-slate-800'}`}>
+                      <p className={`text-sm font-bold truncate ${ann.is_emergency ? 'text-red-700' : 'text-slate-900'}`}>
                         {ann.is_pinned && <Pin size={12} className="inline text-amber-500 mr-1" />}
                         {ann.title}
                       </p>
                       {ann.is_emergency && (
-                        <span className="text-[9px] font-black px-2 py-0.5 bg-red-600 text-white rounded-full uppercase shrink-0 tracking-wide">
+                        <span className="text-xs font-black px-2 py-0.5 bg-red-600 text-white rounded-full uppercase shrink-0 tracking-wide">
                           Urgent
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{ann.content}</p>
+                    <p className="text-sm text-slate-600 mt-0.5 line-clamp-1">{ann.content}</p>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getCategoryColor(ann.category)}`}>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getCategoryColor(ann.category)}`}>
                         {ann.category}
                       </span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full
-                        ${ann.status === 'published' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full
+                        ${ann.status === 'published' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                         {ann.status}
                       </span>
-                      <span className="text-[10px] text-slate-400">
+                      <span className="text-xs text-slate-500">
                         {new Date(ann.created_at).toLocaleDateString()}
                       </span>
                     </div>
@@ -767,7 +664,7 @@ const Announcements = () => {
 
                   <div className="flex items-center gap-1 shrink-0">
                     <button onClick={() => { setSelectedAnn(ann); setShowDetails(true); }}
-                      className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-lg transition-colors cursor-pointer"
+                      className="p-2 hover:bg-slate-100 text-slate-500 hover:text-slate-700 rounded-lg transition-colors cursor-pointer"
                       title="View details">
                       <Eye size={14} />
                     </button>
@@ -789,7 +686,7 @@ const Announcements = () => {
           <>
             <PaginationBar page={annPage} totalPages={annTotalPages} setPage={setAnnPage} total={filtered.length} rowsPerPage={5} />
             <div className="px-5 py-3 border-t border-slate-100">
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 {filtered.length} announcement{filtered.length !== 1 ? 's' : ''}
               </p>
             </div>
