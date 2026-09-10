@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   ArrowLeft, Mail, Phone, Home, MapPin, Users, ShieldCheck, Clock,
   CreditCard, CheckCircle2, AlertCircle, AlertTriangle, Loader2, Package,
-  User, Settings, ChevronLeft, ChevronRight, X, Cake,
+  User, Settings, ChevronLeft, ChevronRight, X,
 } from 'lucide-react';
 import { supabase } from '../supabaseAdmin';
 
@@ -408,7 +408,7 @@ const FamilyMembers = ({ userId }) => {
     setLoading(true);
     const { data } = await supabase
       .from('family_members')
-      .select('id, full_name, relationship, birth_date, contact_number, created_at')
+      .select('id, full_name, relationship, created_at')
       .eq('resident_id', userId)
       .order('created_at', { ascending: false });
     setMembers(data || []);
@@ -463,11 +463,7 @@ const FamilyMembers = ({ userId }) => {
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-slate-700 truncate">{m.full_name}</p>
-                <p className="text-[10px] text-slate-400 flex items-center gap-2 flex-wrap">
-                  {m.relationship && <span>{m.relationship}</span>}
-                  {m.birth_date && <span className="flex items-center gap-1"><Cake size={10} /> {fmtDate(m.birth_date)}</span>}
-                  {m.contact_number && <span className="flex items-center gap-1"><Phone size={10} /> {m.contact_number}</span>}
-                </p>
+                {m.relationship && <p className="text-xs font-semibold text-slate-500">{m.relationship}</p>}
               </div>
             </div>
           ))}
