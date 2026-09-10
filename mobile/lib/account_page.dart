@@ -41,6 +41,10 @@ class _AccountPageState extends State<AccountPage>
 
   bool get _hasNewAvatar => _newAvatarFile != null || _newAvatarBytes != null;
 
+  // ── Family members ────────────────────────────────────────────────────────
+  List<Map<String, dynamic>> _familyMembers = [];
+  bool _familyLoading = true;
+
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   @override
@@ -51,6 +55,7 @@ class _AccountPageState extends State<AccountPage>
       duration: const Duration(milliseconds: 600),
     )..forward();
     _loadProfile();
+    _loadFamilyMembers();
   }
 
   @override
@@ -89,6 +94,98 @@ class _AccountPageState extends State<AccountPage>
     } catch (_) {
       setState(() => _isLoading = false);
     }
+  }
+
+  // ── Family members ────────────────────────────────────────────────────────
+
+  Future<void> _loadFamilyMembers() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final data = await _supabase
+          .from('family_members')
+          .select()
+          .eq('resident_id', user.id)
+          .order('created_at');
+      if (mounted) {
+        setState(() {
+          _familyMembers = List<Map<String, dynamic>>.from(data);
+          _familyLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _familyLoading = false);
+    }
+  }
+
+  Future<void> _refreshAll() =>
+      Future.wait([_loadProfile(), _loadFamilyMembers()]);
+
+  Future<void> _saveFamilyMember({
+    String? id,
+    required String fullName,
+    required String relationship,
+  }) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final row = {
+        'resident_id': user.id,
+        'full_name': fullName,
+        'relationship': relationship.isNotEmpty ? relationship : null,
+        'created_by': user.id,
+      };
+      if (id != null) {
+        await _supabase.from('family_members').update(row).eq('id', id);
+      } else {
+        await _supabase.from('family_members').insert(row);
+      }
+      await _loadFamilyMembers();
+      if (mounted) {
+        _showSnack(id != null
+            ? 'Family member updated.'
+            : 'Family member added.');
+      }
+    } catch (e) {
+      if (mounted) _showSnack('Could not save family member: $e', isError: true);
+    }
+  }
+
+  Future<void> _deleteFamilyMember(Map<String, dynamic> member) async {
+    final confirm = await showConfirmDialog(
+      context,
+      title: 'Remove Family Member',
+      message:
+          'Remove "${member['full_name']}" from your household? This cannot be undone.',
+      confirmLabel: 'Remove',
+      cancelLabel: 'Cancel',
+      isDanger: true,
+      icon: Icons.person_remove_rounded,
+    );
+    if (!confirm) return;
+    try {
+      await _supabase.from('family_members').delete().eq('id', member['id']);
+      await _loadFamilyMembers();
+      if (mounted) _showSnack('Family member removed.');
+    } catch (e) {
+      if (mounted) _showSnack('Could not remove family member: $e', isError: true);
+    }
+  }
+
+  void _showFamilyMemberSheet({Map<String, dynamic>? existing}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _FamilyMemberSheet(
+        existing: existing,
+        onSave: (fullName, relationship) => _saveFamilyMember(
+          id: existing?['id'] as String?,
+          fullName: fullName,
+          relationship: relationship,
+        ),
+      ),
+    );
   }
 
   // ── Save ──────────────────────────────────────────────────────────────────
@@ -387,8 +484,12 @@ class _AccountPageState extends State<AccountPage>
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: chateuPrimary))
-          : SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
+          : RefreshIndicator(
+              onRefresh: _refreshAll,
+              color: chateuPrimary,
+              child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics()),
               padding: EdgeInsets.symmetric(horizontal: hPad)
                   .copyWith(bottom: AppSpacing.xxxl),
               child: Column(
@@ -546,6 +647,15 @@ class _AccountPageState extends State<AccountPage>
                     ),
                   ),
 
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // ── Family Members ───────────────────────────────────
+                  _FadeSlide(
+                    controller: _animController,
+                    delay: 0.2,
+                    child: _buildFamilyCard(),
+                  ),
+
                   // ── Save Button ─────────────────────────────────────
                   if (_isEditMode) ...[
                     const SizedBox(height: AppSpacing.xl),
@@ -596,6 +706,7 @@ class _AccountPageState extends State<AccountPage>
                 ],
               ),
             ),
+              ),
     );
   }
 
@@ -638,6 +749,143 @@ class _AccountPageState extends State<AccountPage>
           Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(children: children),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Family members card ───────────────────────────────────────────────────
+
+  Widget _buildFamilyCard() {
+    return Container(
+      width: double.infinity,
+      decoration: AppDecorations.card,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
+            decoration: BoxDecoration(
+              color: chateuPrimary.withAlpha(15),
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppRadius.md)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: chateuPrimary.withAlpha(30),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.family_restroom_rounded,
+                      color: chateuPrimary, size: 18),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                    child: Text("Family Members", style: AppText.titleMedium)),
+                GestureDetector(
+                  onTap: () => _showFamilyMemberSheet(),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                      color: chateuPrimary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.add_rounded,
+                        color: Colors.white, size: 16),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: _familyLoading
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                      child: CircularProgressIndicator(color: chateuPrimary),
+                    ),
+                  )
+                : _familyMembers.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding:
+                              const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                          child: Text(
+                            "No family members added yet.",
+                            style: AppText.bodyMedium
+                                .copyWith(color: Colors.grey.shade400),
+                          ),
+                        ),
+                      )
+                    : Column(
+                        children: _familyMembers
+                            .map((m) => _familyMemberTile(m))
+                            .toList(),
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _familyMemberTile(Map<String, dynamic> member) {
+    final name = member['full_name'] as String? ?? '';
+    final relationship = member['relationship'] as String?;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: chateuBackground,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: chateuPrimary.withAlpha(30),
+            child: Text(
+              name.isNotEmpty ? name[0].toUpperCase() : '?',
+              style: AppText.bodyMedium.copyWith(
+                  color: chateuPrimary, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name.isNotEmpty ? name : 'Unnamed',
+                    style: AppText.bodyMedium
+                        .copyWith(fontWeight: FontWeight.w600)),
+                if (relationship != null && relationship.isNotEmpty)
+                  Text(relationship,
+                      style: AppText.caption
+                          .copyWith(color: Colors.grey.shade500)),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () => _showFamilyMemberSheet(existing: member),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Icon(Icons.edit_rounded,
+                  size: 16, color: chateuPrimary.withAlpha(180)),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => _deleteFamilyMember(member),
+            child: const Padding(
+              padding: EdgeInsets.all(6),
+              child: Icon(Icons.delete_outline_rounded,
+                  size: 16, color: Color(0xFFDC2626)),
+            ),
           ),
         ],
       ),
@@ -869,5 +1117,142 @@ class _FadeSlide extends StatelessWidget {
     return FadeTransition(
         opacity: fade,
         child: SlideTransition(position: slide, child: child));
+  }
+}
+
+// ── Family Member Sheet — add / edit ─────────────────────────────────────────
+
+const List<String> _kRelationshipOptions = [
+  'Spouse',
+  'Child',
+  'Parent',
+  'Sibling',
+  'Pet',
+  'Other',
+];
+
+class _FamilyMemberSheet extends StatefulWidget {
+  final Map<String, dynamic>? existing;
+  final Future<void> Function(String fullName, String relationship) onSave;
+
+  const _FamilyMemberSheet({this.existing, required this.onSave});
+
+  @override
+  State<_FamilyMemberSheet> createState() => _FamilyMemberSheetState();
+}
+
+class _FamilyMemberSheetState extends State<_FamilyMemberSheet> {
+  final _nameCtrl = TextEditingController();
+  String _relationship = _kRelationshipOptions.first;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    if (e != null) {
+      _nameCtrl.text = e['full_name'] as String? ?? '';
+      final rel = e['relationship'] as String?;
+      if (rel != null && _kRelationshipOptions.contains(rel)) {
+        _relationship = rel;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      showAppSnack(context, 'Full name is required.', type: SnackType.error);
+      return;
+    }
+    setState(() => _isSaving = true);
+    await widget.onSave(name, _relationship);
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEdit = widget.existing != null;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: AppDecorations.sheet,
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl, AppSpacing.sm, AppSpacing.xl, AppSpacing.xxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            buildSheetHandle(),
+            Text(isEdit ? 'Edit Family Member' : 'Add Family Member',
+                style: AppText.titleLarge),
+            const SizedBox(height: AppSpacing.lg),
+
+            Text('Full Name *',
+                style: AppText.labelMedium.copyWith(color: chateuText)),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: _nameCtrl,
+              style: const TextStyle(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'e.g. Juan Dela Cruz',
+                hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                prefixIcon: const Icon(Icons.badge_rounded,
+                    size: 18, color: chateuPrimary),
+                filled: true,
+                fillColor: chateuBackground,
+                isDense: true,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none),
+              ),
+            ),
+
+            const SizedBox(height: AppSpacing.lg),
+            Text('Relationship',
+                style: AppText.labelMedium.copyWith(color: chateuText)),
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              decoration: BoxDecoration(
+                color: chateuBackground,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _relationship,
+                  isExpanded: true,
+                  icon: const Icon(Icons.expand_more_rounded,
+                      color: chateuPrimary),
+                  style: AppText.bodyMedium.copyWith(color: chateuText),
+                  items: _kRelationshipOptions
+                      .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _relationship = v);
+                  },
+                ),
+              ),
+            ),
+
+            const SizedBox(height: AppSpacing.xl),
+            AppPrimaryButton(
+              label: isEdit ? 'Save Changes' : 'Add Family Member',
+              icon: Icons.check_circle_rounded,
+              isLoading: _isSaving,
+              onPressed: _isSaving ? null : _submit,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -40,6 +40,10 @@ class _Payment {
 
   bool get isPaid => status == 'paid';
   bool get isPending => status == 'pending_verification';
+  // Back-filled past dues created when the admin approves a new resident
+  // (see AccountApproval.jsx's backfillPastDues) — real dues awaiting the
+  // Treasurer's manual confirmation, not yet a resident-submitted payment.
+  bool get isAwaitingConfirmation => status == 'pending';
   bool get isUnpaid => status == 'unpaid';
   bool get isOverdue => status == 'overdue';
   bool get canSubmitPayment => isUnpaid || isOverdue;
@@ -143,15 +147,19 @@ class _PaymentPageState extends State<PaymentPage>
 
   _Payment? get _latestUnpaid {
     try {
-      return _payments.firstWhere((p) => p.isUnpaid || p.isOverdue || p.isPending);
+      return _payments.firstWhere((p) =>
+          p.isUnpaid || p.isOverdue || p.isPending || p.isAwaitingConfirmation);
     } catch (_) {
       return null;
     }
   }
 
-  // Outstanding balance = all unpaid + overdue + pending amounts
-  double get _outstandingBalance =>
-      _payments.where((p) => p.isUnpaid || p.isOverdue || p.isPending).fold(0, (sum, p) => sum + p.amount);
+  // Outstanding balance = all unpaid + overdue + pending (submitted or
+  // awaiting-confirmation) amounts
+  double get _outstandingBalance => _payments
+      .where((p) =>
+          p.isUnpaid || p.isOverdue || p.isPending || p.isAwaitingConfirmation)
+      .fold(0, (sum, p) => sum + p.amount);
 
   // ── Advance payment ─────────────────────────────────────────────────────
   // Derived purely from date math against confirmed advance payments — no
@@ -216,6 +224,8 @@ class _PaymentPageState extends State<PaymentPage>
         return chateuPrimary;
       case 'pending_verification':
         return chateuAccent;
+      case 'pending':
+        return const Color(0xFF2563EB); // blue — awaiting Treasurer confirmation
       case 'overdue':
         return const Color(0xFFB45309); // amber-700
       default:
@@ -229,6 +239,8 @@ class _PaymentPageState extends State<PaymentPage>
         return 'Paid';
       case 'pending_verification':
         return 'Pending';
+      case 'pending':
+        return 'Awaiting Confirmation';
       case 'overdue':
         return 'Overdue';
       default:
@@ -411,8 +423,12 @@ class _PaymentPageState extends State<PaymentPage>
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: chateuPrimary))
-          : SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
+          : RefreshIndicator(
+              onRefresh: _loadData,
+              color: chateuPrimary,
+              child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics()),
               padding: EdgeInsets.symmetric(horizontal: hPad)
                   .copyWith(bottom: AppSpacing.xxxl),
               child: Column(
@@ -664,7 +680,7 @@ class _PaymentPageState extends State<PaymentPage>
                                 child: Icon(
                                   p.isPaid
                                       ? Icons.check_circle_rounded
-                                      : p.isPending
+                                      : (p.isPending || p.isAwaitingConfirmation)
                                           ? Icons.hourglass_top_rounded
                                           : Icons.receipt_rounded,
                                   color: color,
@@ -684,9 +700,11 @@ class _PaymentPageState extends State<PaymentPage>
                                           ? "Payment Success"
                                           : p.isPending
                                               ? "Payment Pending"
-                                              : p.isOverdue
-                                                  ? "Overdue Bill"
-                                                  : "Monthly Due",
+                                              : p.isAwaitingConfirmation
+                                                  ? "Awaiting Confirmation"
+                                                  : p.isOverdue
+                                                      ? "Overdue Bill"
+                                                      : "Monthly Due",
                                       style: AppText.bodyMedium
                                           .copyWith(
                                               fontWeight:
@@ -731,6 +749,7 @@ class _PaymentPageState extends State<PaymentPage>
                 ],
               ),
             ),
+              ),
     );
   }
 }
