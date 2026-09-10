@@ -62,6 +62,10 @@ class _Reservation {
   final TimeOfDay startTime, endTime;
   final int? quantity;
   final DateTime? returnedAt;
+  // Expected return date for borrowed (quantity-based) items — lets a
+  // resident borrow on one day and return on a later one. Null means
+  // same-day as `date`.
+  final DateTime? returnDate;
 
   const _Reservation({
     required this.id,
@@ -73,6 +77,7 @@ class _Reservation {
     required this.status,
     this.quantity,
     this.returnedAt,
+    this.returnDate,
   });
 
   // Only pending or approved reservations can be cancelled by the resident
@@ -206,6 +211,9 @@ class _ReservePageState extends State<ReservePage>
           quantity: r['quantity'] as int?,
           returnedAt: r['returned_at'] != null
               ? DateTime.parse(r['returned_at'])
+              : null,
+          returnDate: r['return_date'] != null
+              ? DateTime.parse(r['return_date'])
               : null,
         );
       }).toList();
@@ -381,8 +389,12 @@ class _ReservePageState extends State<ReservePage>
                 child: CircularProgressIndicator(color: chateuPrimary))
             : _error != null
                 ? _buildErrorState()
-                : SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
+                : RefreshIndicator(
+                    onRefresh: _loadData,
+                    color: chateuPrimary,
+                    child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics()),
                     padding: EdgeInsets.symmetric(horizontal: hPad)
                         .copyWith(bottom: AppSpacing.xxxl),
                     child: Column(
@@ -587,6 +599,7 @@ class _ReservePageState extends State<ReservePage>
                       ],
                     ),
                   ),
+                  ),
       ),
     );
   }
@@ -647,45 +660,63 @@ class _ReservationTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.sm),
         border: Border.all(color: color.withAlpha(60)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(facilityName ?? 'Unknown Facility',
-                      style: AppText.bodyMedium
-                          .copyWith(fontWeight: FontWeight.w600)),
-                  if (!isOwn)
-                    Text('Reserved by another resident',
-                        style: AppText.caption
-                            .copyWith(color: Colors.grey.shade500)),
-                ]),
-          ),
-          Text('${formatTime(r.startTime)} – ${formatTime(r.endTime)}',
-              style: AppText.caption.copyWith(color: Colors.grey.shade600)),
-          const SizedBox(width: AppSpacing.sm),
-          AppStatusBadge(label: statusLabel, color: color),
-          if (onCancel != null) ...[
-            const SizedBox(width: AppSpacing.xs),
-            GestureDetector(
-              onTap: onCancel,
-              child: Container(
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                    color: const Color(0xFFDC2626).withAlpha(20),
-                    shape: BoxShape.circle),
-                child: const Icon(Icons.close_rounded,
-                    size: 13, color: Color(0xFFDC2626)),
+          Row(
+            children: [
+              Container(
+                  width: 8,
+                  height: 8,
+                  decoration:
+                      BoxDecoration(color: color, shape: BoxShape.circle)),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(facilityName ?? 'Unknown Facility',
+                          style: AppText.bodyMedium
+                              .copyWith(fontWeight: FontWeight.w600)),
+                      if (!isOwn)
+                        Text('Reserved by another resident',
+                            style: AppText.caption
+                                .copyWith(color: Colors.grey.shade500)),
+                    ]),
               ),
+              if (onCancel != null) ...[
+                const SizedBox(width: AppSpacing.sm),
+                GestureDetector(
+                  onTap: onCancel,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626).withAlpha(20),
+                        shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded,
+                        size: 13, color: Color(0xFFDC2626)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(left: 16),
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text('${formatTime(r.startTime)} – ${formatTime(r.endTime)}',
+                    style:
+                        AppText.caption.copyWith(color: Colors.grey.shade600)),
+                AppStatusBadge(label: statusLabel, color: color),
+              ],
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -733,7 +764,9 @@ class _BorrowTile extends StatelessWidget {
                 Text(facilityName ?? 'Amenity',
                     style: AppText.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
-                Text('Qty: ${r.quantity} • Borrowed ${r.date.day}/${r.date.month}/${r.date.year}',
+                Text(
+                    'Qty: ${r.quantity} • Borrowed ${r.date.day}/${r.date.month}/${r.date.year}'
+                    '${r.returnDate != null && !isSameDay(r.returnDate!, r.date) ? ' • Return by ${r.returnDate!.day}/${r.returnDate!.month}/${r.returnDate!.year}' : ''}',
                     style: AppText.caption.copyWith(color: Colors.grey.shade500)),
               ],
             ),
@@ -1063,6 +1096,10 @@ class _BookSheetState extends State<_BookSheet> {
   bool _isSubmitting = false;
   int _quantity = 1;
 
+  // Expected return date for borrowed (quantity-based) items — defaults to
+  // the booking day itself; residents can push it out for multi-day events.
+  late DateTime _returnDate;
+
   XFile? _proofFile;
   Uint8List? _proofBytes;
 
@@ -1070,6 +1107,12 @@ class _BookSheetState extends State<_BookSheet> {
   Uint8List? _conditionPhotoBytes;
 
   int get _maxQuantity => widget.facility.availableQuantity ?? 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _returnDate = widget.selectedDate;
+  }
 
   @override
   void dispose() {
@@ -1106,15 +1149,37 @@ class _BookSheetState extends State<_BookSheet> {
   }
 
   // ── Conflict — only APPROVED slots block new bookings ────────────────────
+  //
+  // Quantity-based items (chairs, tents, etc.) don't have exclusive time
+  // slots — availability there is governed by the quantity stepper against
+  // `_maxQuantity`, not by time overlap. Their start/end times are just
+  // informational pick-up/return times, so once the return date is pushed
+  // to a later day, the return time can legitimately read "earlier" than
+  // the pick-up time (e.g. picked up 11 AM, returned 6 AM the next day) —
+  // same-day ordering and the approved-slot overlap check only make sense
+  // for single-occupancy, time-slot facilities like the court.
   String? get conflictReason {
     final s = _startTime.hour * 60 + _startTime.minute;
     final e = _endTime.hour * 60 + _endTime.minute;
-    if (e <= s) return 'End time must be after start time.';
 
     final now = DateTime.now();
     final isToday = widget.selectedDate.year == now.year &&
         widget.selectedDate.month == now.month &&
         widget.selectedDate.day == now.day;
+
+    if (widget.facility.isQuantityBased) {
+      final sameDayReturn = isSameDay(_returnDate, widget.selectedDate);
+      if (sameDayReturn && e <= s) {
+        return 'Return time must be after pick-up time.';
+      }
+      if (isToday && s <= now.hour * 60 + now.minute) {
+        return 'Pick-up time has already passed for today.';
+      }
+      return null;
+    }
+
+    if (e <= s) return 'End time must be after start time.';
+
     if (isToday && s <= now.hour * 60 + now.minute) {
       return 'Start time has already passed for today.';
     }
@@ -1256,6 +1321,8 @@ class _BookSheetState extends State<_BookSheet> {
         if (fee != null) 'reference_no': reference,
         if (proofUrl != null) 'proof_url': proofUrl,
         if (widget.facility.isQuantityBased) 'quantity': _quantity,
+        if (widget.facility.isQuantityBased)
+          'return_date': _returnDate.toIso8601String().split('T').first,
         if (conditionPhotoUrl != null) 'borrow_condition_photo_url': conditionPhotoUrl,
       });
 
@@ -1484,6 +1551,70 @@ class _BookSheetState extends State<_BookSheet> {
                   ]),
                 ),
               ),
+
+              const SizedBox(height: AppSpacing.lg),
+              Text("When Will You Return It?",
+                  style: AppText.labelMedium.copyWith(color: chateuText)),
+              const SizedBox(height: 4),
+              Text(
+                'Borrowing for a multi-day event? Push the return date out.',
+                style: AppText.caption.copyWith(color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(children: [
+                Expanded(
+                  child: _DateOptionChip(
+                    label: 'Same Day',
+                    selected: isSameDay(_returnDate, widget.selectedDate),
+                    onTap: () =>
+                        setState(() => _returnDate = widget.selectedDate),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: _DateOptionChip(
+                    label: 'Tomorrow',
+                    selected: isSameDay(_returnDate,
+                        widget.selectedDate.add(const Duration(days: 1))),
+                    onTap: () => setState(() => _returnDate =
+                        widget.selectedDate.add(const Duration(days: 1))),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: _DateOptionChip(
+                    label: 'Choose Date',
+                    selected: _returnDate.isAfter(
+                        widget.selectedDate.add(const Duration(days: 1))),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _returnDate.isAfter(widget.selectedDate)
+                            ? _returnDate
+                            : widget.selectedDate
+                                .add(const Duration(days: 2)),
+                        firstDate: widget.selectedDate,
+                        lastDate:
+                            widget.selectedDate.add(const Duration(days: 30)),
+                        builder: (ctx, child) => Theme(
+                            data: Theme.of(ctx).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                    primary: chateuPrimary)),
+                            child: child!),
+                      );
+                      if (picked != null) {
+                        setState(() => _returnDate = picked);
+                      }
+                    },
+                  ),
+                ),
+              ]),
+              if (!isSameDay(_returnDate, widget.selectedDate)) ...[
+                const SizedBox(height: 4),
+                Text(
+                    'Returning on ${_returnDate.month}/${_returnDate.day}/${_returnDate.year}',
+                    style: AppText.caption.copyWith(color: chateuPrimary)),
+              ],
             ],
 
             const SizedBox(height: AppSpacing.lg),
@@ -1495,7 +1626,9 @@ class _BookSheetState extends State<_BookSheet> {
             Row(children: [
               Expanded(
                   child: _TimePicker(
-                      label: "Start Time",
+                      label: widget.facility.isQuantityBased
+                          ? "Pick-up Time"
+                          : "Start Time",
                       time: _startTime,
                       onTap: () async {
                         final t = await showTimePicker(
@@ -1511,7 +1644,9 @@ class _BookSheetState extends State<_BookSheet> {
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                   child: _TimePicker(
-                      label: "End Time",
+                      label: widget.facility.isQuantityBased
+                          ? "Return Time"
+                          : "End Time",
                       time: _endTime,
                       onTap: () async {
                         final t = await showTimePicker(
@@ -2064,6 +2199,38 @@ class _ConditionChip extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Time Picker widget
 // ─────────────────────────────────────────────────────────────────────────────
+
+class _DateOptionChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _DateOptionChip(
+      {required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? chateuPrimary : chateuBackground,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            border: Border.all(
+                color: selected ? chateuPrimary : chateuPrimary.withAlpha(60)),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: AppText.caption.copyWith(
+              color: selected ? Colors.white : chateuPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      );
+}
 
 class _TimePicker extends StatelessWidget {
   final String label;

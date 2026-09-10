@@ -498,6 +498,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
   double _balance = 0.0;        // sum of unpaid payments
   double _pendingBalance = 0.0; // sum of pending_verification payments
   double _overdueBalance = 0.0; // sum of overdue payments
+  // Back-filled past dues awaiting the Treasurer's manual confirmation (see
+  // AccountApproval.jsx's backfillPastDues) — status 'pending', distinct
+  // from a resident's own submitted 'pending_verification' payment.
+  double _awaitingConfirmationBalance = 0.0;
   bool _balanceLoading = true;
 
   static const int _pageSize = 5;
@@ -887,15 +891,18 @@ class _HomeDashboardState extends State<HomeDashboard> {
           .from('payments')
           .select('amount, status')
           .eq('user_id', user.id)
-          .inFilter('status', ['unpaid', 'overdue', 'pending_verification']);
+          .inFilter('status', ['unpaid', 'overdue', 'pending_verification', 'pending']);
 
       double unpaid = 0.0;
       double pending = 0.0;
       double overdue = 0.0;
+      double awaitingConfirmation = 0.0;
       for (final row in (data as List)) {
         final amount = (row['amount'] as num?)?.toDouble() ?? 0.0;
         if (row['status'] == 'pending_verification') {
           pending += amount;
+        } else if (row['status'] == 'pending') {
+          awaitingConfirmation += amount;
         } else if (row['status'] == 'overdue') {
           overdue += amount;
         } else {
@@ -907,6 +914,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
           _balance = unpaid;
           _pendingBalance = pending;
           _overdueBalance = overdue;
+          _awaitingConfirmationBalance = awaitingConfirmation;
           _balanceLoading = false;
         });
       }
@@ -967,6 +975,13 @@ class _HomeDashboardState extends State<HomeDashboard> {
     }
   }
 
+  Future<void> _refreshDashboard() => Future.wait([
+        _loadReservedDates(),
+        _loadAnnouncementRanges(),
+        if (widget.residentType != 'tenant') _loadBalance(),
+        _loadAnnouncements(reset: true),
+      ]);
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -975,8 +990,12 @@ class _HomeDashboardState extends State<HomeDashboard> {
     final screenW = mq.size.width;
     final hPad = screenW > 600 ? screenW * 0.06 : AppSpacing.lg;
 
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
+    return RefreshIndicator(
+      onRefresh: _refreshDashboard,
+      color: chateuPrimary,
+      child: SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics()),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1029,7 +1048,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                     ),
                                   )
                                 : Text(
-                                    "₱ ${(_balance + _pendingBalance + _overdueBalance).toStringAsFixed(2)}",
+                                    "₱ ${(_balance + _pendingBalance + _overdueBalance + _awaitingConfirmationBalance).toStringAsFixed(2)}",
                                     style: AppText.displayLarge.copyWith(
                                       color: Colors.white,
                                       letterSpacing: 0.5,
@@ -1057,7 +1076,9 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                                     ? "₱${_balance.toStringAsFixed(2)} unpaid dues"
                                                     : _pendingBalance > 0
                                                         ? "₱${_pendingBalance.toStringAsFixed(2)} pending verification"
-                                                        : "No dues pending ✓",
+                                                        : _awaitingConfirmationBalance > 0
+                                                            ? "₱${_awaitingConfirmationBalance.toStringAsFixed(2)} awaiting confirmation"
+                                                            : "No dues pending ✓",
                                 style: AppText.caption.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w500,
@@ -1279,6 +1300,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
           const SizedBox(height: AppSpacing.xxxl),
         ],
+      ),
       ),
     );
   }

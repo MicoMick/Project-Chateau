@@ -5,6 +5,17 @@ import {
 } from 'lucide-react';
 import { StatusPill, ConditionBadge, fmtDate } from './Borrowers';
 
+// Time-of-day alongside fmtDate's date — kept local since only this modal
+// needs to show "date · time" together (Requested On / Date Returned).
+const fmtTime = (d) => {
+  if (!d) return '';
+  try {
+    const dt = new Date(d);
+    return isNaN(dt.getTime()) ? '' : dt.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', hour12: true });
+  } catch { return ''; }
+};
+const fmtDateTime = (d) => d ? `${fmtDate(d)} · ${fmtTime(d)}` : '—';
+
 /**
  * BorrowersDetailModal — the full-detail view opened by clicking a row in
  * Borrowers.jsx. Split out of Borrowers.jsx to keep that file focused on the
@@ -25,7 +36,7 @@ const BorrowersDetailModal = ({ row, onClose, canManage, onApprove, onReject, on
     <div className="fixed inset-0 z-[1500] flex items-center justify-center p-4"
       onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
-      <div className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
+      <div className="relative bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
@@ -50,43 +61,60 @@ const BorrowersDetailModal = ({ row, onClose, canManage, onApprove, onReject, on
           </div>
         </div>
 
-        {/* Details */}
+        {/* Details — landscape: item info and timing info side by side */}
         <div className="p-6 space-y-3 overflow-y-auto">
-          {[
-            { icon: Package,      label: 'Item',         value: row.facilities?.name || '—' },
-            { icon: Hash,         label: 'Quantity',     value: row.quantity ? `${row.quantity} unit(s)` : '—' },
-            { icon: CalendarDays, label: 'Requested On', value: fmtDate(row.created_at) },
-            { icon: CalendarDays, label: 'Borrow Date',  value: fmtDate(row.date) },
-          ].map(f => (
-            <div key={f.label} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                <f.icon size={14} className="text-blue-600" />
-              </div>
-              <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{f.label}</p>
-                <p className="text-sm font-bold text-slate-800 text-right">{f.value}</p>
-              </div>
-            </div>
-          ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-          {/* Date Returned — only applicable once an item was actually
-              approved/borrowed. A Pending, Rejected, or Cancelled request
-              was never borrowed, so "not returned yet" wouldn't make sense. */}
-          {['Approved', 'Return Pending', 'Completed'].includes(row.status) && (
-            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                <CheckCircle2 size={14} className="text-blue-600" />
-              </div>
-              <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date Returned</p>
-                {row.status === 'Completed'
-                  ? <p className="text-sm font-bold text-emerald-600">{fmtDate(row.returned_at)}</p>
-                  : row.status === 'Return Pending'
-                    ? <span className="text-[10px] font-black px-2 py-1 rounded-full border uppercase tracking-wide bg-blue-50 text-blue-700 border-blue-200">Reported {fmtDate(row.returned_at)} — Pending Verification</span>
-                    : <span className="text-[10px] font-black px-2 py-1 rounded-full border uppercase tracking-wide bg-amber-50 text-amber-700 border-amber-200">Not Returned Yet</span>}
-              </div>
+            {/* Left column — what was borrowed */}
+            <div className="space-y-3">
+              {[
+                { icon: Package, label: 'Item',     value: row.facilities?.name || '—' },
+                { icon: Hash,    label: 'Quantity', value: row.quantity ? `${row.quantity} unit(s)` : '—' },
+              ].map(f => (
+                <div key={f.label} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                    <f.icon size={14} className="text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{f.label}</p>
+                    <p className="text-sm font-bold text-slate-800 text-right">{f.value}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
+
+            {/* Right column — when it happened */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                  <CalendarDays size={14} className="text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Requested On</p>
+                  <p className="text-sm font-bold text-slate-800 text-right">{fmtDateTime(row.created_at)}</p>
+                </div>
+              </div>
+
+              {/* Date Returned — only applicable once an item was actually
+                  approved/borrowed. A Pending, Rejected, or Cancelled request
+                  was never borrowed, so "not returned yet" wouldn't make sense. */}
+              {['Approved', 'Return Pending', 'Completed'].includes(row.status) && (
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                    <CheckCircle2 size={14} className="text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date Returned</p>
+                    {row.status === 'Completed'
+                      ? <p className="text-sm font-bold text-emerald-600 text-right">{fmtDateTime(row.returned_at)}</p>
+                      : row.status === 'Return Pending'
+                        ? <span className="text-[10px] font-black px-2 py-1 rounded-full border uppercase tracking-wide bg-blue-50 text-blue-700 border-blue-200 text-right">Reported {fmtDateTime(row.returned_at)} — Pending Verification</span>
+                        : <span className="text-[10px] font-black px-2 py-1 rounded-full border uppercase tracking-wide bg-amber-50 text-amber-700 border-amber-200">Not Returned Yet</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Condition photos — at borrow, and at return once processed */}
           {(row.borrow_condition_photo_url || row.return_condition_photo_url) && (
