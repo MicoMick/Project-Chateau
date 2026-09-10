@@ -4,8 +4,10 @@ import { logAudit } from '../auditLogger';
 import {
   ShieldCheck, Check, X, AlertTriangle, CheckCircle2,
   AlertCircle, RefreshCw, Clock, Filter, Search,
-  CreditCard, Trash2, FileEdit, User,
+  CreditCard, User, Eye,
 } from 'lucide-react';
+import { actionIcon, actionColor, tableColor } from './pendingApprovalHelpers';
+import RequestDetailModal from './RequestDetailModal';
 
 // ─── Pagination hook ─────────────────────────────────────────────────────────
 const usePagination = (items, rowsPerPage = 10) => {
@@ -73,29 +75,9 @@ const Toast = ({ toast }) => {
   );
 };
 
-const actionIcon = (type = '') => {
-  switch (type.toUpperCase()) {
-    case 'DELETE': return <Trash2   size={14} className="text-red-500"    />;
-    case 'UPDATE': return <FileEdit size={14} className="text-blue-500"   />;
-    default:       return <FileEdit size={14} className="text-slate-400"  />;
-  }
-};
-
-const actionColor = (type = '') => {
-  switch (type.toUpperCase()) {
-    case 'DELETE': return 'bg-red-50 text-red-700 border-red-100';
-    case 'UPDATE': return 'bg-blue-50 text-blue-700 border-blue-100';
-    default:       return 'bg-slate-100 text-slate-600 border-slate-200';
-  }
-};
-
-const tableColor = (table = '') => {
-  switch (table.toLowerCase()) {
-    case 'payments':  return 'bg-emerald-50 text-emerald-700';
-    case 'profiles':  return 'bg-indigo-50 text-indigo-700';
-    default:          return 'bg-slate-100 text-slate-600';
-  }
-};
+// actionIcon, actionColor, tableColor moved to ./pendingApprovalHelpers —
+// shared with the extracted RequestDetailModal so both agree on how an
+// action type / target table is labeled and colored.
 
 // ─── Confirm Dialog ───────────────────────────────────────────────────────────
 
@@ -157,6 +139,7 @@ const PendingApproval = () => {
   const [loading,      setLoading]      = useState(true);
   const [actionLoading,setActionLoading]= useState(false);
   const [confirmData,  setConfirmData]  = useState(null);
+  const [viewingRequest, setViewingRequest] = useState(null);
   const [toast,        setToast]        = useState({ show: false, message: '', type: 'success' });
   const [searchTerm,   setSearchTerm]   = useState('');
   const [typeFilter,   setTypeFilter]   = useState('ALL');
@@ -330,6 +313,13 @@ const PendingApproval = () => {
         loading={actionLoading}
       />
 
+      <RequestDetailModal
+        request={viewingRequest}
+        onClose={() => setViewingRequest(null)}
+        onApprove={(req) => { setViewingRequest(null); setConfirmData({ action: 'approve', request: req }); }}
+        onReject={(req) => { setViewingRequest(null); setConfirmData({ action: 'reject', request: req }); }}
+      />
+
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -421,7 +411,7 @@ const PendingApproval = () => {
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
                   {['Action','Table','Details','Requested','Status',''].map(h => (
-                    <th key={h} className="px-5 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                    <th key={h} className="px-5 py-3.5 text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -435,7 +425,7 @@ const PendingApproval = () => {
 
                       {/* Action type */}
                       <td className="px-5 py-4">
-                        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border ${actionColor(req.action_type)}`}>
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border ${actionColor(req.action_type)}`}>
                           {actionIcon(req.action_type)}
                           {req.action_type}
                         </span>
@@ -443,39 +433,39 @@ const PendingApproval = () => {
 
                       {/* Target table */}
                       <td className="px-5 py-4">
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded-lg capitalize ${tableColor(req.target_table)}`}>
+                        <span className={`text-xs font-bold px-2 py-1 rounded-lg capitalize ${tableColor(req.target_table)}`}>
                           {req.target_table || '—'}
                         </span>
                       </td>
 
                       {/* Request details */}
-                      <td className="px-5 py-4 max-w-[220px]">
+                      <td className="px-5 py-4 max-w-[280px]">
                         {req.requested_data ? (
-                          <div className="space-y-0.5">
+                          <div className="space-y-1">
                             {req.requested_data.reference_no && (
-                              <p className="text-xs font-semibold text-slate-700 truncate">
+                              <p className="text-sm font-bold text-slate-800 truncate">
                                 Ref: {req.requested_data.reference_no}
                               </p>
                             )}
                             {req.requested_data.amount && (
-                              <p className="text-xs text-slate-500">
+                              <p className="text-sm font-semibold text-slate-600">
                                 ₱{Number(req.requested_data.amount).toLocaleString()}
                               </p>
                             )}
                             {req.requested_data.details && (
-                              <p className="text-xs text-slate-400 truncate">{req.requested_data.details}</p>
+                              <p className="text-sm text-slate-600 truncate" title={req.requested_data.details}>{req.requested_data.details}</p>
                             )}
                             {!req.requested_data.reference_no && !req.requested_data.amount && (
-                              <p className="text-xs text-slate-400 truncate font-mono">{req.target_id?.slice(0, 16)}…</p>
+                              <p className="text-sm text-slate-500 truncate font-mono">{req.target_id?.slice(0, 16)}…</p>
                             )}
                           </div>
                         ) : (
-                          <p className="text-xs font-mono text-slate-400">{req.target_id?.slice(0, 20)}…</p>
+                          <p className="text-sm font-mono text-slate-500">{req.target_id?.slice(0, 20)}…</p>
                         )}
                       </td>
 
                       {/* Date */}
-                      <td className="px-5 py-4 text-xs text-slate-500 whitespace-nowrap">
+                      <td className="px-5 py-4 text-sm text-slate-600 whitespace-nowrap">
                         {new Date(req.created_at).toLocaleDateString('en-US', {
                           month: 'short', day: 'numeric', year: 'numeric',
                         })}
@@ -483,7 +473,7 @@ const PendingApproval = () => {
 
                       {/* Status pill */}
                       <td className="px-5 py-4">
-                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full border
                           ${req.status === 'PENDING'  ? 'bg-amber-50 text-amber-700 border-amber-100'   :
                             req.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
                                                         'bg-red-50 text-red-600 border-red-100'}`}>
@@ -491,26 +481,35 @@ const PendingApproval = () => {
                         </span>
                       </td>
 
-                      {/* Actions — only shown for PENDING */}
+                      {/* Actions — View is always available; Approve/Reject only for PENDING */}
                       <td className="px-5 py-4">
-                        {isPending && (
-                          <div className="flex items-center gap-2 justify-end">
-                            <button
-                              onClick={() => setConfirmData({ action: 'reject', request: req })}
-                              className="p-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-colors cursor-pointer"
-                              title="Reject"
-                            >
-                              <X size={15} />
-                            </button>
-                            <button
-                              onClick={() => setConfirmData({ action: 'approve', request: req })}
-                              className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-colors cursor-pointer"
-                              title="Approve"
-                            >
-                              <Check size={15} />
-                            </button>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 justify-end">
+                          <button
+                            onClick={() => setViewingRequest(req)}
+                            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition-colors cursor-pointer"
+                            title="View Details"
+                          >
+                            <Eye size={15} />
+                          </button>
+                          {isPending && (
+                            <>
+                              <button
+                                onClick={() => setConfirmData({ action: 'reject', request: req })}
+                                className="p-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-colors cursor-pointer"
+                                title="Reject"
+                              >
+                                <X size={15} />
+                              </button>
+                              <button
+                                onClick={() => setConfirmData({ action: 'approve', request: req })}
+                                className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-colors cursor-pointer"
+                                title="Approve"
+                              >
+                                <Check size={15} />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

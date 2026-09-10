@@ -700,10 +700,18 @@ const Payment = () => {
       setTransaction({ status: 'loading', message: 'Submitting void request…' });
       try {
         const { data: { user } } = await supabase.auth.getUser();
+        // Self-read of our own admins row — RLS on 'admins' only allows an
+        // admin to read their own row (or a super_admin to read any), so this
+        // is captured now rather than looked up cross-admin when the
+        // President reviews it later (see RequestDetailModal.jsx).
+        const { data: ownAdmin } = user?.id
+          ? await supabase.from('admins').select('role, display_name').eq('id', user.id).maybeSingle()
+          : { data: null };
         const { error } = await supabase.from('approval_requests').insert([{
           target_table: 'payments', target_id: selectedPayment.id, action_type: 'DELETE',
           requested_data: { reference_no: selectedPayment.reference_no, amount: selectedPayment.amount },
           status: 'PENDING', requested_by: user?.id || null,
+          requested_by_role: ownAdmin?.role || null, requested_by_name: ownAdmin?.display_name || null,
         }]);
         if (error) throw error;
         await logAudit('REQUEST_VOID_PAYMENT', `Void request for Ref: ${selectedPayment.reference_no}.`);
@@ -736,6 +744,11 @@ const Payment = () => {
       const monthLabel = formatMonthCoverage(p.due_date, monthsCoveredBy(p.amount, monthlyDue));
 
       const { data: { user } } = await supabase.auth.getUser();
+      // Self-read of our own admins row — see the matching comment in
+      // handleVoidTransaction above.
+      const { data: ownAdmin } = user?.id
+        ? await supabase.from('admins').select('role, display_name').eq('id', user.id).maybeSingle()
+        : { data: null };
       const { error } = await supabase.from('approval_requests').insert([{
         target_table: 'payments', target_id: p.id, action_type: 'UPDATE',
         requested_data: {
@@ -749,6 +762,7 @@ const Payment = () => {
           details: `${residentName} — ${monthLabel}: ${note}`,
         },
         status: 'PENDING', requested_by: user?.id || null,
+        requested_by_role: ownAdmin?.role || null, requested_by_name: ownAdmin?.display_name || null,
       }]);
       if (error) throw error;
 
