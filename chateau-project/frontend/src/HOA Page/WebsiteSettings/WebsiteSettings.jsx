@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "../supabaseAdmin";
 import {
   Camera, CheckCircle, AlertCircle, Loader2, RotateCcw, Globe, Users, Image as ImageIcon, Save,
@@ -72,7 +73,7 @@ const DEFAULT_QR_URL = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200
 // ─── Notification Modal ───────────────────────────────────────────────────────
 const NotifModal = ({ n, onClose }) => {
   if (!n.show) return null;
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in">
       <div className="bg-white rounded-3xl p-7 max-w-sm w-full shadow-2xl text-center border border-slate-100 animate-in zoom-in-95 duration-200">
         <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center mb-4 ${n.type === 'success' ? 'bg-emerald-50' : 'bg-red-50'}`}>
@@ -82,7 +83,8 @@ const NotifModal = ({ n, onClose }) => {
         <p className="text-slate-500 text-sm mb-6 leading-relaxed">{n.message}</p>
         <button onClick={onClose} className="w-full py-3 bg-[#006837] hover:bg-[#004d29] text-white rounded-2xl font-bold transition-all cursor-pointer">Continue</button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
