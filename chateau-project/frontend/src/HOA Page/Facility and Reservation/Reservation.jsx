@@ -503,7 +503,7 @@ const Reservation = () => {
                 ${pageTab === 'reservations' ? 'bg-white text-[#006837] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
               <CalendarDays size={13} /> Reservations
             </button>
-            {currentUserRole !== 'treasurer' && (
+            {!['treasurer', 'board_member'].includes(currentUserRole) && (
               <button onClick={() => setPageTab('borrowers')}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer
                   ${pageTab === 'borrowers' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -778,7 +778,12 @@ const Reservation = () => {
 
       {/* ── Calendar ─────────────────────────────────────────────────────────── */}
       <CalendarReserve isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)}
-        reservations={reservations} setSelectedReservation={setSelectedRes} />
+        reservations={
+          ['treasurer', 'board_member'].includes(currentUserRole)
+            ? reservations.filter(r => r.facilities?.category !== 'Amenity Item')
+            : reservations
+        }
+        setSelectedReservation={setSelectedRes} />
 
 
 

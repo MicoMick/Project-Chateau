@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
 import 'app_dialogs.dart';
 import 'login_page.dart';
+import 'audit_logger.dart';
 
 // ── Address data ───────────────────────────────────────────────────────────────
 
@@ -317,6 +318,13 @@ class _SignupPageState extends State<SignupPage> {
         'barangay_clearance_url': clearanceUrl,
         'status':                 'pending',
       });
+
+      // Log before signing out — logAudit needs the still-active session to
+      // attribute this to the new account, and to look up resident_type.
+      await logAudit(
+        'SIGNUP',
+        'Registered as $_residentType at $address. Awaiting admin approval.',
+      );
 
       await _supabase.auth.signOut();
 

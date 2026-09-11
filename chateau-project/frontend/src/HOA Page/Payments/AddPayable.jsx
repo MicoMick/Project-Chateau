@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { supabase } from '../supabaseAdmin'; 
+import { supabase } from '../supabaseAdmin';
+import { logAudit } from '../auditLogger';
 import { X } from 'lucide-react';
 
 const AddPayable = ({ isOpen, onClose, onPayableAdded }) => {
@@ -28,6 +29,8 @@ const AddPayable = ({ isOpen, onClose, onPayableAdded }) => {
         }]);
 
       if (error) throw error;
+
+      await logAudit('ADD_PAYABLE', `Recorded payable: ${description} — ₱${parseFloat(amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })} owed to ${payee}, due ${dueDate}.`);
 
       // Reset form
       setDescription('');

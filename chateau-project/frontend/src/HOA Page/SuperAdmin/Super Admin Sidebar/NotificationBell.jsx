@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, KeyRound, Check, X, Loader2 } from 'lucide-react';
 import { supabase } from '../../supabaseAdmin';
+import { logAudit } from '../../auditLogger';
 
 const timeAgo = (iso) => {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -49,13 +50,20 @@ const NotificationBell = () => {
   const resolveRequest = async (id, status) => {
     setActingId(id);
     try {
+      const target = requests.find(r => r.id === id);
       const { data: { user } } = await supabase.auth.getUser();
       const { error } = await supabase.from('password_reset_requests').update({
         status,
         resolved_at: new Date().toISOString(),
         resolved_by: user?.id || null,
       }).eq('id', id);
-      if (!error) setRequests(prev => prev.filter(r => r.id !== id));
+      if (!error) {
+        setRequests(prev => prev.filter(r => r.id !== id));
+        await logAudit(
+          'PASSWORD_RESET_REQUEST',
+          `${status === 'resolved' ? 'Resolved' : 'Dismissed'} password reset request for ${target?.full_name || target?.email || 'unknown resident'} (${target?.email || 'no email'}).`,
+        );
+      }
     } finally {
       setActingId(null);
     }
