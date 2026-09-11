@@ -8,6 +8,7 @@ import 'package:panorama_viewer/panorama_viewer.dart';
 import 'app_colors.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
+import 'audit_logger.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 // Models
 // ─────────────────────────────────────────────────────────────────────────────
@@ -237,6 +238,7 @@ class _ReservePageState extends State<ReservePage>
       await _supabase
           .from('reservations')
           .update({'status': 'Cancelled'}).eq('id', r.id);
+      await logAudit('CANCEL_RESERVATION', 'Cancelled reservation for ${_facilityName(r.facilityId) ?? 'an amenity'}.');
       if (!mounted) return;
       await _loadData();
       if (mounted) _showSnack('Reservation cancelled.', isError: true);
@@ -1326,6 +1328,12 @@ class _BookSheetState extends State<_BookSheet> {
         if (conditionPhotoUrl != null) 'borrow_condition_photo_url': conditionPhotoUrl,
       });
 
+      await logAudit(
+        'NEW_RESERVATION',
+        'Reserved ${widget.facility.name} for ${widget.selectedDate.toIso8601String().split('T').first}'
+        '${widget.facility.isQuantityBased ? ' — $_quantity unit(s)' : ''}.',
+      );
+
       if (mounted) {
         Navigator.of(context).pop();
         widget.onBooked();
@@ -1967,6 +1975,11 @@ class _ReturnSheetState extends State<_ReturnSheet> {
             : _notesCtrl.text.trim(),
         'return_condition_photo_url': photoUrl,
       }).eq('id', widget.reservation.id);
+
+      await logAudit(
+        'RETURN_BORROWED_ITEM',
+        'Submitted return for ${widget.facilityName} — condition: $_condition${_missingQty > 0 ? ', $_missingQty missing/damaged unit(s)' : ''}.',
+      );
 
       if (!mounted) return;
       Navigator.of(context).pop();

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
+import 'audit_logger.dart';
 
 // ── VotingPage ────────────────────────────────────────────────────────────────
 
@@ -635,6 +636,12 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
       }).toList();
 
       await supabase.from('votes').insert(votes);
+
+      // Logs that a vote was cast, not who for — ballots stay secret.
+      await logAudit(
+        'CAST_VOTE',
+        'Cast a vote in "${widget.election['title'] as String? ?? 'Election'}".',
+      );
 
       if (mounted) {
         setState(() {

@@ -8,6 +8,7 @@ import 'app_colors.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'login_page.dart';
+import 'audit_logger.dart';
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
 
@@ -137,8 +138,10 @@ class _AccountPageState extends State<AccountPage>
       };
       if (id != null) {
         await _supabase.from('family_members').update(row).eq('id', id);
+        await logAudit('UPDATE_FAMILY_MEMBER', 'Updated family member "$fullName".');
       } else {
         await _supabase.from('family_members').insert(row);
+        await logAudit('ADD_FAMILY_MEMBER', 'Added family member "$fullName".');
       }
       await _loadFamilyMembers();
       if (mounted) {
@@ -165,6 +168,7 @@ class _AccountPageState extends State<AccountPage>
     if (!confirm) return;
     try {
       await _supabase.from('family_members').delete().eq('id', member['id']);
+      await logAudit('DELETE_FAMILY_MEMBER', 'Removed family member "${member['full_name']}".');
       await _loadFamilyMembers();
       if (mounted) _showSnack('Family member removed.');
     } catch (e) {
@@ -256,6 +260,8 @@ class _AccountPageState extends State<AccountPage>
             _birthDate?.toIso8601String().split('T').first,
         'avatar_url':     newAvatarUrl,
       });
+
+      await logAudit('UPDATE_PROFILE', 'Updated profile details.');
 
       setState(() {
         _avatarUrl      = newAvatarUrl;

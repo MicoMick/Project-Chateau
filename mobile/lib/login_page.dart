@@ -6,6 +6,7 @@ import 'app_dialogs.dart';
 import 'app_theme.dart';
 import 'signup_page.dart';
 import 'home_page.dart';
+import 'audit_logger.dart';
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -78,6 +79,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         _showError("Your account is disabled/pending admin approval.");
         return;
       }
+
+      await logAudit('LOGIN', 'Signed in to the mobile app.');
 
       if (mounted) {
         Navigator.pushReplacement(

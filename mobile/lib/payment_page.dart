@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
+import 'audit_logger.dart';
 
 // ── Models ─────────────────────────────────────────────────────────────────────
 
@@ -929,6 +930,11 @@ class _PaySheetState extends State<_PaySheet> {
         'submitted_at': DateTime.now().toIso8601String(),
       }).eq('id', widget.payment.id);
 
+      await logAudit(
+        'SUBMIT_PAYMENT_PROOF',
+        'Submitted proof of payment for ₱${widget.payment.amount.toStringAsFixed(2)} — reference #$reference.',
+      );
+
       if (!mounted) return;
       Navigator.of(context).pop();
       widget.onSubmitted();
@@ -1215,6 +1221,11 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
           {'label': 'Advance Payment', 'months': _months},
         ],
       });
+
+      await logAudit(
+        'SUBMIT_ADVANCE_PAYMENT',
+        'Submitted advance payment for ₱${_total.toStringAsFixed(2)} — covers $_months month(s), reference #$reference.',
+      );
 
       if (!mounted) return;
       Navigator.of(context).pop();

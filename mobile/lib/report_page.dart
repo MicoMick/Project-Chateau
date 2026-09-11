@@ -8,6 +8,7 @@ import 'package:video_player/video_player.dart';
 import 'app_colors.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
+import 'audit_logger.dart';
 
 // ── Data ───────────────────────────────────────────────────────────────────────
 
@@ -249,6 +250,8 @@ class _ReportPageState extends State<ReportPage>
         'video_url': videoUrl, // added
         'created_at': DateTime.now().toIso8601String(),
       });
+
+      await logAudit('SUBMIT_REPORT', 'Filed a report — category: ${_categories[_selectedIndex].label}.');
 
       if (mounted) {
         _videoController?.dispose(); // added
