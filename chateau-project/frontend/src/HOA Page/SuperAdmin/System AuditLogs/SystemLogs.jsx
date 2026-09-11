@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../../supabaseAdmin';
 import {
   ShieldCheck, Search, RefreshCw, AlertTriangle,
@@ -6,13 +7,18 @@ import {
   ChevronDown, ChevronUp, Filter, Clock,
   LogIn, LogOut, Edit2, Trash2, UserCheck,
   UserX, CreditCard, FileText, Megaphone,
-  Vote, BarChart3, Key, Activity,
+  Vote, BarChart3, Key, Activity, Eye, X,
+  User, UserCircle2,
 } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Plain-language labels so a non-technical reader (e.g. the HOA president)
+// immediately knows whether a log needs their attention.
 const SEVERITY_CONFIG = {
   info: {
+    label:   'Routine',
+    helper:  'A normal, everyday action. No action needed on your part.',
     bg:     'bg-emerald-50',
     text:   'text-emerald-700',
     border: 'border-emerald-100',
@@ -20,6 +26,8 @@ const SEVERITY_CONFIG = {
     icon:   CheckCircle2,
   },
   warning: {
+    label:   'Needs Attention',
+    helper:  'Worth a quick look when you get the chance — not urgent.',
     bg:     'bg-amber-50',
     text:   'text-amber-700',
     border: 'border-amber-100',
@@ -27,12 +35,27 @@ const SEVERITY_CONFIG = {
     icon:   AlertTriangle,
   },
   danger: {
+    label:   'Critical',
+    helper:  'An important event — please review this as soon as possible.',
     bg:     'bg-red-50',
     text:   'text-red-700',
     border: 'border-red-100',
     dot:    'bg-red-400',
     icon:   AlertCircle,
   },
+};
+
+// Turns codes like "ADD_PAYABLE" or "REVIEW_DELINQUENT_ACCOUNT" into
+// readable text ("Add Payable"). Leaves already-readable strings untouched.
+const humanizeActivity = (activity = '') => {
+  if (!activity) return '—';
+  if (!activity.includes('_') && activity !== activity.toUpperCase()) return activity;
+  return activity
+    .toLowerCase()
+    .split('_')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 };
 
 // Map activity keywords → icon
@@ -75,9 +98,130 @@ const ROLE_BADGE = {
   auditor:        'bg-orange-100 text-orange-700',
   board_member:   'bg-slate-100 text-slate-600',
   'board member': 'bg-slate-100 text-slate-600',
+  owner:          'bg-cyan-100 text-cyan-700',
+  tenant:         'bg-pink-100 text-pink-700',
+};
+
+const stripRolePrefix = (details = '') => details.replace(/^\[[A-Z_]+\]\s*/, '');
+
+// Long, spelled-out date/time for the detail view — easier to read at a
+// glance than the compact "Sep 11, 2026 03:45:12 PM" used in the table.
+const formatFullDate = (d) => {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+    + ' at ' + dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
 };
 
 const PAGE_SIZE = 25;
+
+// ─── Log Detail Modal ──────────────────────────────────────────────────────────
+// Landscape, two-column layout — built for a non-technical reader (e.g. the
+// HOA president) to understand a log entry at a glance without needing to
+// decode raw activity codes, severity levels, or role tags.
+
+const LogDetailModal = ({ log, onClose }) => {
+  if (!log) return null;
+
+  const sev  = SEVERITY_CONFIG[log.severity] || SEVERITY_CONFIG.info;
+  const SevIcon = sev.icon;
+  const role   = extractRole(log.details || '');
+  const roleBg = ROLE_BADGE[role] || 'bg-slate-100 text-slate-600';
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl ${sev.bg}`}>
+              <SevIcon size={20} className={sev.text} />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-slate-900">{humanizeActivity(log.activity)}</h2>
+              <p className="text-sm text-slate-500">{formatFullDate(log.created_at)}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Two-column body */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+
+          {/* Left — Who & When */}
+          <div className="p-6 space-y-5">
+            <p className="text-xs font-black text-slate-400 uppercase tracking-wider">Who Did This</p>
+
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-slate-100 rounded-full shrink-0">
+                <UserCircle2 size={22} className="text-slate-500" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-800 break-all">{log.user_email || 'Unknown user'}</p>
+                {role && (
+                  <span className={`inline-block mt-1 text-xs font-bold px-2.5 py-1 rounded-full capitalize ${roleBg}`}>
+                    {role}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-1.5">When</p>
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <Clock size={15} className="text-slate-400 shrink-0" />
+                {formatFullDate(log.created_at)}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-1.5">Status</p>
+              <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border
+                ${sev.bg} ${sev.text} ${sev.border}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${sev.dot}`} />
+                {sev.label}
+              </span>
+              <p className="text-sm text-slate-500 mt-2 leading-relaxed">{sev.helper}</p>
+            </div>
+          </div>
+
+          {/* Right — What Happened */}
+          <div className="p-6 space-y-5">
+            <p className="text-xs font-black text-slate-400 uppercase tracking-wider">What Happened</p>
+            <div>
+              <p className="text-sm font-bold text-slate-800 mb-1.5">{humanizeActivity(log.activity)}</p>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {stripRolePrefix(log.details || '') || 'No additional details were recorded for this entry.'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 bg-[#006837] text-white rounded-xl text-sm font-bold hover:bg-[#004d29] shadow-sm transition-all cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -91,7 +235,7 @@ const SystemLogs = () => {
   const [roleFilter,  setRoleFilter]  = useState('all');
   const [sortDir,     setSortDir]     = useState('desc'); // desc = newest first
   const [page,        setPage]        = useState(1);
-  const [expanded,    setExpanded]    = useState(null);
+  const [viewLog,     setViewLog]     = useState(null); // log currently shown in the detail modal
 
   // ── Fetch all logs ──────────────────────────────────────────────────────────
   const fetchLogs = useCallback(async () => {
@@ -120,9 +264,12 @@ const SystemLogs = () => {
 
     let result = logs.filter((log) => {
       if (sevFilter !== 'all' && log.severity !== sevFilter) return false;
-      if (roleFilter !== 'all') {
+      if (roleFilter === 'owners_tenants') {
         const role = extractRole(log.details || '');
-        if (!role || !role.includes(roleFilter.replace('_', ' '))) return false;
+        if (role !== 'owner' && role !== 'tenant') return false;
+      } else if (roleFilter !== 'all') {
+        const role = extractRole(log.details || '');
+        if (role !== roleFilter.replace('_', ' ')) return false;
       }
       if (!term) return true;
       return (
@@ -185,8 +332,8 @@ const SystemLogs = () => {
             <ShieldCheck size={22} className="text-[#006837]" />
             System Audit Logs
           </h1>
-          <p className="text-sm text-slate-400 mt-0.5">
-            Complete trail of all admin actions — logins, logouts, and every operation
+          <p className="text-sm text-slate-500 mt-0.5">
+            A record of every action taken across the system — who did what, and when.
           </p>
         </div>
         <div className="flex gap-2">
@@ -212,15 +359,15 @@ const SystemLogs = () => {
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'Total Logs', value: logs.length, color: 'text-slate-900', bg: 'bg-slate-100', icon: Activity },
-          { label: 'Info',       value: counts.info,    color: 'text-emerald-700', bg: 'bg-emerald-50', icon: CheckCircle2 },
-          { label: 'Warnings',   value: counts.warning, color: 'text-amber-700',   bg: 'bg-amber-50',   icon: AlertTriangle },
-          { label: 'Danger',     value: counts.danger,  color: 'text-red-700',     bg: 'bg-red-50',     icon: AlertCircle },
+          { label: 'Total Logs',     value: logs.length,    color: 'text-slate-900',   bg: 'bg-slate-100',  icon: Activity },
+          { label: 'Routine',        value: counts.info,    color: 'text-emerald-700', bg: 'bg-emerald-50', icon: CheckCircle2 },
+          { label: 'Needs Attention',value: counts.warning, color: 'text-amber-700',   bg: 'bg-amber-50',   icon: AlertTriangle },
+          { label: 'Critical',       value: counts.danger,  color: 'text-red-700',     bg: 'bg-red-50',     icon: AlertCircle },
         ].map((k) => (
           <div key={k.label} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{k.label}</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{k.label}</p>
                 <p className={`text-3xl font-black mt-0.5 ${k.color}`}>{k.value.toLocaleString()}</p>
               </div>
               <div className={`p-3 rounded-xl ${k.bg}`}>
@@ -241,10 +388,10 @@ const SystemLogs = () => {
               <button
                 key={s}
                 onClick={() => setSevFilter(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all cursor-pointer
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer
                   ${sevFilter === s ? 'bg-white text-[#006837] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
-                {s === 'all' ? `All (${logs.length})` : `${s} (${counts[s] || 0})`}
+                {s === 'all' ? `All (${logs.length})` : `${SEVERITY_CONFIG[s].label} (${counts[s] || 0})`}
               </button>
             ))}
           </div>
@@ -263,6 +410,9 @@ const SystemLogs = () => {
             <option value="treasurer">Treasurer</option>
             <option value="auditor">Auditor</option>
             <option value="board_member">Board Member</option>
+            <option value="owners_tenants">Owners &amp; Tenants</option>
+            <option value="owner">Owners Only</option>
+            <option value="tenant">Tenants Only</option>
           </select>
 
           {/* Sort toggle */}
@@ -303,9 +453,9 @@ const SystemLogs = () => {
               </button>
             </div>
           ) : paginated.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-slate-300">
+            <div className="flex flex-col items-center justify-center py-16 text-slate-400">
               <Clock size={36} className="mb-2" />
-              <p className="text-sm font-semibold text-slate-400">
+              <p className="text-sm font-semibold text-slate-500">
                 {search || sevFilter !== 'all' || roleFilter !== 'all'
                   ? 'No logs match your filters'
                   : 'No logs recorded yet'}
@@ -315,8 +465,8 @@ const SystemLogs = () => {
             <table className="w-full text-left">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  {['Timestamp', 'User', 'Role', 'Activity', 'Severity', 'Details'].map((h) => (
-                    <th key={h} className="px-5 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                  {['Date & Time', 'User', 'Role', 'Action', 'Status', 'Details', ''].map((h) => (
+                    <th key={h} className="px-5 py-3.5 text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -327,88 +477,75 @@ const SystemLogs = () => {
                   const sev     = SEVERITY_CONFIG[log.severity] || SEVERITY_CONFIG.info;
                   const Icon    = activityIcon(log.activity);
                   const role    = extractRole(log.details || '');
-                  const roleBg  = ROLE_BADGE[role] || 'bg-slate-100 text-slate-500';
-                  const isOpen  = expanded === log.id;
+                  const roleBg  = ROLE_BADGE[role] || 'bg-slate-100 text-slate-600';
 
                   return (
-                    <React.Fragment key={log.id}>
-                      <tr
-                        className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
-                        onClick={() => setExpanded(isOpen ? null : log.id)}
-                      >
-                        {/* Timestamp */}
-                        <td className="px-5 py-3.5 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                            <Clock size={11} className="text-slate-300 shrink-0" />
-                            {formatDate(log.created_at)}
-                          </div>
-                        </td>
+                    <tr
+                      key={log.id}
+                      className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                      onClick={() => setViewLog(log)}
+                    >
+                      {/* Timestamp */}
+                      <td className="px-5 py-3.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                          <Clock size={13} className="text-slate-400 shrink-0" />
+                          {formatDate(log.created_at)}
+                        </div>
+                      </td>
 
-                        {/* User */}
-                        <td className="px-5 py-3.5">
-                          <p className="text-sm font-semibold text-slate-700 truncate max-w-[180px]">
-                            {log.user_email || '—'}
-                          </p>
-                        </td>
+                      {/* User */}
+                      <td className="px-5 py-3.5">
+                        <p className="text-sm font-semibold text-slate-700 truncate max-w-[180px]">
+                          {log.user_email || '—'}
+                        </p>
+                      </td>
 
-                        {/* Role */}
-                        <td className="px-5 py-3.5">
-                          {role && (
-                            <span className={`text-[10px] font-bold px-2 py-1 rounded-full capitalize ${roleBg}`}>
-                              {role}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Activity */}
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <Icon size={14} className="text-slate-400 shrink-0" />
-                            <span className="text-sm font-semibold text-slate-700 truncate max-w-[180px]">
-                              {log.activity || '—'}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Severity */}
-                        <td className="px-5 py-3.5">
-                          <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border capitalize
-                            ${sev.bg} ${sev.text} ${sev.border}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${sev.dot}`} />
-                            {log.severity || 'info'}
+                      {/* Role */}
+                      <td className="px-5 py-3.5">
+                        {role && (
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize ${roleBg}`}>
+                            {role}
                           </span>
-                        </td>
+                        )}
+                      </td>
 
-                        {/* Details (truncated) */}
-                        <td className="px-5 py-3.5">
-                          <p className="text-xs text-slate-500 truncate max-w-[220px]">
-                            {(log.details || '—').replace(/^\[[A-Z_]+\]\s*/, '')}
-                          </p>
-                        </td>
-                      </tr>
+                      {/* Activity */}
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <Icon size={15} className="text-slate-400 shrink-0" />
+                          <span className="text-sm font-semibold text-slate-700 truncate max-w-[180px]">
+                            {humanizeActivity(log.activity)}
+                          </span>
+                        </div>
+                      </td>
 
-                      {/* Expanded detail row */}
-                      {isOpen && (
-                        <tr className="bg-slate-50/60">
-                          <td colSpan={6} className="px-8 py-4">
-                            <div className="flex flex-wrap gap-6 text-sm">
-                              <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Full Details</p>
-                                <p className="text-slate-700 font-medium max-w-xl">{log.details || '—'}</p>
-                              </div>
-                              <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Log ID</p>
-                                <p className="text-slate-500 font-mono text-xs">{log.id}</p>
-                              </div>
-                              <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Exact Time</p>
-                                <p className="text-slate-700">{new Date(log.created_at).toISOString()}</p>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
+                      {/* Severity */}
+                      <td className="px-5 py-3.5">
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border
+                          ${sev.bg} ${sev.text} ${sev.border}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${sev.dot}`} />
+                          {sev.label}
+                        </span>
+                      </td>
+
+                      {/* Details (truncated) */}
+                      <td className="px-5 py-3.5">
+                        <p className="text-sm text-slate-600 truncate max-w-[220px]">
+                          {stripRolePrefix(log.details || '—')}
+                        </p>
+                      </td>
+
+                      {/* View */}
+                      <td className="px-5 py-3.5 text-right">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setViewLog(log); }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 group-hover:bg-[#006837] group-hover:text-white text-slate-600 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                        >
+                          <Eye size={13} />
+                          View
+                        </button>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -419,7 +556,7 @@ const SystemLogs = () => {
         {/* ── Pagination ── */}
         {!loading && !error && filtered.length > PAGE_SIZE && (
           <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between">
-            <p className="text-xs text-slate-400 font-medium">
+            <p className="text-xs text-slate-500 font-medium">
               Showing <span className="font-bold text-slate-600">
                 {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)}
               </span> of <span className="font-bold text-slate-600">{filtered.length}</span> logs
@@ -460,13 +597,15 @@ const SystemLogs = () => {
         {/* Footer count */}
         {!loading && !error && filtered.length > 0 && filtered.length <= PAGE_SIZE && (
           <div className="px-5 py-3 border-t border-slate-100">
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               {filtered.length} log{filtered.length !== 1 ? 's' : ''} shown
               {(search || sevFilter !== 'all' || roleFilter !== 'all') && ` (filtered from ${logs.length} total)`}
             </p>
           </div>
         )}
       </div>
+
+      <LogDetailModal log={viewLog} onClose={() => setViewLog(null)} />
     </div>
   );
 };

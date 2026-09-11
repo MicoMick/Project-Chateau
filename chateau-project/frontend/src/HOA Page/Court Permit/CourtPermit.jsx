@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseAdmin';
 import {
   Search, X, CheckCircle2, AlertCircle,
@@ -53,12 +54,18 @@ const Toast = ({ toast }) => {
 };
 
 // ─── Permit Details Modal ─────
+// Rendered through a portal straight to <body>: a `fixed inset-0` overlay
+// nested this deep only covers the true viewport if every ancestor stays
+// free of transform/filter/contain/perspective/will-change. A portal makes
+// this overlay a direct child of <body>, so it's always guaranteed to be
+// truly viewport-relative regardless of what's above it in the tree.
 const ViewPermitModal = ({ permit, onClose }) => {
   if (!permit) return null;
 
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+        onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div>
@@ -111,7 +118,8 @@ const ViewPermitModal = ({ permit, onClose }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
