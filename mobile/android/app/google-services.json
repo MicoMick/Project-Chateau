@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "140836996726",
+    "project_id": "chateau-hoa",
+    "storage_bucket": "chateau-hoa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:140836996726:android:6862197278839117510157",
+        "android_client_info": {
+          "package_name": "com.example.homelinkapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDAkkSEVxTb2bL-rNb8Hdw_zfiNYPSDEtU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
