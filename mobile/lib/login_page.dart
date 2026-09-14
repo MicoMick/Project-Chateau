@@ -405,7 +405,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text('New to HOMELINK? ', style: TextStyle(color: Colors.white70, fontSize: 14)),
+        const Text('New to CHATEAU? ', style: TextStyle(color: Colors.white70, fontSize: 14)),
         GestureDetector(
           onTap: () {
             HapticFeedback.selectionClick();
