@@ -1,9 +1,14 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:chateau_mobile_app/app_colors.dart';
 import 'package:chateau_mobile_app/login_page.dart';
 import 'package:chateau_mobile_app/home_page.dart';
+import 'package:chateau_mobile_app/notification_page.dart';
+import 'package:chateau_mobile_app/push_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:chateau_mobile_app/app_config.dart';
+
+final navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,6 +17,24 @@ void main() async {
     url: AppConfig.supabaseUrl,
     publishableKey: AppConfig.supabaseAnonKey,
   );
+
+  await PushNotifications.initialize();
+
+  void openNotifications() {
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(builder: (_) => const NotificationPage()),
+    );
+  }
+
+  // Tapped a push while the app was backgrounded.
+  FirebaseMessaging.onMessageOpenedApp.listen((_) => openNotifications());
+
+  // App was launched by tapping a push (was fully terminated).
+  final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+  if (initialMessage != null) {
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => openNotifications());
+  }
 
   runApp(const MyApp());
 }
@@ -22,6 +45,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Chateau Real Estate App',
       theme: ThemeData(

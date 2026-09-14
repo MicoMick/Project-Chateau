@@ -3,6 +3,87 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
 import 'app_theme.dart';
 
+// ── Announcement resolution ────────────────
+const _kEmergencyPrefix = '🚨 EMERGENCY: ';
+const _kNewAnnouncementPrefix = 'New Announcement: ';
+const _kAnnouncementPrefix = 'Announcement: ';
+
+String _announcementTitleFor(String notifTitle) {
+  if (notifTitle.startsWith(_kEmergencyPrefix)) {
+    return notifTitle.substring(_kEmergencyPrefix.length);
+  }
+  if (notifTitle.startsWith(_kNewAnnouncementPrefix)) {
+    return notifTitle.substring(_kNewAnnouncementPrefix.length);
+  }
+  if (notifTitle.startsWith(_kAnnouncementPrefix)) {
+    return notifTitle.substring(_kAnnouncementPrefix.length);
+  }
+  return notifTitle;
+}
+
+class _NotificationEntry {
+  final Map<String, dynamic> raw;
+  final String? category; 
+  final DateTime? endDate; 
+  final bool isEmergency;
+  final DateTime createdAt;
+
+  const _NotificationEntry({
+    required this.raw,
+    required this.category,
+    required this.endDate,
+    required this.isEmergency,
+    required this.createdAt,
+  });
+
+  bool get isExpired {
+    if (endDate == null) return false;
+    final today = DateTime.now();
+    final endOfDay = DateTime(endDate!.year, endDate!.month, endDate!.day, 23, 59, 59);
+    return today.isAfter(endOfDay);
+  }
+
+  bool get isRecent => DateTime.now().difference(createdAt).inDays < 7;
+  bool get isFinancial => (category ?? '').toLowerCase() == 'financial';
+}
+
+// ── Filters ─────────────────────────────────────────
+
+enum _NotifFilter { all, recent, financial, important }
+
+extension on _NotifFilter {
+  String get label {
+    switch (this) {
+      case _NotifFilter.all:
+        return 'All';
+      case _NotifFilter.recent:
+        return 'Recent';
+      case _NotifFilter.financial:
+        return 'Financial';
+      case _NotifFilter.important:
+        return 'Important';
+    }
+  }
+
+  bool matches(_NotificationEntry e) {
+    switch (this) {
+      case _NotifFilter.all:
+        return true;
+      case _NotifFilter.recent:
+        return e.isRecent;
+      case _NotifFilter.financial:
+        return e.isFinancial;
+      case _NotifFilter.important:
+        if (!e.isEmergency) return false;
+        if (e.endDate == null &&
+            DateTime.now().difference(e.createdAt).inDays > 30) {
+          return false;
+        }
+        return true;
+    }
+  }
+}
+
 class NotificationPage extends StatefulWidget {
   const NotificationPage({super.key});
 
@@ -14,8 +95,10 @@ class _NotificationPageState extends State<NotificationPage> {
   final _supabase = Supabase.instance.client;
 
   List<Map<String, dynamic>> _notifications = [];
+  List<Map<String, dynamic>> _announcements = [];
   bool _loading = true;
   RealtimeChannel? _channel;
+  _NotifFilter _filter = _NotifFilter.all;
 
   @override
   void initState() {
@@ -51,15 +134,21 @@ class _NotificationPageState extends State<NotificationPage> {
       return;
     }
     try {
-      final data = await _supabase
-          .from('notifications')
-          .select()
-          .or('user_id.eq.$userId,user_id.is.null')
-          .order('created_at', ascending: false);
+      final results = await Future.wait([
+        _supabase
+            .from('notifications')
+            .select()
+            .or('user_id.eq.$userId,user_id.is.null')
+            .order('created_at', ascending: false),
+        _supabase
+            .from('announcements')
+            .select('title, category, end_date, is_emergency, created_at'),
+      ]);
 
       if (mounted) {
         setState(() {
-          _notifications = List<Map<String, dynamic>>.from(data as List);
+          _notifications = List<Map<String, dynamic>>.from(results[0] as List);
+          _announcements = List<Map<String, dynamic>>.from(results[1] as List);
           _loading = false;
         });
       }
@@ -68,8 +157,53 @@ class _NotificationPageState extends State<NotificationPage> {
     }
   }
 
+  // ── Resolve each notification against the announcement it was posted for ──
+
+  List<_NotificationEntry> get _entries {
+    return _notifications.map((n) {
+      final title = n['title'] as String? ?? '';
+      final createdAt =
+          DateTime.tryParse(n['created_at'] as String? ?? '') ?? DateTime.now();
+      final annTitle = _announcementTitleFor(title);
+      Map<String, dynamic>? match;
+      for (final a in _announcements) {
+        if (a['title'] != annTitle) continue;
+        final aCreated = DateTime.tryParse(a['created_at'] as String? ?? '');
+        if (aCreated == null || !aCreated.isAfter(createdAt)) {
+          if (match == null) {
+            match = a;
+          } else {
+            final matchCreated = DateTime.tryParse(match['created_at'] as String? ?? '');
+            if (aCreated != null &&
+                (matchCreated == null || aCreated.isAfter(matchCreated))) {
+              match = a;
+            }
+          }
+        }
+      }
+
+      return _NotificationEntry(
+        raw: n,
+        category: match?['category'] as String?,
+        endDate: match?['end_date'] != null
+            ? DateTime.tryParse(match!['end_date'] as String)
+            : null,
+        isEmergency: match?['is_emergency'] == true ||
+            title.startsWith(_kEmergencyPrefix),
+        createdAt: createdAt,
+      );
+    }).toList();
+  }
+
+  List<_NotificationEntry> get _visibleEntries {
+    final unexpired = _entries.where((e) => !e.isExpired).toList();
+    return unexpired.where(_filter.matches).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final visible = _visibleEntries;
+
     return Scaffold(
       backgroundColor: chateuBackground,
       appBar: AppBar(
@@ -83,14 +217,57 @@ class _NotificationPageState extends State<NotificationPage> {
         title: Text('Notifications', style: AppText.titleLarge),
         centerTitle: true,
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: Colors.grey.shade100),
+          preferredSize: const Size.fromHeight(53),
+          child: Column(
+            children: [
+              SizedBox(
+                height: 44,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  itemCount: _NotifFilter.values.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(width: AppSpacing.sm),
+                  itemBuilder: (context, i) {
+                    final f = _NotifFilter.values[i];
+                    final selected = f == _filter;
+                    return GestureDetector(
+                      onTap: () => setState(() => _filter = f),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: selected ? chateuPrimary : Colors.white,
+                          borderRadius: BorderRadius.circular(AppRadius.xxl),
+                          border: Border.all(
+                              color: selected
+                                  ? chateuPrimary
+                                  : Colors.grey.shade300),
+                        ),
+                        child: Text(
+                          f.label,
+                          style: AppText.caption.copyWith(
+                            color: selected ? Colors.white : Colors.grey.shade600,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Container(height: 1, color: Colors.grey.shade100),
+            ],
+          ),
         ),
       ),
       body: _loading
           ? const Center(
               child: CircularProgressIndicator(color: chateuPrimary))
-          : _notifications.isEmpty
+          : visible.isEmpty
               ? _buildEmpty()
               : RefreshIndicator(
                   onRefresh: _loadNotifications,
@@ -98,10 +275,9 @@ class _NotificationPageState extends State<NotificationPage> {
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(AppSpacing.lg,
                         AppSpacing.lg, AppSpacing.lg, AppSpacing.xxxl),
-                    itemCount: _notifications.length,
+                    itemCount: visible.length,
                     itemBuilder: (context, i) {
-                      final n = _notifications[i];
-                      return _NotificationCard(data: n);
+                      return _NotificationCard(data: visible[i].raw);
                     },
                   ),
                 ),
@@ -109,6 +285,7 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   Widget _buildEmpty() {
+    final noneAtAll = _notifications.isEmpty;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -123,10 +300,15 @@ class _NotificationPageState extends State<NotificationPage> {
                 color: chateuPrimary, size: 48),
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text('No notifications yet', style: AppText.titleMedium),
+          Text(
+            noneAtAll ? 'No notifications yet' : 'Nothing here',
+            style: AppText.titleMedium,
+          ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            "You're all caught up!",
+            noneAtAll
+                ? "You're all caught up!"
+                : 'No ${_filter.label.toLowerCase()} notifications right now.',
             style: AppText.bodyMedium.copyWith(color: Colors.grey.shade500),
           ),
         ],
@@ -135,7 +317,7 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 }
 
-// ── Card ───────────────────────────────────────────────────────────────────────
+// ── Card ────────────────────────────
 
 class _NotificationCard extends StatelessWidget {
   final Map<String, dynamic> data;

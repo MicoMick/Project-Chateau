@@ -15,6 +15,7 @@ import 'voting_page.dart';
 import 'payment_page.dart';
 import 'tenant_management_page.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'push_notifications.dart';
 
 // ── HomePage ───────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadProfile();
+    PushNotifications.registerToken();
   }
 
   Future<void> _loadProfile() async {
@@ -116,6 +118,7 @@ class _HomePageState extends State<HomePage> {
 
     if (confirm == true) {
       try {
+        await PushNotifications.unregisterToken();
         await supabase.auth.signOut();
         if (mounted) {
           // Clear all routes and go back to root to let AuthGate handle the redirect
