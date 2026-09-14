@@ -192,11 +192,7 @@ const EditAdmin = ({ isOpen, onClose, adminToEdit, onAdminUpdated }) => {
               )}
             </div>
 
-            <p className="text-xs text-slate-400 pt-2 border-t border-slate-100">
-              Editing profile for: <span className="font-semibold text-slate-600">{adminToEdit?.email}</span>
-            </p>
-
-            <button 
+            <button
               type="submit" 
               disabled={loading}
               className="w-full bg-[#006837] text-white py-2.5 rounded-lg font-bold cursor-pointer hover:bg-[#004d29] transition-colors disabled:opacity-50 flex justify-center items-center gap-2"

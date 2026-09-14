@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Bell, KeyRound, Check, X, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Bell, KeyRound, Check, X, Loader2, History } from 'lucide-react';
 import { supabase } from '../../supabaseAdmin';
 import { logAudit } from '../../auditLogger';
 
@@ -19,12 +19,11 @@ const NotificationBell = () => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState(null);
-  const navigate = useNavigate();
 
   const fetchRequests = useCallback(async () => {
     const { data, error } = await supabase
       .from('password_reset_requests')
-      .select('id, email, full_name, resident_id, created_at')
+      .select('id, email, full_name, resident_id, admin_id, created_at')
       .eq('status', 'pending')
       .order('created_at', { ascending: false });
     if (!error) setRequests(data || []);
@@ -69,11 +68,6 @@ const NotificationBell = () => {
     }
   };
 
-  const openResetModal = (req) => {
-    setOpen(false);
-    navigate(`/super-admin/residents?q=${encodeURIComponent(req.email)}`);
-  };
-
   return (
     <div className="relative">
       <button type="button" onClick={() => setOpen(o => !o)}
@@ -96,7 +90,7 @@ const NotificationBell = () => {
               </div>
               <div>
                 <p className="text-sm font-black text-slate-900">Password Reset Requests</p>
-                <p className="text-xs text-slate-400">From residents who forgot their password</p>
+                <p className="text-xs text-slate-400">From residents, tenants &amp; admins who forgot their password</p>
               </div>
             </div>
 
@@ -117,8 +111,7 @@ const NotificationBell = () => {
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-slate-800 truncate">{req.full_name || req.email}</p>
-                        {req.full_name && <p className="text-xs text-slate-400 truncate">{req.email}</p>}
-                        {!req.resident_id && (
+                        {!req.resident_id && !req.admin_id && (
                           <span className="inline-flex mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-100">
                             No matching account
                           </span>
@@ -127,12 +120,6 @@ const NotificationBell = () => {
                       <span className="text-[10px] text-slate-400 font-semibold shrink-0 whitespace-nowrap">{timeAgo(req.created_at)}</span>
                     </div>
                     <div className="flex gap-1.5">
-                      {req.resident_id && (
-                        <button type="button" onClick={() => openResetModal(req)}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#006837]/10 hover:bg-[#006837]/20 text-[#006837] rounded-lg text-[11px] font-bold cursor-pointer transition-all">
-                          <KeyRound size={11} /> Reset Password
-                        </button>
-                      )}
                       <button type="button" disabled={actingId === req.id} onClick={() => resolveRequest(req.id, 'resolved')}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg text-[11px] font-bold cursor-pointer transition-all disabled:opacity-50">
                         <Check size={11} /> Resolved
@@ -146,6 +133,14 @@ const NotificationBell = () => {
                 ))
               )}
             </div>
+
+            <Link
+              to="/super-admin/password-history"
+              onClick={() => setOpen(false)}
+              className="flex items-center justify-center gap-1.5 px-5 py-3 border-t border-slate-100 text-xs font-bold text-[#006837] hover:bg-slate-50 transition-all"
+            >
+              <History size={13} /> View All Requests
+            </Link>
           </div>
         </>
       )}

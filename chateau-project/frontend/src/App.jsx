@@ -26,6 +26,7 @@ import SuperAdProfile from './HOA Page/SuperAdmin/Super Admin Profile/SuperAdPro
 import AdminControl from './HOA Page/SuperAdmin/Admin Profiles/AdminControl.jsx'; 
 import Residents from './HOA Page/SuperAdmin/Profiles Residents/Residents.jsx'; 
 import SystemLogs from './HOA Page/SuperAdmin/System AuditLogs/SystemLogs.jsx';
+import PasswordResetHistory from './HOA Page/SuperAdmin/Password Reset History/PasswordResetHistory.jsx';
 import PendingApproval from './HOA Page/Pending Approval/PendingApproval.jsx';
 import AuditorDashboard from './HOA Page/AuditorBoard/AuditorDashboard.jsx'; 
 import Statistics from './HOA Page/Statistics/Statistics.jsx';
@@ -177,24 +178,33 @@ const DashboardRedirect = () => {
 function App() {
   const [showSplash, setShowSplash] = useState(true);
 
-  if (showSplash) {
-    return <SplashScreen onFinish={() => setShowSplash(false)} />;
-  }
-
+  // The real app mounts immediately, underneath the splash overlay, so it
+  // has the full splash duration to resolve its own async loading (session
+  // checks, initial data fetches) before the splash fades away. Gating the
+  // mount behind the splash — rendering one or the other — meant the app's
+  // own loading states (a lighter background) only appeared the instant the
+  // dark splash vanished, showing as an abrupt flash of a white/light page.
   return (
-    <Router>
+    <>
+      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
+      <Router>
       <Routes>
 
         {/* Public */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/admin" element={<LoginPage />} />
 
-        {/* Super Admin */}
-        <Route path="/super-admin/dashboard"         element={<AuthRoute><SuperAdminLayout><SuperAdminDB /></SuperAdminLayout></AuthRoute>} />
-        <Route path="/super-admin/profile"           element={<AuthRoute><SuperAdminLayout><SuperAdProfile /></SuperAdminLayout></AuthRoute>} />
-        <Route path="/super-admin/admins"            element={<AuthRoute><SuperAdminLayout><AdminControl /></SuperAdminLayout></AuthRoute>} />
-        <Route path="/super-admin/residents"         element={<AuthRoute><SuperAdminLayout><Residents /></SuperAdminLayout></AuthRoute>} />
-        <Route path="/super-admin/logs"              element={<AuthRoute><RoleBasedRoute allowedRoles={['super_admin']}><SuperAdminLayout><SystemLogs /></SuperAdminLayout></RoleBasedRoute></AuthRoute>} />
+        {/* Super Admin shell — one persistent layout (sidebar/avatar/bell)
+            shared across all super-admin pages via Outlet, so navigating
+            between them doesn't remount it and cause a flicker. */}
+        <Route path="/super-admin" element={<AuthRoute><SuperAdminLayout /></AuthRoute>}>
+          <Route path="dashboard"         element={<SuperAdminDB />} />
+          <Route path="profile"           element={<SuperAdProfile />} />
+          <Route path="admins"            element={<AdminControl />} />
+          <Route path="residents"         element={<Residents />} />
+          <Route path="password-history"  element={<PasswordResetHistory />} />
+          <Route path="logs"              element={<RoleBasedRoute allowedRoles={['super_admin']}><SystemLogs /></RoleBasedRoute>} />
+        </Route>
 
         {/* HOA Admin shell */}
         <Route path="/hoa" element={<AuthRoute><AdminLayout /></AuthRoute>}>
@@ -316,7 +326,8 @@ function App() {
 
         </Route>
       </Routes>
-    </Router>
+      </Router>
+    </>
   );
 }
 
