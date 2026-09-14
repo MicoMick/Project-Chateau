@@ -32,3 +32,6 @@ dist-ssr
 
 # Vite cache
 .vite
+
+# Supabase CLI local cache (e.g. latest-version check) — regenerates on every run
+frontend/supabase/.temp/
