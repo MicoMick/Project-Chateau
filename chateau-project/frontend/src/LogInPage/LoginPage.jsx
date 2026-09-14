@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Lock, ArrowRight, Eye, EyeOff, AlertCircle, ShieldCheck, QrCode, CheckCircle } from 'lucide-react';
+import { User, Lock, ArrowRight, Eye, EyeOff, AlertCircle, ShieldCheck, QrCode, CheckCircle, KeyRound, X, Mail } from 'lucide-react';
 import ChateauLogo from '../assets/ChataueLogo.png';
 
 // --- UPDATED IMPORTS ---
@@ -42,7 +42,14 @@ const LoginPage = () => {
   const [isConfirmingIdentity, setIsConfirmingIdentity] = useState(false);
   const [authenticatedUser, setAuthenticatedUser] = useState(null);
 
-  const navigate = useNavigate(); 
+  // --- Forgot password (Admins only — Super Admin has no self-service recovery) ---
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSubmitted, setForgotSubmitted] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+
+  const navigate = useNavigate();
 
   const checkRoleAndRedirect = async (user) => {
     try {
@@ -115,6 +122,35 @@ const LoginPage = () => {
       setAuthenticatedUser(data.user);
       setIsConfirmingIdentity(true);
       setLoading(false);
+    }
+  };
+
+  const openForgotModal = () => {
+    setForgotEmail(email);
+    setForgotError('');
+    setForgotSubmitted(false);
+    setShowForgotModal(true);
+  };
+
+  const closeForgotModal = () => {
+    setShowForgotModal(false);
+  };
+
+  const handleForgotSubmit = async (e) => {
+    e.preventDefault();
+    if (!forgotEmail.trim()) return;
+    setForgotError('');
+    setForgotLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke('request-password-reset', {
+        body: { email: forgotEmail.trim().toLowerCase() },
+      });
+      if (error) throw error;
+      setForgotSubmitted(true);
+    } catch (err) {
+      setForgotError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -317,13 +353,70 @@ const LoginPage = () => {
               <div className="relative"><User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#006837]/20 focus:border-[#006837] transition-all" placeholder="admin@chateau.com" /></div>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Password</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Password</label>
+                <button type="button" onClick={openForgotModal} className="text-xs font-bold text-[#006837] hover:text-[#004d29] cursor-pointer">Forgot password?</button>
+              </div>
               <div className="relative"><Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-12 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#006837]/20 focus:border-[#006837] transition-all" placeholder="••••••••" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">{showPassword ? <EyeOff size={20} /> : <Eye size={20} />}</button></div>
             </div>
             <button type="submit" disabled={loading} className="w-full bg-[#006837] hover:bg-[#004d29] text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-[#006837]/20 transition-all text-sm tracking-wide">{loading ? "Authenticating..." : "Sign In"}<ArrowRight size={18} /></button>
           </form>
         </div>
       </div>
+
+      {/* Forgot Password Modal — Admins only. Super Admin recovery is handled outside the app. */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={closeForgotModal}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-7" onClick={(e) => e.stopPropagation()}>
+            {forgotSubmitted ? (
+              <div className="text-center">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 mx-auto flex items-center justify-center mb-4">
+                  <CheckCircle size={26} className="text-emerald-500" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900 mb-2">Request Sent</h3>
+                <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+                  If that email belongs to an admin account, our Super Admin has been notified and will reset your password shortly.
+                </p>
+                <button onClick={closeForgotModal} className="w-full py-3 bg-[#006837] hover:bg-[#004d29] text-white rounded-2xl font-bold transition-all cursor-pointer">Close</button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="w-11 h-11 rounded-2xl bg-[#006837]/10 flex items-center justify-center">
+                    <KeyRound size={20} className="text-[#006837]" />
+                  </div>
+                  <button onClick={closeForgotModal} className="p-2 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer">
+                    <X size={16} className="text-slate-400" />
+                  </button>
+                </div>
+                <h3 className="text-lg font-black text-slate-900 mt-3 mb-1">Forgot Password?</h3>
+                <p className="text-slate-500 text-sm mb-5 leading-relaxed">
+                   Enter your email and our Super Admin will be notified to reset it for you.
+                </p>
+                <form onSubmit={handleForgotSubmit} className="space-y-4">
+                  {forgotError && (
+                    <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-red-600">
+                      <AlertCircle size={14} className="shrink-0" /><p className="text-xs font-semibold">{forgotError}</p>
+                    </div>
+                  )}
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                      type="email" required autoFocus value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#006837]/20 focus:border-[#006837] transition-all"
+                      placeholder="admin@chateau.com"
+                    />
+                  </div>
+                  <button type="submit" disabled={forgotLoading} className="w-full py-3 bg-[#006837] hover:bg-[#004d29] text-white rounded-2xl font-bold transition-all cursor-pointer disabled:opacity-50">
+                    {forgotLoading ? 'Sending…' : 'Send Request'}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

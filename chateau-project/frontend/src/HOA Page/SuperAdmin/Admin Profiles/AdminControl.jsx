@@ -161,7 +161,6 @@ const AdminControl = () => {
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[10px] uppercase font-black tracking-wider">
               <tr>
                 <th className="px-6 py-4">Admin Name</th>
-                <th className="px-6 py-4">Email</th>
                 <th className="px-6 py-4">Role</th>
                 <th className="px-6 py-4">Created At</th>
                 <th className="px-6 py-4 text-right">Actions</th>
@@ -170,7 +169,7 @@ const AdminControl = () => {
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-16">
+                  <td colSpan="4" className="px-6 py-16">
                     <div className="flex flex-col items-center justify-center gap-4">
                       <div className="w-12 h-12 border-4 border-[#006837]/20 border-t-[#006837] rounded-full animate-spin"></div>
                       <p className="text-[#006837] font-semibold animate-pulse tracking-wide">Loading admins...</p>
@@ -180,7 +179,6 @@ const AdminControl = () => {
               ) : admins.filter(a => a.display_name?.toLowerCase().includes(searchTerm.toLowerCase())).map((admin) => (
                 <tr key={admin.id} className="hover:bg-slate-50/60 transition-colors">
                   <td className="px-6 py-4 text-sm font-bold text-slate-800">{admin.display_name || 'N/A'}</td>
-                  <td className="px-6 py-4 text-sm text-slate-500">{admin.email}</td>
                   <td className="px-6 py-4 text-sm text-slate-500 capitalize">{admin.role || 'N/A'}</td>
                   <td className="px-6 py-4 text-sm text-slate-500">
                     {/* --- FIXED: Enforced MM/DD/YYYY Format using 2-digit options --- */}

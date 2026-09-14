@@ -206,7 +206,7 @@ const PasswordModal = ({ resident, onClose, onSuccess }) => {
 };
 
 const Residents = () => {
-  const [searchParams]                      = useSearchParams();
+  const [searchParams, setSearchParams]     = useSearchParams();
   const [residents,      setResidents]      = useState([]);
   const [filtered,       setFiltered]       = useState([]);
   const [loading,        setLoading]        = useState(true);
@@ -235,14 +235,21 @@ const Residents = () => {
 
   useEffect(() => { fetchResidents(); }, [fetchResidents]);
 
-  // Deep link from the Super Admin notification bell — jump straight to
-  // that resident's password-reset modal once the list has loaded.
+  // Deep link (e.g. from a notification) — jump straight to that resident's
+  // password-reset modal once the list has loaded. The "q" param is removed
+  // immediately after use so closing the modal doesn't re-trigger this effect
+  // and pop it right back open.
   useEffect(() => {
     const q = searchParams.get('q');
-    if (!q || residents.length === 0 || pwTarget) return;
+    if (!q || residents.length === 0) return;
     const match = residents.find(r => (r.email || '').toLowerCase() === q.toLowerCase());
     if (match) setPwTarget(match);
-  }, [searchParams, residents, pwTarget]);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete('q');
+      return next;
+    }, { replace: true });
+  }, [searchParams, residents, setSearchParams]);
 
   const uniqueStreets = [...new Set(residents.map(r => r.street).filter(Boolean))].sort();
 

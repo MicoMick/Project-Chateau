@@ -1,8 +1,12 @@
 import React from 'react';
+import { Outlet } from 'react-router-dom';
 import SidebarSuperAdmin from './SidebarSuperAdmin';
 import NotificationBell from './NotificationBell';
 
-const SuperAdminLayout = ({ children }) => {
+// Rendered once as a parent layout route (see App.jsx) — the sidebar, avatar,
+// and notification bell must NOT remount on every navigation between
+// super-admin pages, or they flicker/reset. Nested pages render via Outlet.
+const SuperAdminLayout = () => {
   return (
     <div className="flex w-full h-screen bg-slate-50 overflow-hidden">
       <SidebarSuperAdmin />
@@ -11,7 +15,7 @@ const SuperAdminLayout = ({ children }) => {
           <NotificationBell />
         </div>
         <div className="flex-1">
-          {children}
+          <Outlet />
         </div>
       </main>
     </div>
