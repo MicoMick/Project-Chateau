@@ -38,6 +38,10 @@ dependencies:
   http: ^1.2.0
   url_launcher: ^6.3.0
 
+  # Statement of Account — generates a PDF matching the website's design
+  pdf: ^3.11.1
+  printing: ^5.13.4
+
   # Push notifications
   firebase_core: ^3.6.0
   firebase_messaging: ^15.1.3

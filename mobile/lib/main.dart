@@ -1,4 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:chateau_mobile_app/app_colors.dart';
 import 'package:chateau_mobile_app/login_page.dart';
@@ -20,20 +21,25 @@ void main() async {
 
   await PushNotifications.initialize();
 
-  void openNotifications() {
-    navigatorKey.currentState?.push(
-      MaterialPageRoute(builder: (_) => const NotificationPage()),
-    );
-  }
+  // Push notifications are Android-only — no Firebase Web config exists,
+  // so none of this applies (or is safe to touch) on web.
+  if (!kIsWeb) {
+    void openNotifications() {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => const NotificationPage()),
+      );
+    }
 
-  // Tapped a push while the app was backgrounded.
-  FirebaseMessaging.onMessageOpenedApp.listen((_) => openNotifications());
+    // Tapped a push while the app was backgrounded.
+    FirebaseMessaging.onMessageOpenedApp.listen((_) => openNotifications());
 
-  // App was launched by tapping a push (was fully terminated).
-  final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-  if (initialMessage != null) {
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => openNotifications());
+    // App was launched by tapping a push (was fully terminated).
+    final initialMessage =
+        await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => openNotifications());
+    }
   }
 
   runApp(const MyApp());

@@ -3,10 +3,31 @@ import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:printing/printing.dart';
 import 'app_colors.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'audit_logger.dart';
+import 'soa_page.dart';
+
+// ── Address helper — mirrors paymentUtils.js's buildFullAddress/stripLabel ──
+// Block/Lot values in the DB sometimes already include the word "Blk"/"Lot"
+// and sometimes don't, so any existing label is stripped before re-prefixing.
+
+String _stripLabel(String? val, RegExp label) {
+  if (val == null || val.isEmpty) return '';
+  return val.replaceFirst(label, '').trim();
+}
+
+String _buildFullAddress(String? block, String? lot, String? street) {
+  final parts = <String>[];
+  final b = _stripLabel(block, RegExp(r'^(blk|block)\.?\s*', caseSensitive: false));
+  final l = _stripLabel(lot, RegExp(r'^lot\.?\s*', caseSensitive: false));
+  if (b.isNotEmpty) parts.add('Blk $b');
+  if (l.isNotEmpty) parts.add('Lot $l');
+  if (street != null && street.isNotEmpty) parts.add(street);
+  return parts.isEmpty ? 'N/A' : parts.join(', ');
+}
 
 // ── Models ─────────────────────────────────────────────────────────────────────
 
@@ -26,6 +47,11 @@ class _Payment {
   // schema change — an advance payment is just a payments row a resident
   // creates themselves ahead of any bill existing for it yet.
   final bool isAdvance;
+  // Statement of Account fields — the HOA's own reference number, the
+  // statement date, and the per-category breakdown for this bill.
+  final String? referenceNo;
+  final DateTime? statementDate;
+  final List<dynamic>? lineItems;
 
   const _Payment({
     required this.id,
@@ -37,6 +63,9 @@ class _Payment {
     this.paidAt,
     required this.createdAt,
     this.isAdvance = false,
+    this.referenceNo,
+    this.statementDate,
+    this.lineItems,
   });
 
   bool get isPaid => status == 'paid';
@@ -67,6 +96,7 @@ class _PaymentPageState extends State<PaymentPage>
   List<_Payment> _payments = [];
   bool _isLoading = true;
   String _userName = '';
+  String _fullAddress = '';
   String? _qrImageUrl;
   double _monthlyDue = 150;
 
@@ -95,7 +125,7 @@ class _PaymentPageState extends State<PaymentPage>
     try {
       final profile = await _supabase
           .from('profiles')
-          .select('full_name')
+          .select('full_name, block, lot, street, address')
           .eq('id', user.id)
           .maybeSingle();
 
@@ -114,6 +144,14 @@ class _PaymentPageState extends State<PaymentPage>
       if (mounted) {
         setState(() {
           _userName = profile?['full_name'] as String? ?? '';
+          final blockLotStreet = _buildFullAddress(
+            profile?['block'] as String?,
+            profile?['lot'] as String?,
+            profile?['street'] as String?,
+          );
+          _fullAddress = blockLotStreet != 'N/A'
+              ? blockLotStreet
+              : (profile?['address'] as String? ?? '');
           _qrImageUrl = hoaSettings?['photo_url'] as String?;
           _monthlyDue =
               (hoaSettings?['monthly_due_amount'] as num?)?.toDouble() ?? 150;
@@ -133,6 +171,11 @@ class _PaymentPageState extends State<PaymentPage>
               createdAt: DateTime.parse(p['created_at']),
               isAdvance: lineItems is List &&
                   lineItems.any((li) => li is Map && li['label'] == 'Advance Payment'),
+              referenceNo: p['reference_no'] as String?,
+              statementDate: p['statement_date'] != null
+                  ? DateTime.parse(p['statement_date'])
+                  : null,
+              lineItems: lineItems is List ? lineItems : null,
             );
           }).toList();
 
@@ -141,6 +184,57 @@ class _PaymentPageState extends State<PaymentPage>
       }
     } catch (e) {
       setState(() => _isLoading = false);
+    }
+  }
+
+  // ── Statement of Account ─────────────────────────────────────────────────
+
+  SoaPaymentEntry _toSoaEntry(_Payment p) => SoaPaymentEntry(
+        amount: p.amount,
+        dueDate: p.dueDate,
+        statementDate: p.statementDate,
+        paidAt: p.paidAt,
+        referenceNo: p.referenceNo,
+        payerReferenceNo: p.payerReferenceNo,
+        status: p.status,
+        lineItems: p.lineItems,
+      );
+
+  Future<void> _downloadStatementOfAccount() async {
+    final userId = _supabase.auth.currentUser?.id ?? '';
+    final unpaidList = _payments
+        .where((p) =>
+            p.isUnpaid || p.isOverdue || p.isPending || p.isAwaitingConfirmation)
+        .map(_toSoaEntry)
+        .toList();
+    final paidHistory = _payments.where((p) => p.isPaid).map(_toSoaEntry).toList();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+          child: CircularProgressIndicator(color: chateuPrimary)),
+    );
+
+    try {
+      final bytes = await generateSoaPdf(
+        residentId: userId,
+        residentName: _userName.isNotEmpty ? _userName : 'Resident',
+        fullAddress: _fullAddress,
+        unpaidList: unpaidList,
+        paidHistory: paidHistory,
+        monthlyDueAmount: _monthlyDue,
+        qrCodeUrl: _qrImageUrl,
+      );
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      await Printing.sharePdf(
+          bytes: bytes, filename: 'Statement-of-Account.pdf');
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        showAppSnack(context, 'Could not generate Statement of Account: $e',
+            type: SnackType.error);
+      }
     }
   }
 
@@ -420,6 +514,13 @@ class _PaymentPageState extends State<PaymentPage>
       appBar: buildStandardAppBar(
         context: context,
         title: 'Payments',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.description_outlined, color: chateuPrimary),
+            tooltip: 'Statement of Account',
+            onPressed: _isLoading ? null : _downloadStatementOfAccount,
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(

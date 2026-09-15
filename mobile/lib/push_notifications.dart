@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -26,6 +27,9 @@ class PushNotifications {
   static final _supabase = Supabase.instance.client;
 
   static Future<void> initialize() async {
+    // Only Android has a Firebase config wired up (google-services.json) —
+    // web has no equivalent, so Firebase.initializeApp() would crash there.
+    if (kIsWeb) return;
     await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
@@ -76,6 +80,7 @@ class PushNotifications {
   // Call once a resident is signed in — registers this device to receive
   // pushes, and keeps the token fresh if Firebase ever rotates it.
   static Future<void> registerToken() async {
+    if (kIsWeb) return;
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
     try {
@@ -102,6 +107,7 @@ class PushNotifications {
   // Call on sign-out so a shared/reset device stops receiving this
   // resident's pushes.
   static Future<void> unregisterToken() async {
+    if (kIsWeb) return;
     try {
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
