@@ -1550,7 +1550,7 @@ const Payment = () => {
 
           {consolidatedPayments.length > 0 && (
             <>
-              <PaginationBar page={transPage} totalPages={transTotalPages} setPage={setTransPage} total={consolidatedPayments.length} rowsPerPage={10} />
+              <PaginationBar page={transPage} totalPages={transTotalPages} setPage={setTransPage} total={consolidatedPayments.length} rowsPerPage={5} />
               <div className="px-5 py-3 border-t border-slate-100">
                 <p className="text-xs text-slate-400">{consolidatedPayments.length} resident{consolidatedPayments.length !== 1 ? 's' : ''}</p>
               </div>
