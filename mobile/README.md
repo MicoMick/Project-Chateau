@@ -58,7 +58,7 @@ Supabase and Mapbox credentials live in `lib/app_config.dart`. The Supabase key 
 All styling goes through the tokens in `lib/app_colors.dart` and `lib/app_theme.dart`. Don't hardcode hex colors or font sizes in pages.
 
 - **Colors:** `chateuPrimary` / `chateuSecondary` / `chateuAccent` (brand, matches the web app), neutrals `chateuSurface`, `chateuSurfaceMuted`, `chateuBorder`, `chateuTextMuted`, `chateuTextSubtle`, and semantic `chateuSuccess` / `chateuWarning` / `chateuError` / `chateuInfo`. Every text color meets WCAG AA (4.5:1) on white.
-- **Type & layout:** `AppText.*` (nothing under 12sp), `AppSpacing.*` (8dp grid), `AppRadius.*`, `AppShadows.*`, `AppDecorations.card` / `.muted` / `.sheet`.
+- **Type & layout:** `AppText.*` (nothing under 12sp), `AppSpacing.*` (8dp grid), `AppRadius.*`, `AppShadows.*`, `AppDecorations.card` / `.sheet`, `AppFadeSlide`.
 - **Components:** `AppTheme.light` themes stock Material widgets (inputs, buttons, cards, chips, tabs, dialogs, nav bars), so a plain `TextField` or `ElevatedButton` already looks right. Shared widgets: `AppPrimaryButton`, `AppSectionHeader`, `AppStatusBadge`, `AppNoticeBanner`, `AppInfoChip`, `buildStandardAppBar`.
 - Keep touch targets at least 48dp.
 

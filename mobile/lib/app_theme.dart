@@ -135,14 +135,6 @@ class AppShadows {
           offset: const Offset(0, 6),
         ),
       ];
-
-  static List<BoxShadow> get overlay => [
-        BoxShadow(
-          color: Colors.black.withAlpha(30),
-          blurRadius: 14,
-          offset: const Offset(0, 4),
-        ),
-      ];
 }
 
 // ── Shared Decorations ─────────────────────────────────────────────────────────
@@ -155,12 +147,6 @@ class AppDecorations {
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: chateuBorder),
         boxShadow: AppShadows.card,
-      );
-
-  /// Flat tinted panel for secondary content (info rows, empty states).
-  static BoxDecoration get muted => BoxDecoration(
-        color: chateuSurfaceMuted,
-        borderRadius: BorderRadius.circular(AppRadius.md),
       );
 
   static BoxDecoration get sheet => BoxDecoration(
@@ -180,11 +166,6 @@ class AppDecorations {
         ),
         borderRadius: BorderRadius.circular(radius),
         boxShadow: AppShadows.primaryGlow,
-      );
-
-  static BoxDecoration tintedBadge(Color color) => BoxDecoration(
-        color: color.withAlpha(22),
-        borderRadius: BorderRadius.circular(AppRadius.xl),
       );
 }
 
