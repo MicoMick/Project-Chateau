@@ -2,6 +2,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:chateau_mobile_app/app_colors.dart';
+import 'package:chateau_mobile_app/app_theme.dart';
 import 'package:chateau_mobile_app/login_page.dart';
 import 'package:chateau_mobile_app/home_page.dart';
 import 'package:chateau_mobile_app/notification_page.dart';
@@ -54,20 +55,7 @@ class MyApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Chateau Real Estate App',
-      theme: ThemeData(
-        brightness: Brightness.light,
-        useMaterial3: true,
-        colorScheme: ColorScheme.light(
-          primary: chateuPrimary,
-          secondary: chateuSecondary,
-          surface: chateuBackground,
-          onSurface: chateuText,
-          onPrimary: Colors.white,
-          onSecondary: Colors.white,
-        ),
-        scaffoldBackgroundColor: chateuBackground,
-        appBarTheme: const AppBarTheme(backgroundColor: chateuPrimary),
-      ),
+      theme: AppTheme.light,
       home: const AuthGate(),
     );
   }

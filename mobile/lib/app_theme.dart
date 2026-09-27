@@ -1,6 +1,17 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
+// Design direction (from the UI/UX Pro Max skill, `.claude/skills/ui-ux-pro-max`):
+// - Style: clean "bento" cards — white surfaces on a soft neutral page, 1px
+//   hairline borders + very soft shadows, 16px card radius, 8dp spacing grid.
+// - Color: brand greens kept; neutrals + semantic tokens in app_colors.dart,
+//   all text tokens ≥ 4.5:1 contrast.
+// - Type: platform font (matches the web app's system stack); Material type
+//   roles, nothing under 12sp, body 14–15sp at 1.5 line height.
+// - Touch: ≥ 48dp targets, visible pressed/focus states via ThemeData.
+//
+// Prefer AppText / AppSpacing / AppRadius / chateu* tokens over raw values.
+
 // ── Typography ─────────────────────────────────────────────────────────────────
 
 class AppText {
@@ -29,20 +40,20 @@ class AppText {
   );
 
   static const TextStyle titleMedium = TextStyle(
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: FontWeight.w600,
     color: chateuText,
   );
 
   static const TextStyle bodyLarge = TextStyle(
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: FontWeight.w400,
     color: chateuText,
     height: 1.55,
   );
 
   static const TextStyle bodyMedium = TextStyle(
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: FontWeight.w400,
     color: chateuText,
     height: 1.5,
@@ -56,14 +67,15 @@ class AppText {
   );
 
   static const TextStyle labelMedium = TextStyle(
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: FontWeight.w600,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   );
 
   static const TextStyle caption = TextStyle(
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: FontWeight.w400,
+    color: chateuTextMuted,
     height: 1.4,
   );
 }
@@ -102,23 +114,23 @@ class AppShadows {
 
   static List<BoxShadow> get card => [
         BoxShadow(
-          color: Colors.black.withAlpha(10),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
+          color: const Color(0xFF0F2A1C).withAlpha(10),
+          blurRadius: 10,
+          offset: const Offset(0, 2),
         ),
       ];
 
   static List<BoxShadow> get elevated => [
         BoxShadow(
-          color: Colors.black.withAlpha(18),
-          blurRadius: 20,
-          offset: const Offset(0, 6),
+          color: const Color(0xFF0F2A1C).withAlpha(18),
+          blurRadius: 24,
+          offset: const Offset(0, 8),
         ),
       ];
 
   static List<BoxShadow> get primaryGlow => [
         BoxShadow(
-          color: chateuPrimary.withAlpha(70),
+          color: chateuPrimary.withAlpha(50),
           blurRadius: 16,
           offset: const Offset(0, 6),
         ),
@@ -139,13 +151,20 @@ class AppDecorations {
   AppDecorations._();
 
   static BoxDecoration get card => BoxDecoration(
-        color: Colors.white,
+        color: chateuSurface,
         borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: chateuBorder),
         boxShadow: AppShadows.card,
       );
 
+  /// Flat tinted panel for secondary content (info rows, empty states).
+  static BoxDecoration get muted => BoxDecoration(
+        color: chateuSurfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      );
+
   static BoxDecoration get sheet => BoxDecoration(
-        color: Colors.white,
+        color: chateuSurface,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(AppRadius.xl),
         ),
@@ -248,7 +267,7 @@ class AppPrimaryButton extends StatelessWidget {
     this.onPressed,
     this.isLoading = false,
     this.height = 52,
-  });
+  }) : assert(height >= 48, 'touch target must be ≥ 48dp');
 
   @override
   Widget build(BuildContext context) {
@@ -312,12 +331,12 @@ class AppInfoChip extends StatelessWidget {
         const SizedBox(height: AppSpacing.xs),
         Text(
           label,
-          style: AppText.caption.copyWith(color: Colors.grey.shade500),
+          style: AppText.caption,
         ),
         const SizedBox(height: 2),
         Text(
           value,
-          style: AppText.titleMedium.copyWith(fontSize: 12),
+          style: AppText.labelMedium.copyWith(color: chateuText),
         ),
       ],
     );
@@ -343,9 +362,9 @@ class AppNoticeBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: color.withAlpha(14),
+        color: color.withAlpha(16),
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(color: color.withAlpha(40)),
+        border: Border.all(color: color.withAlpha(50)),
       ),
       child: Row(
         children: [
@@ -357,7 +376,7 @@ class AppNoticeBanner extends StatelessWidget {
               style: AppText.caption.copyWith(
                 color: color,
                 fontWeight: FontWeight.w500,
-                fontSize: 12,
+                fontSize: 13,
               ),
             ),
           ),
@@ -393,4 +412,220 @@ PreferredSizeWidget buildStandardAppBar({
     title: Text(title, style: AppText.titleLarge),
     actions: actions,
   );
+}
+// ── ThemeData ──────────────────────────────────────────────────────────────────
+//
+// Component themes so stock Material widgets (TextField, buttons, Card, chips,
+// dialogs…) pick up the design system without per-page styling.
+
+class AppTheme {
+  AppTheme._();
+
+  static ThemeData get light {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: chateuPrimary,
+      brightness: Brightness.light,
+    ).copyWith(
+      primary: chateuPrimary,
+      onPrimary: Colors.white,
+      secondary: chateuSecondary,
+      onSecondary: Colors.white,
+      tertiary: chateuAccent,
+      onTertiary: chateuText,
+      error: chateuError,
+      surface: chateuSurface,
+      onSurface: chateuText,
+      onSurfaceVariant: chateuTextMuted,
+      outline: chateuBorder,
+      outlineVariant: chateuBorder,
+    );
+
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+    );
+    OutlineInputBorder inputBorder(Color c, [double w = 1]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          borderSide: BorderSide(color: c, width: w),
+        );
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: chateuBackground,
+      splashFactory: InkSparkle.splashFactory,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      textTheme: const TextTheme(
+        headlineMedium: AppText.displayLarge,
+        headlineSmall: AppText.displayMedium,
+        titleLarge: AppText.titleLarge,
+        titleMedium: AppText.titleMedium,
+        bodyLarge: AppText.bodyLarge,
+        bodyMedium: AppText.bodyMedium,
+        labelLarge: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        labelMedium: AppText.labelMedium,
+        bodySmall: AppText.caption,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: chateuBackground,
+        foregroundColor: chateuText,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        centerTitle: true,
+        titleTextStyle: AppText.titleLarge,
+        iconTheme: IconThemeData(color: chateuPrimary),
+      ),
+      cardTheme: CardThemeData(
+        color: chateuSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          side: const BorderSide(color: chateuBorder),
+        ),
+      ),
+      dividerTheme: const DividerThemeData(color: chateuBorder, thickness: 1, space: 1),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: chateuSurface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        labelStyle: AppText.bodyMedium.copyWith(color: chateuTextMuted),
+        floatingLabelStyle: AppText.bodyMedium.copyWith(
+            color: chateuPrimary, fontWeight: FontWeight.w600),
+        hintStyle: AppText.bodyMedium.copyWith(color: chateuTextSubtle),
+        helperStyle: AppText.caption,
+        errorStyle: AppText.caption.copyWith(color: chateuError),
+        prefixIconColor: chateuTextMuted,
+        suffixIconColor: chateuTextMuted,
+        border: inputBorder(chateuBorder),
+        enabledBorder: inputBorder(chateuBorder),
+        focusedBorder: inputBorder(chateuPrimary, 2),
+        errorBorder: inputBorder(chateuError),
+        focusedErrorBorder: inputBorder(chateuError, 2),
+        disabledBorder: inputBorder(chateuBorder.withAlpha(120)),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: chateuPrimary,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: chateuPrimary.withAlpha(100),
+          disabledForegroundColor: Colors.white70,
+          elevation: 0,
+          minimumSize: const Size(64, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          shape: shape,
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: chateuPrimary,
+          minimumSize: const Size(64, 48),
+          shape: shape,
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: chateuPrimary,
+          side: const BorderSide(color: chateuBorder),
+          minimumSize: const Size(64, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          shape: shape,
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: chateuPrimary,
+          minimumSize: const Size(48, 48),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: chateuPrimary,
+        foregroundColor: Colors.white,
+        elevation: 2,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: chateuSurfaceMuted,
+        selectedColor: chateuPrimary.withAlpha(30),
+        side: BorderSide.none,
+        labelStyle: AppText.labelMedium.copyWith(color: chateuText),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xl)),
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: chateuPrimary,
+        unselectedLabelColor: chateuTextMuted,
+        indicatorColor: chateuPrimary,
+        dividerColor: chateuBorder,
+        labelStyle: AppText.labelMedium.copyWith(fontSize: 14),
+        unselectedLabelStyle: AppText.labelMedium.copyWith(
+            fontSize: 14, fontWeight: FontWeight.w500),
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: chateuSurface,
+        selectedItemColor: chateuPrimary,
+        unselectedItemColor: chateuTextMuted,
+        type: BottomNavigationBarType.fixed,
+        selectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: TextStyle(fontSize: 12),
+        elevation: 0,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: chateuSurface,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: chateuPrimary.withAlpha(28),
+        iconTheme: WidgetStateProperty.resolveWith((s) => IconThemeData(
+            color: s.contains(WidgetState.selected) ? chateuPrimary : chateuTextMuted)),
+        labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(
+            fontSize: 12,
+            fontWeight: s.contains(WidgetState.selected) ? FontWeight.w600 : FontWeight.w500,
+            color: s.contains(WidgetState.selected) ? chateuPrimary : chateuTextMuted)),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: chateuSurface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+        titleTextStyle: AppText.titleLarge,
+        contentTextStyle: AppText.bodyMedium.copyWith(color: chateuTextMuted),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: chateuSurface,
+        surfaceTintColor: Colors.transparent,
+        showDragHandle: false,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(color: chateuPrimary),
+      listTileTheme: const ListTileThemeData(
+        iconColor: chateuPrimary,
+        minVerticalPadding: 12,
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.selected) ? Colors.white : null),
+        trackColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.selected) ? chateuPrimary : null),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.selected) ? chateuPrimary : null),
+      ),
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.selected) ? chateuPrimary : chateuTextMuted),
+      ),
+      datePickerTheme: const DatePickerThemeData(
+        backgroundColor: chateuSurface,
+        surfaceTintColor: Colors.transparent,
+      ),
+    );
+  }
 }

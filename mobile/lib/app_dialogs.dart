@@ -27,15 +27,15 @@ void showAppSnack(
       icon = Icons.check_circle_rounded;
       break;
     case SnackType.error:
-      bg   = const Color(0xFFDC2626);
+      bg   = chateuError;
       icon = Icons.error_rounded;
       break;
     case SnackType.warning:
-      bg   = const Color(0xFFD97706);
+      bg   = chateuWarning;
       icon = Icons.warning_rounded;
       break;
     case SnackType.info:
-      bg   = chateuSecondary;
+      bg   = chateuInfo;
       icon = Icons.info_rounded;
       break;
   }
@@ -102,11 +102,11 @@ class _AppConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final confirmColor = isDanger ? const Color(0xFFDC2626) : chateuPrimary;
+    final confirmColor = isDanger ? chateuError : chateuPrimary;
     final effectiveIcon = icon ?? (isDanger ? Icons.warning_rounded : Icons.help_outline_rounded);
 
     return AlertDialog(
-      backgroundColor: Colors.white,
+      backgroundColor: chateuSurface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
       contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -125,19 +125,19 @@ class _AppConfirmDialog extends StatelessWidget {
         const SizedBox(height: 8),
         Text(message,
             textAlign: TextAlign.center,
-            style: AppText.bodyMedium.copyWith(color: Colors.grey.shade600)),
+            style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
         const SizedBox(height: 20),
         Row(children: [
           Expanded(
             child: OutlinedButton(
               onPressed: () => Navigator.pop(context, false),
               style: OutlinedButton.styleFrom(
-                side: BorderSide(color: Colors.grey.shade300),
+                side: BorderSide(color: chateuBorder),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               child: Text(cancelLabel,
-                  style: AppText.labelMedium.copyWith(color: Colors.grey.shade700)),
+                  style: AppText.labelMedium.copyWith(color: chateuText)),
             ),
           ),
           const SizedBox(width: 10),
@@ -148,7 +148,7 @@ class _AppConfirmDialog extends StatelessWidget {
                 backgroundColor: confirmColor,
                 elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               child: Text(confirmLabel,
                   style: AppText.labelMedium.copyWith(color: Colors.white)),
@@ -200,7 +200,7 @@ class _AppInfoDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: Colors.white,
+      backgroundColor: chateuSurface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
       contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -214,7 +214,7 @@ class _AppInfoDialog extends StatelessWidget {
         const SizedBox(height: 8),
         Text(message,
             textAlign: TextAlign.center,
-            style: AppText.bodyMedium.copyWith(color: Colors.grey.shade600)),
+            style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
         const SizedBox(height: 20),
         SizedBox(
           width: double.infinity,
@@ -224,7 +224,7 @@ class _AppInfoDialog extends StatelessWidget {
               backgroundColor: iconColor,
               elevation: 0,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 14),
             ),
             child: Text(buttonLabel,
                 style: AppText.labelMedium.copyWith(color: Colors.white)),
@@ -242,7 +242,7 @@ Widget buildSheetHandle() => Center(
     width: 40, height: 4,
     margin: const EdgeInsets.only(bottom: AppSpacing.lg),
     decoration: BoxDecoration(
-      color: Colors.grey.shade300,
+      color: chateuBorder,
       borderRadius: BorderRadius.circular(2),
     ),
   ),
