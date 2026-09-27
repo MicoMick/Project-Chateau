@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'app_colors.dart';
 import 'app_config.dart';
+import 'app_dialogs.dart';
+import 'app_theme.dart';
 
 const double _entranceLat = 14.300935743300982;
 const double _entranceLng = 120.89973237974166;
@@ -17,11 +19,18 @@ const double _hoaOfficeLng = 120.89999760269713;
 const double _subdivisionLat = 14.3020;
 const double _subdivisionLng = 120.8998;
 
+// Pins sit on Mapbox's light street tiles in both app appearances, so they
+// use fixed colors rather than theme tokens.
+const Color _pinInk = Color(0xFF1A1A1A);
+const Color _pinBrand = Color(0xFF006837);
+const Color _pinSelected = Color(0xFFB45309);
+const Color _pinDestination = Color(0xFFDC2626);
+
 const List<Map<String, dynamic>> _streets = [
   {
     'label': 'HOA Entrance',
     'street': 'Landmark',
-    'emoji': '🏰',
+    'icon': Icons.door_front_door_rounded,
     'lat': _entranceLat,
     'lng': _entranceLng,
     'isLandmark': true
@@ -29,7 +38,7 @@ const List<Map<String, dynamic>> _streets = [
   {
     'label': 'Covered Court',
     'street': 'Landmark',
-    'emoji': '🏟',
+    'icon': Icons.sports_basketball_rounded,
     'lat': _coveredCourtLat,
     'lng': _coveredCourtLng,
     'isLandmark': true
@@ -37,7 +46,7 @@ const List<Map<String, dynamic>> _streets = [
   {
     'label': 'HOA Office',
     'street': 'Landmark',
-    'emoji': '🏢',
+    'icon': Icons.business_rounded,
     'lat': _hoaOfficeLat,
     'lng': _hoaOfficeLng,
     'isLandmark': true
@@ -1706,10 +1715,18 @@ class _MapPageState extends State<MapPage> {
     super.dispose();
   }
 
-  Future<void> _requestLocation() async {
+  Future<void> _requestLocation({bool userInitiated = false}) async {
     var perm = await Geolocator.checkPermission();
     if (perm == LocationPermission.denied) {
       perm = await Geolocator.requestPermission();
+    }
+    if (perm == LocationPermission.denied ||
+        perm == LocationPermission.deniedForever) {
+      if (mounted && userInitiated) {
+        showAppSnack(context, 'Location permission is off. Turn it on in Settings to see where you are.',
+            type: SnackType.warning);
+      }
+      return;
     }
     if (perm == LocationPermission.whileInUse ||
         perm == LocationPermission.always) {
@@ -1828,372 +1845,257 @@ class _MapPageState extends State<MapPage> {
         .toList();
   }
 
+  void _toggleSearch() => setState(() {
+        _showSearch = !_showSearch;
+        if (!_showSearch) {
+          _searchCtrl.clear();
+          _results = [];
+        }
+      });
+
   @override
   Widget build(BuildContext context) {
-    final mq = MediaQuery.of(context);
     final hasRoute = _selectedStreet != null;
+    // Landscape phones have ~200dp of height under the app and tab bars;
+    // the panel moves beside the map there so the map keeps its height.
+    final size = MediaQuery.sizeOf(context);
+    final side = size.width > size.height;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A1D2E),
-      appBar: AppBar(
-        backgroundColor: chateuBackground,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: const Text(
-          'HOA Chateau Map',
-          style: TextStyle(
-              color: Color(0xFF1A1D2E),
-              fontWeight: FontWeight.w700,
-              fontSize: 18),
-        ),
-        centerTitle: true,
-        actions: [
-          if (hasRoute)
-            IconButton(
-              icon: const Icon(Icons.close_rounded, color: chateuPrimary),
-              onPressed: _clearRoute,
-            ),
-          IconButton(
-            icon: Icon(_showSearch ? Icons.close_rounded : Icons.search_rounded,
-                color: chateuPrimary),
-            onPressed: () => setState(() {
-              _showSearch = !_showSearch;
-              if (!_showSearch) {
-                _searchCtrl.clear();
-                _results = [];
-              }
-            }),
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: kIsWeb
-                ? _WebMap(
-                    selectedStreet: _selectedStreet,
-                    userPosition: _userPosition,
-                    routePoints: _routePoints,
-                    filteredStreets: _filteredStreets,
-                    onStreetSelected: _selectStreet,
-                    onRegisterCenterSubdivision: (cb) =>
-                        _onCenterSubdivision = cb,
-                    onRegisterCenterUser: (cb) => _onCenterUser = cb,
-                  )
-                : _MobileMap(
-                    selectedStreet: _selectedStreet,
-                    userPosition: _userPosition,
-                    routePoints: _routePoints,
-                    filteredStreets: _filteredStreets,
-                    onLocationReady: (pos) =>
-                        setState(() => _userPosition = pos),
-                    onStreetSelected: _selectStreet,
-                    onRegisterCenterSubdivision: (cb) =>
-                        _onCenterSubdivision = cb,
-                    onRegisterCenterUser: (cb) => _onCenterUser = cb,
-                  ),
-          ),
+    return Flex(
+      direction: side ? Axis.horizontal : Axis.vertical,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: _CommunityMap(
+                  selectedStreet: _selectedStreet,
+                  userPosition: _userPosition,
+                  routePoints: _routePoints,
+                  filteredStreets: _filteredStreets,
+                  onStreetSelected: _selectStreet,
+                  onRegisterCenterSubdivision: (cb) => _onCenterSubdivision = cb,
+                  onRegisterCenterUser: (cb) => _onCenterUser = cb,
+                ),
+              ),
 
-          // Street filter chips
-          if (!_showSearch && !hasRoute)
-            Positioned(
-              top: 10,
-              left: 0,
-              right: 0,
-              child: SizedBox(
-                height: 36,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: _streetNames.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 6),
-                  itemBuilder: (context, i) {
-                    final name = _streetNames[i];
-                    final active = (_activeStreetFilter ?? 'All') == name;
-                    return GestureDetector(
-                      onTap: () => setState(() =>
-                          _activeStreetFilter = name == 'All' ? null : name),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
+              // Top controls: street filter + search, search field, or route
+              Positioned(
+                top: AppSpacing.md,
+                left: 0,
+                right: 0,
+                child: _showSearch
+                    ? Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: active ? chateuPrimary : Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.black.withAlpha(30),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2))
+                            horizontal: AppSpacing.lg),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _SearchBar(
+                              controller: _searchCtrl,
+                              onChanged: _onSearchChanged,
+                              onClose: _toggleSearch,
+                            ),
+                            if (_results.isNotEmpty)
+                              _ResultsList(
+                                  results: _results, onTap: _selectStreet),
                           ],
                         ),
-                        child: Text(
-                          name,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color:
-                                active ? Colors.white : const Color(0xFF1A1D2E),
+                      )
+                    : hasRoute
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.lg),
+                            child: _mapPanel(
+                              padding: const EdgeInsets.only(
+                                  left: AppSpacing.md),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.route_rounded,
+                                      color: chateuPrimary, size: 20),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Expanded(
+                                    child: Text(
+                                      'Route to ${_selectedStreet!['label']}',
+                                      style: AppText.bodyMedium.copyWith(
+                                          fontWeight: FontWeight.w600),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Clear route',
+                                    onPressed: _clearRoute,
+                                    icon: const Icon(Icons.close_rounded),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: SizedBox(
+                                  height: 48,
+                                  child: ListView.separated(
+                                    scrollDirection: Axis.horizontal,
+                                    padding: const EdgeInsets.only(
+                                        left: AppSpacing.lg),
+                                    itemCount: _streetNames.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(width: AppSpacing.xs),
+                                    itemBuilder: (context, i) {
+                                      final name = _streetNames[i];
+                                      return Center(
+                                        child: ChoiceChip(
+                                          label: Text(name),
+                                          selected:
+                                              (_activeStreetFilter ?? 'All') ==
+                                                  name,
+                                          backgroundColor: chateuSurface,
+                                          elevation: 2,
+                                          pressElevation: 2,
+                                          onSelected: (_) => setState(() =>
+                                              _activeStreetFilter =
+                                                  name == 'All' ? null : name),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: AppSpacing.sm),
+                                child: _MapButton(
+                                  tooltip: 'Search street or lot',
+                                  icon: Icons.search_rounded,
+                                  onPressed: _toggleSearch,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
               ),
-            ),
 
-          // Search overlay
-          if (_showSearch)
-            Positioned(
-              top: 12,
-              left: 16,
-              right: 16,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _SearchBar(
-                      controller: _searchCtrl, onChanged: _onSearchChanged),
-                  if (_results.isNotEmpty)
-                    _ResultsList(results: _results, onTap: _selectStreet),
-                ],
-              ),
-            ),
-
-          // Route banner
-          if (hasRoute && !_showSearch)
-            Positioned(
-              top: 12,
-              left: 16,
-              right: 68,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                        color: Colors.black.withAlpha(30),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3))
+              // Map controls
+              Positioned(
+                right: AppSpacing.lg,
+                bottom: AppSpacing.lg,
+                child: Column(
+                  children: [
+                    _MapButton(
+                      tooltip: 'Show my location',
+                      icon: _userPosition != null
+                          ? Icons.my_location_rounded
+                          : Icons.location_searching_rounded,
+                      onPressed: () => _requestLocation(userInitiated: true),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _MapButton(
+                      tooltip: 'Center on the subdivision',
+                      icon: Icons.center_focus_strong_rounded,
+                      onPressed: _centerOnSubdivision,
+                    ),
                   ],
                 ),
-                child: Row(
+              ),
+            ],
+          ),
+        ),
+
+        // Destination panel
+        Container(
+          width: side ? 320 : null,
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
+          decoration: BoxDecoration(
+            color: chateuSurface,
+            border: side
+                ? Border(left: BorderSide(color: chateuBorder))
+                : Border(top: BorderSide(color: chateuBorder)),
+          ),
+          child: AppContentWidth(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment:
+                  side ? MainAxisAlignment.center : MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
                   children: [
-                    _loadingRoute
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: chateuPrimary))
-                        : const Icon(Icons.route_rounded,
-                            color: chateuPrimary, size: 18),
-                    const SizedBox(width: 8),
+                    Icon(
+                        hasRoute
+                            ? Icons.location_on_rounded
+                            : Icons.touch_app_rounded,
+                        color: hasRoute ? chateuPrimary : chateuTextMuted,
+                        size: 24),
+                    const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            _selectedStreet!['label'] as String,
-                            style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF1A1D2E)),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (_routeDistance != null && _routeDuration != null)
-                            Text('$_routeDuration · $_routeDistance',
-                                style: const TextStyle(
-                                    fontSize: 11, color: Colors.grey)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // FABs — offset raised to sit above the taller bottom bar
-          Positioned(
-            right: 16,
-            bottom: mq.padding.bottom + 204,
-            child: GestureDetector(
-              onTap: _requestLocation,
-              child: _Fab(
-                  icon: _userPosition != null
-                      ? Icons.my_location_rounded
-                      : Icons.location_searching_rounded),
-            ),
-          ),
-          Positioned(
-            right: 16,
-            bottom: mq.padding.bottom + 150,
-            child: GestureDetector(
-              onTap: _centerOnSubdivision,
-              child: const _Fab(icon: Icons.center_focus_strong_rounded),
-            ),
-          ),
-
-          // Bottom info + nav bar
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: EdgeInsets.only(
-                  left: 16, right: 16, top: 14, bottom: mq.padding.bottom + 14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(20)),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withAlpha(25),
-                      blurRadius: 16,
-                      offset: const Offset(0, -4))
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Address card — shown when a pin is selected
-                  if (hasRoute) ...[
-                    Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: chateuPrimary.withAlpha(20),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.location_on_rounded,
-                              color: chateuPrimary, size: 22),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _selectedStreet!['label'] as String,
-                                style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF1A1D2E)),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                _selectedStreet!['street'] as String? ?? '',
-                                style: const TextStyle(
-                                    fontSize: 12, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_routeDistance != null && _routeDuration != null)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                _routeDuration!,
-                                style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF1A1D2E)),
-                              ),
-                              Text(
-                                _routeDistance!,
-                                style: const TextStyle(
-                                    fontSize: 11, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        if (_loadingRoute)
-                          const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: chateuPrimary)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                  ] else ...[
-                    // Idle state hint
-                    Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.withAlpha(30),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.touch_app_rounded,
-                              color: Colors.grey, size: 22),
-                        ),
-                        const SizedBox(width: 12),
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Tap a pin on the map',
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF1A1D2E))),
-                            Text('Select a lot or landmark to navigate',
-                                style: TextStyle(
-                                    fontSize: 12, color: Colors.grey)),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  // Navigate button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed:
-                          hasRoute && !_loadingRoute ? _startNavigation : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: chateuPrimary,
-                        disabledBackgroundColor: chateuPrimary.withAlpha(80),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.navigation_rounded,
-                              color: Colors.white, size: 20),
-                          const SizedBox(width: 8),
                           Text(
                             hasRoute
-                                ? 'Start Navigation'
-                                : 'Select a destination',
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15),
+                                ? _selectedStreet!['label'] as String
+                                : 'Tap a pin on the map',
+                            style: AppText.titleMedium,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            hasRoute
+                                ? _selectedStreet!['street'] as String? ?? ''
+                                : 'Select a lot or landmark to navigate',
+                            style: AppText.caption,
                           ),
                         ],
                       ),
                     ),
-                  ),
-                ],
-              ),
+                    if (_loadingRoute)
+                      const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                    else if (hasRoute &&
+                        _routeDistance != null &&
+                        _routeDuration != null)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(_routeDuration!,
+                              style: AppText.bodyMedium
+                                  .copyWith(fontWeight: FontWeight.w700)),
+                          Text(_routeDistance!, style: AppText.caption),
+                        ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                FilledButton.icon(
+                  onPressed:
+                      hasRoute && !_loadingRoute ? _startNavigation : null,
+                  style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50)),
+                  icon: const Icon(Icons.navigation_rounded, size: 20),
+                  label: Text(
+                      hasRoute ? 'Start Navigation' : 'Select a destination'),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
+
+  Widget _mapPanel({required Widget child, EdgeInsets? padding}) => Material(
+        color: chateuSurface,
+        elevation: 2,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        child: Padding(
+          padding: padding ?? EdgeInsets.zero,
+          child: child,
+        ),
+      );
 
   void _startNavigation() {
     if (_selectedStreet == null) return;
@@ -2238,6 +2140,7 @@ class _NavigationPageState extends State<_NavigationPage> {
   Position? _currentPos;
   List<LatLng> _remainingRoute = [];
   bool _arrived = false;
+  StreamSubscription<Position>? _positionSub;
 
   @override
   void initState() {
@@ -2247,8 +2150,15 @@ class _NavigationPageState extends State<_NavigationPage> {
     _startTracking();
   }
 
+  @override
+  void dispose() {
+    // Stops GPS when leaving navigation; without this it kept running.
+    _positionSub?.cancel();
+    super.dispose();
+  }
+
   void _startTracking() {
-    Geolocator.getPositionStream(
+    _positionSub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high, distanceFilter: 5),
     ).listen((pos) {
@@ -2291,7 +2201,7 @@ class _NavigationPageState extends State<_NavigationPage> {
         : const LatLng(_entranceLat, _entranceLng);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1D2E),
+      backgroundColor: chateuBackground,
       body: Stack(
         children: [
           FlutterMap(
@@ -2307,7 +2217,7 @@ class _NavigationPageState extends State<_NavigationPage> {
                 PolylineLayer(polylines: [
                   Polyline(
                       points: _remainingRoute,
-                      color: chateuPrimary,
+                      color: _pinBrand,
                       strokeWidth: 6,
                       borderColor: Colors.white,
                       borderStrokeWidth: 2),
@@ -2339,32 +2249,26 @@ class _NavigationPageState extends State<_NavigationPage> {
             child: Container(
               padding: EdgeInsets.only(
                   top: MediaQuery.of(context).padding.top + 8,
-                  left: 12,
+                  left: 4,
                   right: 12,
                   bottom: 12),
-              color: const Color(0xFF1A1D2E).withAlpha(220),
+              color: Colors.black.withAlpha(210),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                        color: Colors.white, size: 20),
-                    onPressed: () => Navigator.pop(context),
-                  ),
+                  const BackButton(color: Colors.white),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(widget.street['label'] as String,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16)),
+                            style: AppText.titleMedium
+                                .copyWith(color: Colors.white)),
                         if (widget.routeDuration != null &&
                             widget.routeDistance != null)
                           Text(
                               '${widget.routeDuration} · ${widget.routeDistance}',
-                              style: const TextStyle(
-                                  color: Colors.white70, fontSize: 12)),
+                              style: AppText.caption
+                                  .copyWith(color: Colors.white70)),
                       ],
                     ),
                   ),
@@ -2380,41 +2284,30 @@ class _NavigationPageState extends State<_NavigationPage> {
                   child: Container(
                     margin: const EdgeInsets.symmetric(horizontal: 32),
                     padding: const EdgeInsets.all(28),
+                    constraints: const BoxConstraints(maxWidth: 400),
                     decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20)),
+                        color: chateuSurface,
+                        borderRadius: BorderRadius.circular(AppRadius.lg)),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.check_circle_rounded,
+                        Icon(Icons.check_circle_rounded,
                             color: chateuPrimary, size: 56),
-                        const SizedBox(height: 12),
-                        const Text('You have arrived!',
-                            style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF1A1D2E))),
+                        const SizedBox(height: AppSpacing.md),
+                        Text('You have arrived',
+                            style: AppText.displayMedium,
+                            textAlign: TextAlign.center),
                         const SizedBox(height: 6),
                         Text(widget.street['label'] as String,
-                            style: const TextStyle(
-                                fontSize: 14, color: Colors.grey),
+                            style: AppText.bodyMedium
+                                .copyWith(color: chateuTextMuted),
                             textAlign: TextAlign.center),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: chateuPrimary,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                            ),
-                            child: const Text('Done',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700)),
-                          ),
+                        const SizedBox(height: AppSpacing.xl),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48)),
+                          child: const Text('Done'),
                         ),
                       ],
                     ),
@@ -2428,9 +2321,9 @@ class _NavigationPageState extends State<_NavigationPage> {
   }
 }
 
-// ── Web Map ───────────────────────────────────────────────────────────────────
+// ── Community Map ───────────────────────────────────────────────────────────
 
-class _WebMap extends StatefulWidget {
+class _CommunityMap extends StatefulWidget {
   final Map<String, dynamic>? selectedStreet;
   final Position? userPosition;
   final List<LatLng> routePoints;
@@ -2439,7 +2332,7 @@ class _WebMap extends StatefulWidget {
   final ValueChanged<VoidCallback> onRegisterCenterSubdivision;
   final ValueChanged<VoidCallback> onRegisterCenterUser;
 
-  const _WebMap({
+  const _CommunityMap({
     this.selectedStreet,
     this.userPosition,
     required this.routePoints,
@@ -2450,172 +2343,10 @@ class _WebMap extends StatefulWidget {
   });
 
   @override
-  State<_WebMap> createState() => _WebMapState();
+  State<_CommunityMap> createState() => _CommunityMapState();
 }
 
-class _WebMapState extends State<_WebMap> {
-  final MapController _mapController = MapController();
-
-  @override
-  void initState() {
-    super.initState();
-    widget.onRegisterCenterSubdivision(
-      () => _mapController.move(
-          const LatLng(_subdivisionLat, _subdivisionLng), 16),
-    );
-    widget.onRegisterCenterUser(() {
-      if (widget.userPosition != null) {
-        _mapController.move(
-            LatLng(
-                widget.userPosition!.latitude, widget.userPosition!.longitude),
-            17);
-      }
-    });
-  }
-
-  @override
-  void didUpdateWidget(_WebMap old) {
-    super.didUpdateWidget(old);
-    if (widget.selectedStreet != null &&
-        widget.selectedStreet != old.selectedStreet) {
-      _mapController.move(
-          LatLng(widget.selectedStreet!['lat'] as double,
-              widget.selectedStreet!['lng'] as double),
-          17);
-    }
-    if (widget.routePoints.isNotEmpty &&
-        widget.routePoints != old.routePoints) {
-      _fitRouteBounds();
-    }
-    // Re-register user-center callback so closure captures fresh userPosition
-    if (widget.userPosition != old.userPosition) {
-      widget.onRegisterCenterUser(() {
-        if (widget.userPosition != null) {
-          _mapController.move(
-              LatLng(widget.userPosition!.latitude,
-                  widget.userPosition!.longitude),
-              17);
-        }
-      });
-    }
-  }
-
-  void _fitRouteBounds() {
-    if (widget.routePoints.length < 2) return;
-    final bounds = LatLngBounds.fromPoints(widget.routePoints);
-    _mapController.fitCamera(
-        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(48)));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final hasRoute = widget.selectedStreet != null;
-    final destLat = widget.selectedStreet?['lat'] as double? ?? _subdivisionLat;
-    final destLng = widget.selectedStreet?['lng'] as double? ?? _subdivisionLng;
-
-    return FlutterMap(
-      mapController: _mapController,
-      options: const MapOptions(
-          initialCenter: LatLng(_subdivisionLat, _subdivisionLng),
-          initialZoom: 16),
-      children: [
-        TileLayer(
-          urlTemplate:
-              'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=${AppConfig.mapboxToken}',
-          userAgentPackageName: 'com.hoacheteau.app',
-        ),
-        if (widget.routePoints.length >= 2)
-          PolylineLayer(polylines: [
-            Polyline(
-                points: widget.routePoints,
-                color: chateuPrimary,
-                strokeWidth: 5,
-                borderColor: Colors.white,
-                borderStrokeWidth: 2),
-          ]),
-        MarkerLayer(markers: [
-          Marker(
-            point: const LatLng(_entranceLat, _entranceLng),
-            width: 120,
-            height: 52,
-            alignment: Alignment.topCenter,
-            child: const _LandmarkPin(emoji: '🏰', label: 'Entrance'),
-          ),
-          Marker(
-            point: const LatLng(_coveredCourtLat, _coveredCourtLng),
-            width: 150,
-            height: 52,
-            alignment: Alignment.topCenter,
-            child: const _LandmarkPin(emoji: '🏟', label: 'Covered Court'),
-          ),
-          Marker(
-            point: const LatLng(_hoaOfficeLat, _hoaOfficeLng),
-            width: 135,
-            height: 52,
-            alignment: Alignment.topCenter,
-            child: const _LandmarkPin(emoji: '🏢', label: 'HOA Office'),
-          ),
-          if (widget.userPosition != null)
-            Marker(
-              point: LatLng(widget.userPosition!.latitude,
-                  widget.userPosition!.longitude),
-              width: 28,
-              height: 28,
-              child: _UserDot(),
-            ),
-          ...widget.filteredStreets.map((s) => Marker(
-                point: LatLng(s['lat'] as double, s['lng'] as double),
-                width: 28,
-                height: 34,
-                alignment: Alignment.topCenter,
-                child: GestureDetector(
-                  onTap: () => widget.onStreetSelected(s),
-                  child: _LotPin(selected: widget.selectedStreet == s),
-                ),
-              )),
-          if (hasRoute)
-            Marker(
-              point: LatLng(destLat, destLng),
-              width: 160,
-              height: 56,
-              alignment: Alignment.topCenter,
-              child: _DestinationPin(
-                  label: widget.selectedStreet!['label'] as String),
-            ),
-        ]),
-      ],
-    );
-  }
-}
-
-// ── Mobile Map ────────────────────────────────────────────────────────────────
-
-class _MobileMap extends StatefulWidget {
-  final Map<String, dynamic>? selectedStreet;
-  final Position? userPosition;
-  final List<LatLng> routePoints;
-  final List<Map<String, dynamic>> filteredStreets;
-  final ValueChanged<Position> onLocationReady;
-  final ValueChanged<Map<String, dynamic>> onStreetSelected;
-  final ValueChanged<VoidCallback> onRegisterCenterSubdivision;
-  final ValueChanged<VoidCallback> onRegisterCenterUser;
-
-  const _MobileMap({
-    this.selectedStreet,
-    this.userPosition,
-    required this.routePoints,
-    required this.filteredStreets,
-    required this.onLocationReady,
-    required this.onStreetSelected,
-    required this.onRegisterCenterSubdivision,
-    required this.onRegisterCenterUser,
-  });
-
-  @override
-  State<_MobileMap> createState() => _MobileMapState();
-}
-
-class _MobileMapState extends State<_MobileMap> {
+class _CommunityMapState extends State<_CommunityMap> {
   final _mapController = MapController();
 
   @override
@@ -2636,7 +2367,7 @@ class _MobileMapState extends State<_MobileMap> {
   }
 
   @override
-  void didUpdateWidget(_MobileMap old) {
+  void didUpdateWidget(_CommunityMap old) {
     super.didUpdateWidget(old);
     if (widget.selectedStreet != null &&
         widget.selectedStreet != old.selectedStreet) {
@@ -2696,7 +2427,7 @@ class _MobileMapState extends State<_MobileMap> {
           PolylineLayer(polylines: [
             Polyline(
               points: widget.routePoints,
-              color: chateuPrimary,
+              color: _pinBrand,
               strokeWidth: 5,
               borderColor: Colors.white,
               borderStrokeWidth: 1.5,
@@ -2722,24 +2453,35 @@ class _MobileMapState extends State<_MobileMap> {
                   width: 140,
                   height: 56,
                   alignment: Alignment.topCenter,
-                  child: GestureDetector(
-                    onTap: () => widget.onStreetSelected(s),
-                    child: _LandmarkPin(
-                      label: s['label'] as String,
-                      emoji: s['emoji'] as String? ?? '📍',
+                  child: Semantics(
+                    button: true,
+                    label: s['label'] as String,
+                    child: GestureDetector(
+                      onTap: () => widget.onStreetSelected(s),
+                      child: _LandmarkPin(
+                        label: s['label'] as String,
+                        icon: s['icon'] as IconData? ?? Icons.place_rounded,
+                      ),
                     ),
                   ),
                 );
               }
 
+              // Hit area stays 32dp even though the dot is 10dp; pins sit
+              // a few metres apart, so a full 48dp would overlap neighbours.
               return Marker(
                 point: LatLng(lat, lng),
-                width: isSelected ? 44 : 28,
+                width: isSelected ? 44 : 32,
                 height: isSelected ? 54 : 34,
                 alignment: Alignment.bottomCenter,
-                child: GestureDetector(
-                  onTap: () => widget.onStreetSelected(s),
-                  child: _LotPin(selected: isSelected),
+                child: Semantics(
+                  button: true,
+                  label: s['label'] as String,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => widget.onStreetSelected(s),
+                    child: _LotPin(selected: isSelected),
+                  ),
                 ),
               );
             }),
@@ -2772,23 +2514,20 @@ class _MobileMapState extends State<_MobileMap> {
   }
 }
 
-// ── Flutter Map marker widgets (Web + NavigationPage) ────────────────────────
+// ── Flutter Map marker widgets ────────────────────────
 
 class _UserDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final paint = Paint();
-    paint.color = chateuPrimary;
     return Container(
       decoration: BoxDecoration(
-        color: chateuPrimary,
+        color: _pinBrand,
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 3),
+        // Accuracy halo, the usual "you are here" convention.
         boxShadow: [
           BoxShadow(
-              color: chateuPrimary.withAlpha(120),
-              blurRadius: 10,
-              spreadRadius: 3)
+              color: _pinBrand.withAlpha(90), blurRadius: 10, spreadRadius: 3)
         ],
       ),
     );
@@ -2801,9 +2540,10 @@ class _LotPin extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? Colors.orange : chateuPrimary;
+    final color = selected ? _pinSelected : _pinBrand;
     return Column(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
         Container(
           width: selected ? 14 : 10,
@@ -2812,10 +2552,6 @@ class _LotPin extends StatelessWidget {
             color: color,
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 2),
-            boxShadow: [
-              BoxShadow(
-                  color: color.withAlpha(150), blurRadius: 6, spreadRadius: 1)
-            ],
           ),
         ),
         Container(width: 2, height: 6, color: color),
@@ -2825,9 +2561,9 @@ class _LotPin extends StatelessWidget {
 }
 
 class _LandmarkPin extends StatelessWidget {
-  final String emoji;
+  final IconData icon;
   final String label;
-  const _LandmarkPin({required this.emoji, required this.label});
+  const _LandmarkPin({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -2837,9 +2573,9 @@ class _LandmarkPin extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1D2E),
+            color: _pinInk,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: chateuPrimary, width: 1.5),
+            border: Border.all(color: _pinBrand, width: 1.5),
             boxShadow: [
               BoxShadow(
                   color: Colors.black.withAlpha(60),
@@ -2850,17 +2586,20 @@ class _LandmarkPin extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 13)),
+              Icon(icon, color: Colors.white, size: 14),
               const SizedBox(width: 4),
-              Text(label,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600)),
+              Flexible(
+                child: Text(label,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600)),
+              ),
             ],
           ),
         ),
-        _PinTip(color: const Color(0xFF1A1D2E)),
+        const _PinTip(color: _pinInk),
       ],
     );
   }
@@ -2879,11 +2618,11 @@ class _DestinationPin extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 150),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.red,
+            color: _pinDestination,
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
-                  color: Colors.red.withAlpha(80),
+                  color: Colors.black.withAlpha(50),
                   blurRadius: 8,
                   offset: const Offset(0, 3))
             ],
@@ -2891,12 +2630,12 @@ class _DestinationPin extends StatelessWidget {
           child: Text(label,
               style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600),
               overflow: TextOverflow.ellipsis,
               maxLines: 1),
         ),
-        const _PinTip(color: Colors.red),
+        const _PinTip(color: _pinDestination),
       ],
     );
   }
@@ -2924,26 +2663,25 @@ class _PinTip extends StatelessWidget {
 
 // ── Utility widgets ───────────────────────────────────────────────────────────
 
-class _Fab extends StatelessWidget {
+/// Round 48dp control floating over the map.
+class _MapButton extends StatelessWidget {
   final IconData icon;
-  const _Fab({required this.icon});
+  final String tooltip;
+  final VoidCallback onPressed;
+  const _MapButton(
+      {required this.icon, required this.tooltip, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withAlpha(30),
-              blurRadius: 8,
-              offset: const Offset(0, 3))
-        ],
+    return Material(
+      color: chateuSurface,
+      shape: const CircleBorder(),
+      elevation: 3,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon, color: chateuPrimary),
       ),
-      child: Icon(icon, color: chateuPrimary, size: 22),
     );
   }
 }
@@ -2951,35 +2689,34 @@ class _Fab extends StatelessWidget {
 class _SearchBar extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
-  const _SearchBar({required this.controller, required this.onChanged});
+  final VoidCallback onClose;
+  const _SearchBar(
+      {required this.controller,
+      required this.onChanged,
+      required this.onClose});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withAlpha(40),
-              blurRadius: 14,
-              offset: const Offset(0, 4))
-        ],
-      ),
+    return Material(
+      color: chateuSurface,
+      elevation: 3,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: TextField(
         controller: controller,
         autofocus: true,
-        style: const TextStyle(color: Color(0xFF1A1D2E), fontSize: 14),
+        textInputAction: TextInputAction.search,
         decoration: InputDecoration(
           hintText: 'Search street or lot…',
-          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-          prefixIcon:
-              const Icon(Icons.search_rounded, color: chateuPrimary, size: 20),
-          border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide.none),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          prefixIcon: const Icon(Icons.search_rounded, size: 20),
+          suffixIcon: IconButton(
+            tooltip: 'Close search',
+            onPressed: onClose,
+            icon: const Icon(Icons.close_rounded),
+          ),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          filled: false,
         ),
         onChanged: onChanged,
       ),
@@ -2994,32 +2731,31 @@ class _ResultsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(top: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withAlpha(25),
-              blurRadius: 10,
-              offset: const Offset(0, 4))
-        ],
-      ),
-      child: Column(
-        children: results
-            .map((r) => ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.location_on_rounded,
-                      color: chateuPrimary, size: 18),
-                  title: Text(r['label'] as String,
-                      style: const TextStyle(
-                          fontSize: 13, color: Color(0xFF1A1D2E))),
-                  subtitle: Text(r['street'] as String? ?? '',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                  onTap: () => onTap(r),
-                ))
-            .toList(),
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: Material(
+        color: chateuSurface,
+        elevation: 3,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 320),
+          child: ListView.builder(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            itemCount: results.length,
+            itemBuilder: (_, i) {
+              final r = results[i];
+              return ListTile(
+                leading: const Icon(Icons.location_on_rounded),
+                title: Text(r['label'] as String, style: AppText.bodyMedium),
+                subtitle: Text(r['street'] as String? ?? '',
+                    style: AppText.caption),
+                onTap: () => onTap(r),
+              );
+            },
+          ),
+        ),
       ),
     );
   }

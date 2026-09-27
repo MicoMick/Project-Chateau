@@ -149,6 +149,7 @@ class _NotificationPageState extends State<NotificationPage> {
         setState(() {
           _notifications = List<Map<String, dynamic>>.from(results[0] as List);
           _announcements = List<Map<String, dynamic>>.from(results[1] as List);
+          _entries = _resolveEntries();
           _loading = false;
         });
       }
@@ -159,7 +160,11 @@ class _NotificationPageState extends State<NotificationPage> {
 
   // ── Resolve each notification against the announcement it was posted for ──
 
-  List<_NotificationEntry> get _entries {
+  // Resolved once per load (every notification × every announcement), not on
+  // each rebuild — filter chips just re-filter this list.
+  List<_NotificationEntry> _entries = [];
+
+  List<_NotificationEntry> _resolveEntries() {
     return _notifications.map((n) {
       final title = n['title'] as String? ?? '';
       final createdAt =
@@ -205,82 +210,49 @@ class _NotificationPageState extends State<NotificationPage> {
     final visible = _visibleEntries;
 
     return Scaffold(
-      backgroundColor: chateuBackground,
       appBar: AppBar(
-        backgroundColor: chateuBackground,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: chateuPrimary, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text('Notifications', style: AppText.titleLarge),
-        centerTitle: true,
+        title: const Text('Notifications'),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(53),
-          child: Column(
-            children: [
-              SizedBox(
-                height: 44,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                  itemCount: _NotifFilter.values.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(width: AppSpacing.sm),
-                  itemBuilder: (context, i) {
-                    final f = _NotifFilter.values[i];
-                    final selected = f == _filter;
-                    return GestureDetector(
-                      onTap: () => setState(() => _filter = f),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        alignment: Alignment.center,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.md),
-                        decoration: BoxDecoration(
-                          color: selected ? chateuPrimary : Colors.white,
-                          borderRadius: BorderRadius.circular(AppRadius.xxl),
-                          border: Border.all(
-                              color: selected
-                                  ? chateuPrimary
-                                  : Colors.grey.shade300),
-                        ),
-                        child: Text(
-                          f.label,
-                          style: AppText.caption.copyWith(
-                            color: selected ? Colors.white : Colors.grey.shade600,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              Container(height: 1, color: Colors.grey.shade100),
-            ],
+          preferredSize: const Size.fromHeight(56),
+          child: SizedBox(
+            height: 56,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+              itemCount: _NotifFilter.values.length,
+              separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+              itemBuilder: (context, i) {
+                final f = _NotifFilter.values[i];
+                return ChoiceChip(
+                  label: Text(f.label),
+                  selected: f == _filter,
+                  onSelected: (_) => setState(() => _filter = f),
+                );
+              },
+            ),
           ),
         ),
       ),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: chateuPrimary))
-          : visible.isEmpty
-              ? _buildEmpty()
-              : RefreshIndicator(
-                  onRefresh: _loadNotifications,
-                  color: chateuPrimary,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(AppSpacing.lg,
-                        AppSpacing.lg, AppSpacing.lg, AppSpacing.xxxl),
-                    itemCount: visible.length,
-                    itemBuilder: (context, i) {
-                      return _NotificationCard(data: visible[i].raw);
-                    },
-                  ),
-                ),
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadNotifications,
+              child: visible.isEmpty
+                  ? LayoutBuilder(
+                      builder: (context, c) => SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: SizedBox(height: c.maxHeight, child: _buildEmpty()),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: appListPadding(context,
+                          top: AppSpacing.lg, bottom: AppSpacing.xxxl),
+                      itemCount: visible.length,
+                      itemBuilder: (context, i) =>
+                          _NotificationCard(data: visible[i].raw),
+                    ),
+            ),
     );
   }
 
@@ -290,15 +262,8 @@ class _NotificationPageState extends State<NotificationPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.xxl),
-            decoration: BoxDecoration(
-              color: chateuPrimary.withAlpha(15),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.notifications_none_rounded,
-                color: chateuPrimary, size: 48),
-          ),
+          Icon(Icons.notifications_none_rounded,
+              color: chateuTextMuted, size: 48),
           const SizedBox(height: AppSpacing.lg),
           Text(
             noneAtAll ? 'No notifications yet' : 'Nothing here',
@@ -307,9 +272,9 @@ class _NotificationPageState extends State<NotificationPage> {
           const SizedBox(height: AppSpacing.sm),
           Text(
             noneAtAll
-                ? "You're all caught up!"
+                ? "You're all caught up."
                 : 'No ${_filter.label.toLowerCase()} notifications right now.',
-            style: AppText.bodyMedium.copyWith(color: Colors.grey.shade500),
+            style: AppText.bodyMedium.copyWith(color: chateuTextMuted),
           ),
         ],
       ),
@@ -345,106 +310,59 @@ class _NotificationCard extends StatelessWidget {
     final String message = data['message'] ?? '';
     final String title = data['title'] ?? 'Notification';
     final String timeAgo = _timeAgo(data['created_at'] as String?);
-    final Color accentColor =
-        isGlobal ? chateuAccent : chateuPrimary;
+    final Color accentColor = isGlobal ? chateuInfo : chateuPrimary;
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: AppShadows.card,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Icon
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: accentColor.withAlpha(18),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
-              child: Icon(
-                isGlobal
-                    ? Icons.campaign_rounded
-                    : Icons.notifications_rounded,
-                color: accentColor,
-                size: 20,
-              ),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: AppDecorations.card,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(
+              isGlobal ? Icons.campaign_rounded : Icons.notifications_rounded,
+              color: accentColor,
+              size: 22,
             ),
-
-            const SizedBox(width: AppSpacing.md),
-
-            // Content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: AppText.bodyLarge.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: AppText.bodyLarge
+                            .copyWith(fontWeight: FontWeight.w700),
                       ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Text(
-                        timeAgo,
-                        style: AppText.caption
-                            .copyWith(color: Colors.grey.shade400),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: AppSpacing.xs),
-
-                  Text(
-                    message,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.bodyMedium.copyWith(
-                      color: Colors.grey.shade700,
                     ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.sm),
-
-                  // Badge row — type only, no read/unread UI
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.sm, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: accentColor.withAlpha(18),
-                          borderRadius: BorderRadius.circular(AppRadius.xxl),
-                        ),
-                        child: Text(
-                          isGlobal ? 'Broadcast' : 'Personal',
-                          style: AppText.caption.copyWith(
-                            fontSize: 10,
-                            color: accentColor,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(timeAgo, style: AppText.caption),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  message,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.bodyMedium.copyWith(color: chateuTextMuted),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AppStatusBadge(
+                  label: isGlobal ? 'Broadcast' : 'Personal',
+                  color: accentColor,
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

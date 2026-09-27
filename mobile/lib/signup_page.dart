@@ -1,10 +1,10 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
 import 'app_dialogs.dart';
+import 'app_theme.dart';
 import 'login_page.dart';
 import 'audit_logger.dart';
 
@@ -179,18 +179,16 @@ class _SignupPageState extends State<SignupPage> {
       }) as bool;
       if (!available) {
         if (!mounted) return false;
-        await showDialog(
-          context: context,
-          builder: (_) => const _InfoDialog(
-            icon: Icons.home_rounded,
-            iconColor: chateuAccent,
-            title: 'Lot Already Has a Homeowner',
-            message:
-                'This lot already has a registered and active homeowner.\n\n'
-                'If you are the homeowner, please contact the HOA admin. '
-                'If you are a tenant, ask your homeowner to add you through '
-                'the Tenant Management feature in their account.',
-          ),
+        await showInfoDialog(
+          context,
+          icon: Icons.home_rounded,
+          iconColor: chateuWarning,
+          title: 'Lot Already Has a Homeowner',
+          message:
+              'This lot already has a registered and active homeowner.\n\n'
+              'If you are the homeowner, please contact the HOA admin. '
+              'If you are a tenant, ask your homeowner to add you through '
+              'the Tenant Management feature in their account.',
         );
         return false;
       }
@@ -358,105 +356,27 @@ class _SignupPageState extends State<SignupPage> {
 
   // ── Dialogs & snacks ──────────────────────────────────────────────────────
 
-  void _showPendingDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        contentPadding: const EdgeInsets.all(28),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: chateuPrimary.withAlpha(20),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.how_to_reg_rounded,
-                  color: chateuPrimary, size: 48),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Registration Submitted!',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.w800,
-                  color: Color(0xFF1A1A1A)),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Your account is now pending HOA admin review.\n\n'
-              'Please visit the HOA office for your mandatory '
-              'orientation with the Treasurer. Your account will '
-              'be activated once approved by the admin.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.6),
-            ),
-            const SizedBox(height: 20),
-            // Info chip
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: chateuPrimary.withAlpha(15),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: chateuPrimary.withAlpha(60)),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.info_outline_rounded, color: chateuPrimary, size: 15),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'You will be notified once your account is activated.',
-                      style: TextStyle(fontSize: 12, color: chateuPrimary,
-                          fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pushReplacement(context,
-                      MaterialPageRoute(builder: (_) => const LoginPage()));
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: chateuPrimary,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  elevation: 0,
-                ),
-                child: const Text('Back to Login',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15)),
-              ),
-            ),
-          ],
-        ),
-      ),
+  Future<void> _showPendingDialog() async {
+    await showInfoDialog(
+      context,
+      icon: Icons.how_to_reg_rounded,
+      title: 'Registration Submitted!',
+      message: 'Your account is now pending HOA admin review.\n\n'
+          'Please visit the HOA office for your mandatory orientation with '
+          'the Treasurer. You will be notified once your account is activated.',
+      buttonLabel: 'Back to Login',
     );
+    if (!mounted) return;
+    Navigator.pushReplacement(
+        context, MaterialPageRoute(builder: (_) => const LoginPage()));
   }
 
   void _showLotPicker(List<String> lots) {
-    String query = '';
     List<String> filtered = List.from(lots);
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => StatefulBuilder(
         builder: (ctx, setModalState) => DraggableScrollableSheet(
           initialChildSize: 0.7,
@@ -465,45 +385,31 @@ class _SignupPageState extends State<SignupPage> {
           expand: false,
           builder: (_, scrollController) => Column(
             children: [
-              Container(
-                width: 40, height: 4,
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2)),
-              ),
+              const SizedBox(height: AppSpacing.md),
+              buildSheetHandle(),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
                 child: Row(children: [
-                  const Icon(Icons.home_work_rounded, color: chateuPrimary, size: 20),
-                  const SizedBox(width: 8),
-                  const Text('Select Block / Lot',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text('Select Block / Lot', style: AppText.titleMedium),
                   const Spacer(),
-                  Text('${filtered.length} lots',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                  Text('${filtered.length} lots', style: AppText.caption),
                 ]),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
                 child: TextField(
-                  autofocus: false,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     hintText: 'Search e.g. Blk 52 Lot 4',
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                    prefixIcon: const Icon(Icons.search_rounded, color: chateuPrimary, size: 18),
-                    filled: true,
-                    fillColor: Colors.grey.shade100,
+                    prefixIcon: Icon(Icons.search_rounded, size: 18),
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none),
                   ),
                   onChanged: (val) {
+                    final q = val.toLowerCase();
                     setModalState(() {
-                      query = val.toLowerCase();
-                      filtered = lots.where((l) => l.toLowerCase().contains(query)).toList();
+                      filtered =
+                          lots.where((l) => l.toLowerCase().contains(q)).toList();
                     });
                   },
                 ),
@@ -511,34 +417,34 @@ class _SignupPageState extends State<SignupPage> {
               const Divider(height: 1),
               Expanded(
                 child: filtered.isEmpty
-                    ? Center(child: Text('No lots found',
-                          style: TextStyle(color: Colors.grey.shade400)))
+                    ? Center(
+                        child: Text('No lots found',
+                            style: AppText.bodyMedium
+                                .copyWith(color: chateuTextMuted)))
                     : ListView.builder(
                         controller: scrollController,
                         itemCount: filtered.length,
                         itemBuilder: (_, i) {
-                          final lotItem  = filtered[i];
+                          final lotItem = filtered[i];
                           final isSelected = _selectedLot == lotItem;
                           return ListTile(
-                            dense: true,
-                            leading: Container(
-                              width: 36, height: 36,
-                              decoration: BoxDecoration(
-                                color: isSelected ? chateuPrimary : chateuPrimary.withAlpha(18),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(Icons.location_on_rounded,
-                                  color: isSelected ? Colors.white : chateuPrimary, size: 18),
-                            ),
+                            leading: Icon(Icons.location_on_outlined,
+                                color: isSelected
+                                    ? chateuPrimary
+                                    : chateuTextMuted),
                             title: Text(lotItem,
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                                    color: isSelected ? chateuPrimary : const Color(0xFF1A1A1A))),
+                                style: AppText.bodyMedium.copyWith(
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
+                                    color: isSelected
+                                        ? chateuPrimary
+                                        : chateuText)),
                             trailing: isSelected
-                                ? const Icon(Icons.check_circle_rounded,
-                                    color: chateuPrimary, size: 18)
+                                ? Icon(Icons.check_rounded,
+                                    color: chateuPrimary)
                                 : null,
+                            selected: isSelected,
                             onTap: () {
                               setState(() => _selectedLot = lotItem);
                               Navigator.pop(ctx);
@@ -559,11 +465,11 @@ class _SignupPageState extends State<SignupPage> {
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
+  static const _stepLabels = ['Account', 'Personal', 'Address', 'Move-In'];
+
   @override
   Widget build(BuildContext context) {
-    final mq      = MediaQuery.of(context);
-    final screenH = mq.size.height;
-    final isSmall = screenH < 700;
+    final isSmall = MediaQuery.sizeOf(context).height < 700;
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -576,101 +482,85 @@ class _SignupPageState extends State<SignupPage> {
             key: const ValueKey('signup_bg'),
             fit: BoxFit.cover,
             gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => Container(
-              key: const ValueKey('signup_bg_fallback'),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF1a1a2e), Color(0xFF16213e)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-            ),
+            excludeFromSemantics: true,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
           ),
-          Container(color: Colors.black.withAlpha(140)),
-
+          ColoredBox(color: Colors.black.withAlpha(150)),
           SafeArea(
             child: SingleChildScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              physics: const ClampingScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  children: [
-                    SizedBox(height: isSmall ? 12 : 20),
-
-                    Image.asset('assets/logo.png',
-                        height: isSmall ? 44 : 56,
-                        errorBuilder: (_, __, ___) => const Icon(
-                            Icons.home_rounded, color: Colors.white, size: 60)),
-
-                    SizedBox(height: isSmall ? 4 : 6),
-
-                    const Text('Create Account',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700)),
-
-                    SizedBox(height: isSmall ? 10 : 14),
-
-                    _buildStepIndicator(),
-
-                    SizedBox(height: isSmall ? 10 : 14),
-
-                    RepaintBoundary(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: Container(
-                            width: double.infinity,
-                            padding: EdgeInsets.symmetric(
-                                horizontal: isSmall ? 14 : 20,
-                                vertical: isSmall ? 14 : 18),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withAlpha(26),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(color: Colors.white.withAlpha(51)),
-                            ),
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 250),
-                              transitionBuilder: (child, anim) =>
-                                  FadeTransition(opacity: anim, child: child),
-                              child: _currentStep == 0
-                                  ? _buildStep0(screenH)
-                                  : _currentStep == 1
-                                      ? _buildStep1(screenH)
-                                      : _currentStep == 2
-                                          ? _buildStep2(screenH)
-                                          : _buildStep3(screenH),
-                            ),
-                          ),
+              child: AppContentWidth(
+                maxWidth: 520,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                  child: Column(
+                    children: [
+                      Row(children: [
+                        BackButton(
+                          color: Colors.white,
+                          onPressed: _currentStep > 0
+                              ? () => setState(() => _currentStep--)
+                              : null,
+                        ),
+                        const Spacer(),
+                      ]),
+                      Image.asset('assets/logo.png',
+                          height: isSmall ? 44 : 56,
+                          semanticLabel: 'Chateau Real',
+                          errorBuilder: (_, __, ___) => const Icon(
+                              Icons.home_rounded,
+                              color: Colors.white,
+                              size: 56)),
+                      const SizedBox(height: AppSpacing.sm),
+                      Semantics(
+                        header: true,
+                        child: Text('Create Account',
+                            style: AppText.titleLarge
+                                .copyWith(color: Colors.white)),
+                      ),
+                      SizedBox(height: isSmall ? AppSpacing.md : AppSpacing.lg),
+                      _buildStepIndicator(),
+                      SizedBox(height: isSmall ? AppSpacing.md : AppSpacing.lg),
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(
+                            isSmall ? AppSpacing.lg : AppSpacing.xl),
+                        decoration: BoxDecoration(
+                          color: chateuSurface,
+                          borderRadius: BorderRadius.circular(AppRadius.lg),
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: MediaQuery.disableAnimationsOf(context)
+                              ? Duration.zero
+                              : const Duration(milliseconds: 200),
+                          child: switch (_currentStep) {
+                            0 => _buildStep0(),
+                            1 => _buildStep1(),
+                            2 => _buildStep2(),
+                            _ => _buildStep3(),
+                          },
                         ),
                       ),
-                    ),
-
-                    SizedBox(height: isSmall ? 14 : 20),
-
-                    if (_currentStep < 3)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text('Already have an account? ',
-                              style: TextStyle(color: Colors.white70, fontSize: 13)),
-                          GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: const Text('LOGIN',
-                                style: TextStyle(
-                                    color: chateuAccent,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13)),
-                          ),
-                        ],
-                      ),
-
-                    SizedBox(height: isSmall ? 16 : 24),
-                  ],
+                      const SizedBox(height: AppSpacing.lg),
+                      if (_currentStep < 3)
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text('Already have an account?',
+                                style: AppText.bodyMedium
+                                    .copyWith(color: Colors.white70)),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                  foregroundColor: chateuAccent),
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Log in'),
+                            ),
+                          ],
+                        ),
+                      const SizedBox(height: AppSpacing.xl),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -680,99 +570,122 @@ class _SignupPageState extends State<SignupPage> {
     );
   }
 
-  // ── Step indicator ────────────────────────────────────────────────────────
+  // ── Step indicator (on the photo, so fixed light-on-dark colors) ──────────
 
   Widget _buildStepIndicator() {
-    const labels = ['Account', 'Personal', 'Address', 'Move-In'];
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(4, (i) {
-        final isDone   = i < _currentStep;
-        final isActive = i == _currentStep;
-        return Row(
-          children: [
-            Column(
+    return Semantics(
+      label: 'Step ${_currentStep + 1} of 4: ${_stepLabels[_currentStep]}',
+      child: ExcludeSemantics(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(4, (i) {
+            final isDone = i < _currentStep;
+            final isActive = i == _currentStep;
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 28, height: 28,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isDone
-                        ? chateuPrimary
-                        : isActive
-                            ? chateuAccent
-                            : Colors.white.withAlpha(40),
-                    border: isActive
-                        ? Border.all(color: chateuAccent, width: 2)
-                        : null,
-                  ),
-                  child: Center(
-                    child: isDone
-                        ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
-                        : Text('${i + 1}',
-                            style: TextStyle(
-                                color: isActive ? Colors.black87 : Colors.white70,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13)),
-                  ),
+                Column(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isDone
+                            ? const Color(0xFF006837)
+                            : isActive
+                                ? chateuAccent
+                                : Colors.white.withAlpha(40),
+                      ),
+                      child: Center(
+                        child: isDone
+                            ? const Icon(Icons.check_rounded,
+                                color: Colors.white, size: 16)
+                            : Text('${i + 1}',
+                                style: TextStyle(
+                                    color: isActive
+                                        ? const Color(0xFF1A1A1A)
+                                        : Colors.white70,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14)),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(_stepLabels[i],
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: isActive ? chateuAccent : Colors.white70,
+                            fontWeight:
+                                isActive ? FontWeight.w700 : FontWeight.w400)),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(labels[i],
-                    style: TextStyle(
-                        fontSize: 9,
-                        color: isActive ? chateuAccent : Colors.white.withAlpha(160),
-                        fontWeight: isActive ? FontWeight.w700 : FontWeight.w400)),
+                if (i < 3)
+                  Container(
+                    width: 20,
+                    height: 1,
+                    margin: const EdgeInsets.fromLTRB(4, 14, 4, 0),
+                    color: Colors.white.withAlpha(i < _currentStep ? 160 : 60),
+                  ),
               ],
-            ),
-            if (i < 3)
-              Container(
-                width: 24, height: 1,
-                margin: const EdgeInsets.only(bottom: 18),
-                color: i < _currentStep ? chateuPrimary : Colors.white.withAlpha(60),
-              ),
-          ],
-        );
-      }),
+            );
+          }),
+        ),
+      ),
     );
   }
 
+  Widget _stepHeader(String title, String subtitle) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: AppText.titleMedium),
+            const SizedBox(height: 2),
+            Text(subtitle, style: AppText.caption),
+          ],
+        ),
+      );
+
   // ── Step 0: Account ───────────────────────────────────────────────────────
 
-  Widget _buildStep0(double screenH) {
-    final gap    = screenH < 700 ? 10.0 : 14.0;
-    final gapBtn = screenH < 700 ? 14.0 : 20.0;
+  Widget _buildStep0() {
     return Column(
       key: const ValueKey('step0'),
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _label('Email *'),
+        _stepHeader('Account', 'You will sign in with these'),
         _textField(
           controller: _emailCtrl,
-          hint: 'Enter your email address',
+          label: 'Email *',
+          hint: 'you@email.com',
           keyboardType: TextInputType.emailAddress,
+          autofill: AutofillHints.email,
           icon: Icons.email_rounded,
         ),
-        SizedBox(height: gap),
-        _label('Password *'),
+        const SizedBox(height: AppSpacing.lg),
         _passwordField(
           controller: _passwordCtrl,
+          label: 'Password *',
           hint: 'At least 8 characters',
           isHidden: _isPasswordHidden,
           onToggle: () => setState(() => _isPasswordHidden = !_isPasswordHidden),
         ),
-        SizedBox(height: gap),
-        _label('Confirm Password *'),
+        const SizedBox(height: AppSpacing.lg),
         _passwordField(
           controller: _confirmPasswordCtrl,
+          label: 'Confirm Password *',
           hint: 'Re-enter password',
           isHidden: _isConfirmPasswordHidden,
-          onToggle: () => setState(() => _isConfirmPasswordHidden = !_isConfirmPasswordHidden),
+          onToggle: () => setState(
+              () => _isConfirmPasswordHidden = !_isConfirmPasswordHidden),
         ),
-        SizedBox(height: gapBtn),
+        const SizedBox(height: AppSpacing.xl),
         _nextButton(
           label: 'Next: Personal Info',
           onTap: () async {
-            if (await _validateStep0()) setState(() => _currentStep = 1);
+            if (await _validateStep0() && mounted) {
+              setState(() => _currentStep = 1);
+            }
           },
         ),
       ],
@@ -781,88 +694,50 @@ class _SignupPageState extends State<SignupPage> {
 
   // ── Step 1: Personal info ─────────────────────────────────────────────────
 
-  Widget _buildStep1(double screenH) {
-    final gap    = screenH < 700 ? 10.0 : 14.0;
-    final gapBtn = screenH < 700 ? 14.0 : 20.0;
-
+  Widget _buildStep1() {
     return Column(
       key: const ValueKey('step1'),
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-                color: chateuPrimary.withAlpha(50),
-                borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.person_pin_rounded, color: Colors.white, size: 20),
-          ),
-          const SizedBox(width: 10),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Personal Information',
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
-              Text('Tell us about yourself',
-                  style: TextStyle(color: Colors.white54, fontSize: 11)),
-            ],
-          ),
-        ]),
-
-        SizedBox(height: gap + 4),
-
-        _label('First Name *'),
+        _stepHeader('Personal Information', 'Tell us about yourself'),
         _textField(
           controller: _firstNameCtrl,
-          hint: 'Enter your first name',
+          label: 'First Name *',
           icon: Icons.badge_rounded,
           textCapitalization: TextCapitalization.words,
+          autofill: AutofillHints.givenName,
         ),
-        SizedBox(height: gap),
-
-        Row(children: [
+        const SizedBox(height: AppSpacing.lg),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
             flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _label('Last Name *'),
-                _textField(
-                  controller: _lastNameCtrl,
-                  hint: 'Last name',
-                  icon: Icons.person_rounded,
-                  textCapitalization: TextCapitalization.words,
-                ),
-              ],
+            child: _textField(
+              controller: _lastNameCtrl,
+              label: 'Last Name *',
+              textCapitalization: TextCapitalization.words,
+              autofill: AutofillHints.familyName,
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _label('M.I.'),
-                _textField(
-                  controller: _middleInitialCtrl,
-                  hint: 'e.g. A',
-                  maxLength: 1,
-                  textCapitalization: TextCapitalization.characters,
-                ),
-              ],
+            child: _textField(
+              controller: _middleInitialCtrl,
+              label: 'M.I.',
+              hint: 'e.g. A',
+              maxLength: 1,
+              textCapitalization: TextCapitalization.characters,
             ),
           ),
         ]),
-
-        SizedBox(height: gap),
-
-        _label('Phone Number *'),
+        const SizedBox(height: AppSpacing.lg),
         _textField(
           controller: _phoneCtrl,
+          label: 'Phone Number *',
           hint: '09123456789 or +639123456789',
           icon: Icons.phone_rounded,
           keyboardType: TextInputType.phone,
+          autofill: AutofillHints.telephoneNumber,
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[\d\+]')),
             LengthLimitingTextInputFormatter(13),
@@ -874,72 +749,52 @@ class _SignupPageState extends State<SignupPage> {
             final phone = val.text.trim();
             if (phone.isEmpty) return const SizedBox.shrink();
             final ok = _isValidPhone(phone);
+            final c = ok ? chateuPrimary : chateuError;
             return Padding(
-              padding: const EdgeInsets.only(top: 4, left: 2),
+              padding: const EdgeInsets.only(top: 6, left: 2),
               child: Row(children: [
-                Icon(
-                  ok ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                  size: 13,
-                  color: ok ? chateuPrimary : const Color(0xFFDC2626),
-                ),
+                Icon(ok ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                    size: 14, color: c),
                 const SizedBox(width: 4),
-                Text(
-                  ok ? 'Valid phone number' : 'Use format: 09XXXXXXXXX or +639XXXXXXXXX',
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: ok ? chateuPrimary : const Color(0xFFDC2626)),
+                Flexible(
+                  child: Text(
+                    ok
+                        ? 'Valid phone number'
+                        : 'Use format: 09XXXXXXXXX or +639XXXXXXXXX',
+                    style: AppText.caption.copyWith(color: c),
+                  ),
                 ),
               ]),
             );
           },
         ),
-
-        SizedBox(height: gap),
-
-        _label('Duration of Residency *'),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
+        const SizedBox(height: AppSpacing.lg),
+        DropdownButtonFormField<String>(
+          initialValue: _durationOfResidency,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Duration of Residency *',
+            prefixIcon: Icon(Icons.access_time_rounded, size: 18),
           ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _durationOfResidency,
-              isExpanded: true,
-              hint: Row(children: [
-                const SizedBox(width: 12),
-                Icon(Icons.access_time_rounded, size: 18, color: chateuPrimary),
-                const SizedBox(width: 10),
-                const Text('How long have you lived here?',
-                    style: TextStyle(color: Colors.black38, fontSize: 13)),
-              ]),
-              icon: const Padding(
-                padding: EdgeInsets.only(right: 8),
-                child: Icon(Icons.expand_more_rounded, color: chateuPrimary),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              items: _durations.map((d) => DropdownMenuItem(
-                value: d,
-                child: Text(d, style: const TextStyle(fontSize: 14)),
-              )).toList(),
-              onChanged: (val) => setState(() => _durationOfResidency = val),
-              dropdownColor: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
+          hint: const Text('How long have you lived here?'),
+          items: _durations
+              .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+              .toList(),
+          onChanged: (val) => setState(() => _durationOfResidency = val),
         ),
-
-        SizedBox(height: gapBtn),
-
+        const SizedBox(height: AppSpacing.xl),
         Row(children: [
-          Expanded(child: _backButton(onTap: () => setState(() => _currentStep = 0))),
-          const SizedBox(width: 10),
+          Expanded(
+              child: _backButton(onTap: () => setState(() => _currentStep = 0))),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             flex: 2,
             child: _nextButton(
               label: 'Next: Address',
               onTap: () async {
-                if (await _validateStep1()) setState(() => _currentStep = 2);
+                if (await _validateStep1() && mounted) {
+                  setState(() => _currentStep = 2);
+                }
               },
             ),
           ),
@@ -950,115 +805,88 @@ class _SignupPageState extends State<SignupPage> {
 
   // ── Step 2: Address & Type ────────────────────────────────────────────────
 
-  Widget _buildStep2(double screenH) {
-    final lots   = _selectedStreet?.lots ?? [];
-    final gap    = screenH < 700 ? 10.0 : 14.0;
-    final gapBtn = screenH < 700 ? 14.0 : 20.0;
+  Widget _buildStep2() {
+    final lots = _selectedStreet?.lots ?? [];
+    final hasStreet = _selectedStreet != null;
 
     return Column(
       key: const ValueKey('step2'),
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _label('Street *'),
-        _dropdownField<_StreetData>(
-          value: _selectedStreet,
-          hint: 'Select your street',
-          icon: Icons.signpost_rounded,
-          items: _streets.map((s) => DropdownMenuItem(
-                value: s,
-                child: Text(s.street, style: const TextStyle(fontSize: 14)),
-              )).toList(),
+        _stepHeader('Address', 'Your lot in Chateau Real'),
+        DropdownButtonFormField<_StreetData>(
+          initialValue: _selectedStreet,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Street *',
+            prefixIcon: Icon(Icons.signpost_rounded, size: 18),
+          ),
+          hint: const Text('Select your street'),
+          items: _streets
+              .map((s) => DropdownMenuItem(value: s, child: Text(s.street)))
+              .toList(),
           onChanged: (val) => setState(() {
             _selectedStreet = val;
-            _selectedLot    = null;
+            _selectedLot = null;
           }),
         ),
-
-        SizedBox(height: gap),
-
-        _label('Block / Lot *'),
-        GestureDetector(
-          onTap: _selectedStreet == null ? null : () => _showLotPicker(lots),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-            decoration: BoxDecoration(
-              color: _selectedStreet == null ? Colors.white.withAlpha(180) : Colors.white,
-              borderRadius: BorderRadius.circular(10),
+        const SizedBox(height: AppSpacing.lg),
+        InkWell(
+          onTap: hasStreet ? () => _showLotPicker(lots) : null,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: 'Block / Lot *',
+              enabled: hasStreet,
+              prefixIcon: const Icon(Icons.home_work_rounded, size: 18),
+              suffixIcon: const Icon(Icons.expand_more_rounded),
             ),
-            child: Row(children: [
-              Icon(Icons.home_work_rounded,
-                  size: 18,
-                  color: _selectedStreet == null ? Colors.black26 : chateuPrimary),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  _selectedLot ?? (_selectedStreet == null
-                      ? 'Select street first'
-                      : 'Tap to choose block / lot'),
-                  style: TextStyle(
-                      fontSize: 13,
-                      color: _selectedLot != null ? Colors.black87 : Colors.black38),
-                ),
-              ),
-              Icon(Icons.expand_more_rounded,
-                  color: _selectedStreet == null ? Colors.black26 : chateuPrimary),
-            ]),
+            child: Text(
+              _selectedLot ??
+                  (hasStreet ? 'Tap to choose block / lot' : 'Select street first'),
+              style: AppText.bodyMedium.copyWith(
+                  color: _selectedLot != null ? chateuText : chateuTextMuted),
+            ),
           ),
         ),
-
-        SizedBox(height: gap),
-
-        if (_selectedStreet != null && _selectedLot != null)
-          Container(
-            padding: const EdgeInsets.all(10),
-            margin: EdgeInsets.only(bottom: gap),
-            decoration: BoxDecoration(
-              color: chateuPrimary.withAlpha(30),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: chateuPrimary.withAlpha(80)),
-            ),
-            child: Row(children: [
-              const Icon(Icons.location_on_rounded, color: chateuAccent, size: 15),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '$_selectedLot, ${_selectedStreet!.street} St., Chateau Real',
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                ),
+        if (hasStreet && _selectedLot != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          Row(children: [
+            Icon(Icons.location_on_rounded, color: chateuPrimary, size: 16),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                '$_selectedLot, ${_selectedStreet!.street} St., Chateau Real',
+                style: AppText.bodyMedium.copyWith(fontWeight: FontWeight.w600),
               ),
-            ]),
-          ),
-
-        _infoBox(
+            ),
+          ]),
+        ],
+        const SizedBox(height: AppSpacing.lg),
+        const AppNoticeBanner(
           icon: Icons.home_rounded,
-          color: chateuAccent,
-          text:
-              'This account will be registered as the Homeowner for this lot. '
+          text: 'This account will be registered as the Homeowner for this lot. '
               'Only one homeowner is allowed per lot. Tenants are added later '
               'from your account\'s Tenant Management page.',
         ),
-
-        SizedBox(height: gap),
-
-        _infoBox(
+        const SizedBox(height: AppSpacing.sm),
+        const AppNoticeBanner(
           icon: Icons.pending_actions_rounded,
-          color: chateuPrimary,
           text: 'Your account will require admin approval before you can log in.',
         ),
-
-        SizedBox(height: gapBtn),
-
+        const SizedBox(height: AppSpacing.xl),
         Row(children: [
-          Expanded(child: _backButton(onTap: () => setState(() => _currentStep = 1))),
-          const SizedBox(width: 10),
+          Expanded(
+              child: _backButton(onTap: () => setState(() => _currentStep = 1))),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             flex: 2,
             child: _nextButton(
               label: 'Next: Move-In Docs',
-              icon: Icons.upload_file_rounded,
               onTap: () async {
-                if (await _validateStep2()) setState(() => _currentStep = 3);
+                if (await _validateStep2() && mounted) {
+                  setState(() => _currentStep = 3);
+                }
               },
             ),
           ),
@@ -1069,388 +897,158 @@ class _SignupPageState extends State<SignupPage> {
 
   // ── Step 3: Move-In Clearance Form ────────────────────────────────────────
 
-  Widget _buildStep3(double screenH) {
-    final gap    = screenH < 700 ? 10.0 : 14.0;
-    final gapBtn = screenH < 700 ? 14.0 : 20.0;
+  Future<void> _pickDoc(void Function(XFile) assign) async {
+    final f = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (f != null && mounted) setState(() => assign(f));
+  }
 
+  Widget _buildStep3() {
     return Column(
       key: const ValueKey('step3'),
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-
-        // ── Header ─────────────────────────────────────────────────────────
-        Row(children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: chateuPrimary.withAlpha(50),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.description_rounded, color: Colors.white, size: 20),
-          ),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Move-In Clearance',
-                    style: TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
-                Text('CREVHAI – Required Documents',
-                    style: TextStyle(color: Colors.white54, fontSize: 11)),
-              ],
-            ),
-          ),
-        ]),
-
-        SizedBox(height: gap),
-
-        // ── Clearance "header" card (mirrors the form letterhead) ──────────
+        _stepHeader('Move-In Clearance', 'CREVHAI – Required Documents'),
         Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white.withAlpha(15),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white.withAlpha(40)),
-          ),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: AppDecorations.muted,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'MOVE IN Clearance',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                    letterSpacing: 0.5),
-              ),
+              Text('Move-In Clearance',
+                  style: AppText.labelMedium.copyWith(color: chateuText)),
               const SizedBox(height: 4),
               Text(
                 'Chateau Real Executive Village Homeowners Association Inc. (CREVHAI)',
-                style: TextStyle(
-                    color: Colors.white.withAlpha(180), fontSize: 10),
+                style: AppText.caption,
               ),
               if (_selectedLot != null && _selectedStreet != null) ...[
                 const SizedBox(height: 6),
                 Text(
                   '$_selectedLot, ${_selectedStreet!.street} St., Chateau Real, Buenavista III, General Trias, Cavite',
-                  style: TextStyle(color: Colors.white.withAlpha(160), fontSize: 10),
+                  style: AppText.caption,
                 ),
               ],
             ],
           ),
         ),
-
-        SizedBox(height: gap),
-
-        // ── Move-In Date ───────────────────────────────────────────────────
-        _mandatoryField('Move-In Date'),
-        GestureDetector(
+        const SizedBox(height: AppSpacing.lg),
+        InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           onTap: () async {
             final picked = await showDatePicker(
               context: context,
               initialDate: DateTime.now(),
               firstDate: DateTime(2000),
               lastDate: DateTime.now().add(const Duration(days: 365)),
-              builder: (ctx, child) => Theme(
-                data: Theme.of(ctx).copyWith(
-                  colorScheme: const ColorScheme.light(
-                    primary: chateuPrimary, onPrimary: Colors.white),
-                ),
-                child: child!,
-              ),
             );
-            if (picked != null) {
+            if (picked != null && mounted) {
               setState(() {
                 _moveInDateCtrl.text =
                     '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
               });
             }
           },
-          child: _fieldTile(
-            icon: Icons.calendar_today_rounded,
-            text: _moveInDateCtrl.text.isEmpty ? 'Select move-in date' : _moveInDateCtrl.text,
-            isEmpty: _moveInDateCtrl.text.isEmpty,
+          child: InputDecorator(
+            decoration: const InputDecoration(
+              labelText: 'Move-In Date *',
+              prefixIcon: Icon(Icons.calendar_today_rounded, size: 18),
+              suffixIcon: Icon(Icons.expand_more_rounded),
+            ),
+            child: Text(
+              _moveInDateCtrl.text.isEmpty
+                  ? 'Select move-in date'
+                  : _moveInDateCtrl.text,
+              style: AppText.bodyMedium.copyWith(
+                  color: _moveInDateCtrl.text.isEmpty
+                      ? chateuTextMuted
+                      : chateuText),
+            ),
           ),
         ),
-
-        SizedBox(height: gap),
-
-        // ── Proof of Ownership ──────────────────────────────────────────────
-        _mandatoryField('Proof of Ownership'),
-        _docUploadTile(
-          hint: 'Deed of Sale / Transfer Certificate of Title',
-          file: _proofOfOwnership,
-          onTap: () async {
-            final f = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-            if (f != null) setState(() => _proofOfOwnership = f);
-          },
+        const SizedBox(height: AppSpacing.lg),
+        _fieldLabel('Proof of Ownership *'),
+        AppUploadTile(
+          hasFile: _proofOfOwnership != null,
+          label: _proofOfOwnership?.name ??
+              'Deed of Sale / Transfer Certificate of Title',
+          onTap: _proofOfOwnership != null
+              ? null
+              : () => _pickDoc((f) => _proofOfOwnership = f),
           onRemove: () => setState(() => _proofOfOwnership = null),
         ),
-        SizedBox(height: gap),
-
-        // ── Barangay / HOA Move-Out Clearance ───────────────────────────────
-        _mandatoryField('HOA Move-Out Clearance or Barangay Clearance'),
-        _docUploadTile(
-          hint: 'Upload Barangay Clearance or HOA Move-Out Clearance',
-          file: _barangayClearance,
-          onTap: () async {
-            final f = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-            if (f != null) setState(() => _barangayClearance = f);
-          },
+        const SizedBox(height: AppSpacing.lg),
+        _fieldLabel('HOA Move-Out Clearance or Barangay Clearance *'),
+        AppUploadTile(
+          hasFile: _barangayClearance != null,
+          label: _barangayClearance?.name ??
+              'Upload Barangay Clearance or HOA Move-Out Clearance',
+          onTap: _barangayClearance != null
+              ? null
+              : () => _pickDoc((f) => _barangayClearance = f),
           onRemove: () => setState(() => _barangayClearance = null),
         ),
-        SizedBox(height: gap),
-
-        // ── Mandatory Treasurer Meeting banner ─────────────────────────────
-        _mandatoryMeetingBanner(),
-
-        SizedBox(height: gap),
-
-        // Admin approval notice
-        _infoBox(
+        const SizedBox(height: AppSpacing.lg),
+        AppNoticeBanner(
+          icon: Icons.warning_amber_rounded,
+          color: chateuWarning,
+          text: 'Mandatory meeting required: an orientation with the HOA '
+              'Treasurer or HOA President is required upon move-in. This must '
+              'be completed before your account can be activated.',
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        const AppNoticeBanner(
           icon: Icons.pending_actions_rounded,
-          color: chateuPrimary,
           text: 'Your account will be reviewed by the HOA admin before activation.',
         ),
-
-        SizedBox(height: gapBtn),
-
+        const SizedBox(height: AppSpacing.xl),
         Row(children: [
-          Expanded(child: _backButton(onTap: () => setState(() => _currentStep = 2))),
-          const SizedBox(width: 10),
+          Expanded(
+              child: _backButton(onTap: () => setState(() => _currentStep = 2))),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             flex: 2,
-            child: _isLoading
-                ? Container(
-                    height: 48,
-                    decoration: BoxDecoration(
-                        color: chateuPrimary,
-                        borderRadius: BorderRadius.circular(12)),
-                    child: const Center(
-                        child: SizedBox(
-                            width: 22, height: 22,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2.5))),
-                  )
-                : _nextButton(
-                    label: 'Create Account',
-                    icon: Icons.check_circle_rounded,
-                    onTap: () {
-                      if (_moveInDateCtrl.text.isEmpty) {
-                        _showError('Please select your move-in date.'); return;
-                      }
-                      if (_proofOfOwnership == null) {
-                        _showError('Please upload proof of ownership.'); return;
-                      }
-                      if (_barangayClearance == null) {
-                        _showError('Please upload your Barangay/Move-Out Clearance.'); return;
-                      }
-                      _signUp();
-                    },
-                  ),
+            child: AppPrimaryButton(
+              label: 'Create Account',
+              isLoading: _isLoading,
+              onPressed: () {
+                if (_moveInDateCtrl.text.isEmpty) {
+                  _showError('Please select your move-in date.');
+                  return;
+                }
+                if (_proofOfOwnership == null) {
+                  _showError('Please upload proof of ownership.');
+                  return;
+                }
+                if (_barangayClearance == null) {
+                  _showError('Please upload your Barangay/Move-Out Clearance.');
+                  return;
+                }
+                _signUp();
+              },
+            ),
           ),
         ]),
       ],
     );
   }
 
-  // ── Mandatory meeting banner ──────────────────────────────────────────────
-
-  Widget _mandatoryMeetingBanner() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: chateuAccent.withAlpha(25),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: chateuAccent.withAlpha(120)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Icon(Icons.warning_amber_rounded, color: chateuAccent, size: 16),
-            const SizedBox(width: 8),
-            const Text(
-              'MANDATORY MEETING REQUIRED',
-              style: TextStyle(
-                  color: chateuAccent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.3),
-            ),
-          ]),
-          const SizedBox(height: 6),
-          const Text(
-            'An orientation/meeting with the HOA Treasurer or HOA President is required upon move-in. '
-            'This must be completed before your account can be activated.',
-            style: TextStyle(
-                color: chateuAccent,
-                fontSize: 11,
-                height: 1.45),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Mandatory field label ─────────────────────────────────────────────────
-
-  Widget _mandatoryField(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
-      child: Row(
-        children: [
-          Flexible(
-            child: Text(text,
-                style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600),
-                overflow: TextOverflow.ellipsis),
-          ),
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-            decoration: BoxDecoration(
-              color: chateuAccent.withAlpha(40),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: chateuAccent.withAlpha(120)),
-            ),
-            child: const Text(
-              'REQ',
-              style: TextStyle(
-                  color: chateuAccent,
-                  fontSize: 8,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Field tile (date picker display) ─────────────────────────────────────
-
-  Widget _fieldTile({
-    required IconData icon,
-    required String text,
-    required bool isEmpty,
-  }) =>
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(children: [
-          Icon(icon, size: 18, color: chateuPrimary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                  fontSize: 13,
-                  color: isEmpty ? Colors.black38 : Colors.black87),
-            ),
-          ),
-          Icon(Icons.expand_more_rounded, color: chateuPrimary),
-        ]),
-      );
-
-  // ── Doc upload tile ───────────────────────────────────────────────────────
-
-  Widget _docUploadTile({
-    required String hint,
-    required XFile? file,
-    required VoidCallback onTap,
-    required VoidCallback onRemove,
-  }) {
-    final hasFile = file != null;
-    return GestureDetector(
-      onTap: hasFile ? null : onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: hasFile ? chateuPrimary.withAlpha(20) : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: hasFile ? chateuPrimary.withAlpha(80) : Colors.black12,
-            width: hasFile ? 1.5 : 1,
-          ),
-        ),
-        child: Row(children: [
-          Icon(
-            hasFile ? Icons.check_circle_rounded : Icons.upload_file_rounded,
-            size: 20,
-            color: hasFile ? chateuPrimary : Colors.black38,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              hasFile ? file.name : hint,
-              style: TextStyle(
-                fontSize: 12,
-                color: hasFile ? chateuPrimary : Colors.black38,
-                fontWeight: hasFile ? FontWeight.w600 : FontWeight.w400,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (hasFile)
-            GestureDetector(
-              onTap: onRemove,
-              child: const Icon(Icons.close_rounded, size: 18, color: Colors.red),
-            )
-          else
-            const Icon(Icons.add_photo_alternate_rounded, size: 18, color: chateuPrimary),
-        ]),
-      ),
-    );
-  }
-
-  // ── Info box helper ───────────────────────────────────────────────────────
-
-  Widget _infoBox({
-    required IconData icon,
-    required Color color,
-    required String text,
-  }) =>
-      Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: color.withAlpha(25),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withAlpha(80)),
-        ),
-        child: Row(children: [
-          Icon(icon, color: color, size: 15),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(text,
-                style: TextStyle(
-                    color: color, fontSize: 11, fontWeight: FontWeight.w500)),
-          ),
-        ]),
-      );
-
   // ── UI helpers ────────────────────────────────────────────────────────────
 
-  Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 5),
+  Widget _fieldLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
         child: Text(text,
-            style: const TextStyle(
-                color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+            style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
       );
 
   Widget _textField({
     required TextEditingController controller,
-    required String hint,
+    required String label,
+    String? hint,
     IconData? icon,
     TextInputType? keyboardType,
     TextCapitalization textCapitalization = TextCapitalization.none,
     int? maxLength,
+    String? autofill,
     List<TextInputFormatter>? inputFormatters,
   }) =>
       TextField(
@@ -1459,28 +1057,18 @@ class _SignupPageState extends State<SignupPage> {
         textCapitalization: textCapitalization,
         maxLength: maxLength,
         inputFormatters: inputFormatters,
-        style: const TextStyle(fontSize: 14, color: Colors.black87),
+        autofillHints: autofill == null ? null : [autofill],
         decoration: InputDecoration(
+          labelText: label,
           hintText: hint,
-          hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
-          prefixIcon: icon != null ? Icon(icon, size: 18, color: chateuPrimary) : null,
-          filled: true,
-          fillColor: Colors.white,
-          isDense: true,
+          prefixIcon: icon != null ? Icon(icon, size: 18) : null,
           counterText: '',
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-          border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-          enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-          focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: chateuPrimary, width: 1.5)),
         ),
       );
 
   Widget _passwordField({
     required TextEditingController controller,
+    required String label,
     required String hint,
     required bool isHidden,
     required VoidCallback onToggle,
@@ -1488,159 +1076,31 @@ class _SignupPageState extends State<SignupPage> {
       TextField(
         controller: controller,
         obscureText: isHidden,
-        style: const TextStyle(fontSize: 14, color: Colors.black87),
+        autofillHints: const [AutofillHints.newPassword],
         decoration: InputDecoration(
+          labelText: label,
           hintText: hint,
-          hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
-          prefixIcon: const Icon(Icons.lock_rounded, size: 18, color: chateuPrimary),
+          prefixIcon: const Icon(Icons.lock_rounded, size: 18),
           suffixIcon: IconButton(
+            tooltip: isHidden ? 'Show password' : 'Hide password',
             icon: Icon(
                 isHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-                size: 18,
-                color: Colors.black45),
+                size: 18),
             onPressed: onToggle,
           ),
-          filled: true,
-          fillColor: Colors.white,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-          border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-          enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-          focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: chateuPrimary, width: 1.5)),
         ),
       );
 
-  Widget _dropdownField<T>({
-    required T? value,
-    required String hint,
-    required IconData icon,
-    required List<DropdownMenuItem<T>> items,
-    required ValueChanged<T?> onChanged,
-  }) =>
-      Container(
-        decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(10)),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<T>(
-            value: value,
-            isExpanded: true,
-            hint: Row(children: [
-              const SizedBox(width: 12),
-              Icon(icon, size: 18, color: chateuPrimary),
-              const SizedBox(width: 10),
-              Text(hint, style: const TextStyle(color: Colors.black38, fontSize: 13)),
-            ]),
-            icon: const Padding(
-                padding: EdgeInsets.only(right: 8),
-                child: Icon(Icons.expand_more_rounded, color: chateuPrimary)),
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            items: items,
-            onChanged: onChanged,
-            dropdownColor: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
+  Widget _nextButton({required String label, required VoidCallback onTap}) =>
+      FilledButton(
+        onPressed: onTap,
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+        child: Text(label, overflow: TextOverflow.ellipsis),
       );
 
-  Widget _nextButton({
-    required String label,
-    required VoidCallback onTap,
-    IconData icon = Icons.arrow_forward_rounded,
-  }) =>
-      GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 48,
-          decoration: BoxDecoration(
-              color: chateuPrimary, borderRadius: BorderRadius.circular(12)),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(label,
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
-              const SizedBox(width: 6),
-              Icon(icon, color: Colors.white, size: 16),
-            ],
-          ),
-        ),
+  Widget _backButton({required VoidCallback onTap}) => OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+        child: const Text('Back'),
       );
-
-  Widget _backButton({required VoidCallback onTap}) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 48,
-          decoration: BoxDecoration(
-              color: Colors.white.withAlpha(30),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withAlpha(80))),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.arrow_back_rounded, color: Colors.white70, size: 16),
-              SizedBox(width: 6),
-              Text('Back',
-                  style: TextStyle(
-                      color: Colors.white70, fontWeight: FontWeight.w600, fontSize: 14)),
-            ],
-          ),
-        ),
-      );
-}
-
-// ── Info Dialog ────────────────────────────────────────────────────────────────
-
-class _InfoDialog extends StatelessWidget {
-  final IconData icon;
-  final Color    iconColor;
-  final String   title;
-  final String   message;
-
-  const _InfoDialog({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.message,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      contentPadding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: iconColor.withAlpha(20), shape: BoxShape.circle),
-          child: Icon(icon, color: iconColor, size: 36),
-        ),
-        const SizedBox(height: 14),
-        Text(title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A))),
-        const SizedBox(height: 10),
-        Text(message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: Colors.black54, height: 1.5)),
-        const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: chateuPrimary, elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-            child: const Text('Got it',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
-          ),
-        ),
-      ]),
-    );
-  }
 }

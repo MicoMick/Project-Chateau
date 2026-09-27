@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
-import 'app_theme.dart';
 import 'app_dialogs.dart';
+import 'app_theme.dart';
 import 'audit_logger.dart';
 
 // ── VotingPage ────────────────────────────────────────────────────────────────
@@ -62,11 +62,11 @@ class _VotingPageState extends State<VotingPage> {
   Color _statusColor(String? status) {
     switch ((status ?? '').toLowerCase()) {
       case 'active':
-        return const Color(0xFF22C55E);
+        return chateuSuccess;
       case 'closed':
-        return const Color(0xFFDC2626);
+        return chateuError;
       default:
-        return Colors.grey;
+        return chateuTextMuted;
     }
   }
 
@@ -87,40 +87,18 @@ class _VotingPageState extends State<VotingPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: chateuBackground,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: chateuSecondary, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          "Voting",
-          style: TextStyle(
-            color: chateuText,
-            fontWeight: FontWeight.w800,
-            fontSize: 20,
-          ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: Colors.grey.shade100),
-        ),
-      ),
+      appBar: AppBar(title: const Text("Voting")),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: chateuPrimary))
+          ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? _buildError()
               : _elections.isEmpty
                   ? _buildEmpty()
                   : RefreshIndicator(
                       onRefresh: _loadElections,
-                      color: chateuPrimary,
                       child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
+                        padding: appListPadding(context,
+                            top: AppSpacing.lg, bottom: AppSpacing.xxxl),
                         itemCount: _elections.length,
                         itemBuilder: (context, index) =>
                             _buildElectionCard(_elections[index]),
@@ -132,28 +110,20 @@ class _VotingPageState extends State<VotingPage> {
   Widget _buildError() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(AppSpacing.xxxl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline_rounded,
-                size: 52, color: const Color(0xFFDC2626)),
-            const SizedBox(height: 16),
+            Icon(Icons.error_outline_rounded, size: 48, color: chateuError),
+            const SizedBox(height: AppSpacing.lg),
             Text(_error!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: Colors.grey.shade600, fontSize: 14)),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
+                style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
+            const SizedBox(height: AppSpacing.xl),
+            FilledButton.icon(
               onPressed: _loadElections,
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text("Retry"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: chateuPrimary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
             ),
           ],
         ),
@@ -166,18 +136,12 @@ class _VotingPageState extends State<VotingPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.how_to_vote_outlined,
-              size: 64, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text("No elections available",
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade500)),
-          const SizedBox(height: 6),
+          Icon(Icons.how_to_vote_outlined, size: 48, color: chateuTextMuted),
+          const SizedBox(height: AppSpacing.lg),
+          Text("No elections available", style: AppText.titleMedium),
+          const SizedBox(height: AppSpacing.xs),
           Text("Check back later for upcoming elections.",
-              style: TextStyle(
-                  fontSize: 13, color: Colors.grey.shade400)),
+              style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
         ],
       ),
     );
@@ -187,201 +151,93 @@ class _VotingPageState extends State<VotingPage> {
     final isActive = _isActive(election);
     final status = election['status'] as String? ?? '';
     final statusColor = _statusColor(status);
+    final statusLabel = status.isEmpty
+        ? 'Upcoming'
+        : status[0].toUpperCase() + status.substring(1).toLowerCase();
+    final description = election['description'] as String?;
 
-    return GestureDetector(
-      onTap: () {
-        if (!isActive) {
-          showAppSnack(context,
-            status.toLowerCase() == 'closed'
-                ? 'This election has ended.'
-                : 'This election is not yet active.',
-            type: SnackType.info,
-          );
-          return;
-        }
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ElectionDetailPage(election: election),
-          ),
-        ).then((_) => _loadElections());
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: isActive
-              ? Border.all(
-                  color: chateuPrimary.withAlpha(80), width: 1.5)
-              : null,
-          boxShadow: [
-            BoxShadow(
-              color: isActive
-                  ? chateuPrimary.withAlpha(20)
-                  : Colors.black.withAlpha(8),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Material(
+        color: chateuSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          side: BorderSide(
+              color: isActive ? chateuPrimary.withAlpha(120) : chateuBorder),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Container(
-              padding:
-                  const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              decoration: BoxDecoration(
-                color: isActive
-                    ? chateuPrimary.withAlpha(15)
-                    : Colors.grey.shade50,
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            if (!isActive) {
+              showAppSnack(
+                context,
+                status.toLowerCase() == 'closed'
+                    ? 'This election has ended.'
+                    : 'This election is not yet active.',
+                type: SnackType.info,
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ElectionDetailPage(election: election),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusColor.withAlpha(20),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: statusColor.withAlpha(80)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          status.toUpperCase(),
-                          style: TextStyle(
-                              color: statusColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
-                  if (isActive)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: chateuPrimary,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Row(
+            ).then((_) => _loadElections());
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    AppStatusBadge(label: statusLabel, color: statusColor),
+                    const Spacer(),
+                    if (isActive)
+                      Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.how_to_vote_rounded,
-                              color: Colors.white, size: 12),
-                          SizedBox(width: 4),
-                          Text("Vote Now",
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700)),
+                          Text("Vote now",
+                              style: AppText.labelMedium
+                                  .copyWith(color: chateuPrimary)),
+                          Icon(Icons.chevron_right_rounded,
+                              color: chateuPrimary),
                         ],
                       ),
-                    ),
-                ],
-              ),
-            ),
-
-            // Body
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text(election['title'] as String? ?? "Election",
+                    style: AppText.titleMedium),
+                if (description?.isNotEmpty == true) ...[
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
-                    election['title'] as String? ?? "Election",
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: chateuText,
-                    ),
+                    description!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.bodyMedium.copyWith(color: chateuTextMuted),
                   ),
-                  if ((election['description'] as String?)
-                          ?.isNotEmpty ==
-                      true) ...[
-                    const SizedBox(height: 5),
-                    Text(
-                      election['description'] as String,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                          height: 1.4),
+                ],
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  children: [
+                    Icon(Icons.schedule_rounded,
+                        size: 14, color: chateuTextMuted),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        "${_formatDate(election['start_date'] as String?)} – ${_formatDate(election['end_date'] as String?)}",
+                        style: AppText.caption,
+                      ),
                     ),
                   ],
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _dateBadge(
-                        icon: Icons.play_circle_outline_rounded,
-                        label: "Start",
-                        value: _formatDate(
-                            election['start_date'] as String?),
-                        color: const Color(0xFF22C55E),
-                      ),
-                      const SizedBox(width: 10),
-                      _dateBadge(
-                        icon: Icons.stop_circle_outlined,
-                        label: "End",
-                        value: _formatDate(
-                            election['end_date'] as String?),
-                        color: const Color(0xFFDC2626),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
-    );
-  }
-
-  Widget _dateBadge({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
-        Text(
-          "$label: ",
-          style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade500,
-              fontWeight: FontWeight.w500),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade700,
-              fontWeight: FontWeight.w600),
-        ),
-      ],
     );
   }
 }
@@ -546,65 +402,12 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
       return '$pos: ${candidate['full_name'] as String? ?? '—'}';
     }).join('\n');
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-        contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: chateuPrimary.withAlpha(16), shape: BoxShape.circle),
-            child: const Icon(Icons.how_to_vote_rounded, color: chateuPrimary, size: 32),
-          ),
-          const SizedBox(height: 16),
-          Text('Confirm Your Vote', textAlign: TextAlign.center, style: AppText.titleLarge),
-          const SizedBox(height: 8),
-          Text('This action cannot be undone.',
-              textAlign: TextAlign.center,
-              style: AppText.bodyMedium.copyWith(color: Colors.grey.shade500)),
-          const SizedBox(height: 14),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: chateuBackground,
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Text(selectionSummary,
-                style: AppText.bodyMedium.copyWith(height: 1.8)),
-          ),
-          const SizedBox(height: 20),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => Navigator.pop(context, false),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.grey.shade300),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                child: Text('Cancel', style: AppText.labelMedium.copyWith(color: Colors.grey.shade700)),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: chateuPrimary, elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                child: Text('Submit Vote', style: AppText.labelMedium.copyWith(color: Colors.white)),
-              ),
-            ),
-          ]),
-        ]),
-      ),
+    final confirm = await showConfirmDialog(
+      context,
+      title: 'Confirm Your Vote',
+      message: 'This action cannot be undone.\n\n$selectionSummary',
+      confirmLabel: 'Submit Vote',
+      icon: Icons.how_to_vote_rounded,
     );
 
     if (confirm != true) return;
@@ -617,11 +420,8 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
       if (userId == null) {
         setState(() => _submitting = false);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Session expired. Please log in again.'),
-          backgroundColor: Color(0xFFDC2626),
-          behavior: SnackBarBehavior.floating,
-        ));
+        showAppSnack(context, 'Session expired. Please log in again.',
+            type: SnackType.error);
         return;
       }
       final electionId = widget.election['id'] as String;
@@ -649,46 +449,14 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
           _submitting = false;
         });
         HapticFeedback.heavyImpact();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle_rounded,
-                    color: Colors.white, size: 18),
-                SizedBox(width: 10),
-                Text("Your vote has been submitted!"),
-              ],
-            ),
-            backgroundColor: chateuPrimary,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+        showAppSnack(context, 'Your vote has been submitted!',
+            type: SnackType.success);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _submitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.error_outline_rounded,
-                    color: Colors.white, size: 18),
-                SizedBox(width: 10),
-                Expanded(
-                    child:
-                        Text("Failed to submit vote. Please try again.")),
-              ],
-            ),
-            backgroundColor: const Color(0xFFDC2626),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+        showAppSnack(context, 'Failed to submit vote. Please try again.',
+            type: SnackType.error);
       }
     }
   }
@@ -710,36 +478,24 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: chateuBackground,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: chateuSecondary, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
         title: Text(
           widget.election['title'] as String? ?? "Election",
-          style: const TextStyle(
-            color: chateuText,
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-          ),
           overflow: TextOverflow.ellipsis,
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: Colors.grey.shade100),
         ),
       ),
       body: _loading || _checkingVote
-          ? const Center(
-              child: CircularProgressIndicator(color: chateuPrimary))
+          ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(
-                  child: Text(_error!,
-                      style: TextStyle(color: Colors.grey.shade500)))
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.xxl),
+                    child: Text(_error!,
+                        textAlign: TextAlign.center,
+                        style: AppText.bodyMedium
+                            .copyWith(color: chateuTextMuted)),
+                  ),
+                )
               : _hasVoted
                   ? _buildVotedState()
                   : _buildVotingForm(),
@@ -753,173 +509,91 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
     );
   }
 
+  String get _period =>
+      "${_formatDate(widget.election['start_date'] as String?)} – ${_formatDate(widget.election['end_date'] as String?)}";
+
   Widget _buildVotedState() {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: chateuPrimary.withAlpha(15),
-                shape: BoxShape.circle,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpacing.xxxl),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.how_to_vote_rounded, color: chateuPrimary, size: 56),
+              const SizedBox(height: AppSpacing.xl),
+              Text("You've already voted",
+                  style: AppText.displayMedium, textAlign: TextAlign.center),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                "Your vote for this election has been recorded. Thank you for participating.",
+                textAlign: TextAlign.center,
+                style: AppText.bodyMedium.copyWith(color: chateuTextMuted),
               ),
-              child: const Icon(Icons.how_to_vote_rounded,
-                  color: chateuPrimary, size: 64),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              "You've Already Voted!",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: chateuText,
+              const SizedBox(height: AppSpacing.xxl),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                decoration: AppDecorations.card,
+                child: _infoRow(
+                    Icons.calendar_today_rounded, "Voting Period", _period),
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "Your vote for this election has been recorded. Thank you for participating!",
-              textAlign: TextAlign.center,
-              style:
-                  TextStyle(fontSize: 14, color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 32),
-            // Election period info
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withAlpha(8),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2)),
-                ],
-              ),
-              child: Column(
-                children: [
-                  _infoRow(
-                    Icons.calendar_today_rounded,
-                    "Voting Period",
-                    "${_formatDate(widget.election['start_date'] as String?)} – ${_formatDate(widget.election['end_date'] as String?)}",
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildVotingForm() {
+    final description = widget.election['description'] as String?;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Election info card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [chateuPrimary, chateuSecondary],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: chateuPrimary.withAlpha(80),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
+      padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+      child: AppContentWidth(
+        maxWidth: 640,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (description?.isNotEmpty == true) ...[
+                Text(description!,
+                    style:
+                        AppText.bodyLarge.copyWith(color: chateuTextMuted)),
+                const SizedBox(height: AppSpacing.sm),
               ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(30),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.how_to_vote_rounded,
-                          color: Colors.white, size: 20),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        widget.election['title'] as String? ??
-                            "Election",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if ((widget.election['description'] as String?)
-                        ?.isNotEmpty ==
-                    true) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.election['description'] as String,
-                    style: TextStyle(
-                        color: Colors.white.withAlpha(200),
-                        fontSize: 13),
-                  ),
+              Row(
+                children: [
+                  Icon(Icons.schedule_rounded,
+                      color: chateuTextMuted, size: 16),
+                  const SizedBox(width: 6),
+                  Flexible(child: Text(_period, style: AppText.caption)),
                 ],
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(Icons.schedule_rounded,
-                        color: Colors.white.withAlpha(180), size: 14),
-                    const SizedBox(width: 5),
-                    Text(
-                      "${_formatDate(widget.election['start_date'] as String?)} – ${_formatDate(widget.election['end_date'] as String?)}",
-                      style: TextStyle(
-                          color: Colors.white.withAlpha(180),
-                          fontSize: 12),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          if (_candidates.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  children: [
-                    Icon(Icons.person_search_outlined,
-                        size: 48, color: Colors.grey.shade300),
-                    const SizedBox(height: 12),
-                    Text("No candidates available yet.",
-                        style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 14)),
-                  ],
-                ),
               ),
-            )
-          else
-            ..._positions.map((position) => _buildPositionSection(position)),
-        ],
+              const SizedBox(height: AppSpacing.xl),
+              if (_candidates.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.xxxl),
+                    child: Column(
+                      children: [
+                        Icon(Icons.person_search_outlined,
+                            size: 48, color: chateuTextMuted),
+                        const SizedBox(height: AppSpacing.md),
+                        Text("No candidates available yet.",
+                            style: AppText.bodyMedium
+                                .copyWith(color: chateuTextMuted)),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                for (final position in _positions)
+                  _buildPositionSection(position),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -930,156 +604,103 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            children: [
-              Container(
-                width: 4,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: chateuPrimary,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                position,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: chateuText,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                "(Select 1)",
-                style: TextStyle(
-                    fontSize: 12, color: Colors.grey.shade500),
-              ),
-            ],
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          child: AppSectionHeader(
+            title: position,
+            trailing: Text("Select 1", style: AppText.caption),
           ),
         ),
-        ...candidates.map((c) => _buildCandidateCard(c, position)),
-        const SizedBox(height: 20),
+        for (final c in candidates) _buildCandidateCard(c, position),
+        const SizedBox(height: AppSpacing.xl),
       ],
     );
   }
 
   Widget _buildCandidateCard(
       Map<String, dynamic> candidate, String position) {
-    final isSelected =
-        _selectedCandidates[position] == candidate['id'];
+    final isSelected = _selectedCandidates[position] == candidate['id'];
     final photoUrl = candidate['photo_url'] as String?;
+    final name = candidate['full_name'] as String? ?? "Candidate";
+    final manifesto = candidate['manifesto'] as String?;
 
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() {
-          _selectedCandidates[position] =
-              isSelected ? null : candidate['id'] as String;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? chateuPrimary.withAlpha(15)
-              : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected
-                ? chateuPrimary
-                : Colors.grey.shade200,
-            width: isSelected ? 2 : 1,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Semantics(
+        inMutuallyExclusiveGroup: true,
+        checked: isSelected,
+        label: '$name, $position',
+        child: Material(
+          color: isSelected ? chateuPrimary.withAlpha(18) : chateuSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            side: BorderSide(
+              color: isSelected ? chateuPrimary : chateuBorder,
+              width: isSelected ? 2 : 1,
+            ),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: isSelected
-                  ? chateuPrimary.withAlpha(20)
-                  : Colors.black.withAlpha(6),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Photo
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                width: 60,
-                height: 60,
-                color: Colors.grey.shade100,
-                child: photoUrl != null && photoUrl.isNotEmpty
-                    ? Image.network(
-                        photoUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            _candidateInitials(
-                                candidate['full_name'] as String?),
-                      )
-                    : _candidateInitials(
-                        candidate['full_name'] as String?),
-              ),
-            ),
-            const SizedBox(width: 14),
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() {
+                _selectedCandidates[position] =
+                    isSelected ? null : candidate['id'] as String;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Row(
                 children: [
-                  Text(
-                    candidate['full_name'] as String? ?? "Candidate",
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                      color: isSelected
-                          ? chateuPrimary
-                          : chateuText,
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      color: chateuSurfaceMuted,
+                      child: photoUrl != null && photoUrl.isNotEmpty
+                          ? Image.network(
+                              photoUrl,
+                              fit: BoxFit.cover,
+                              cacheWidth: 168,
+                              excludeFromSemantics: true,
+                              errorBuilder: (_, __, ___) =>
+                                  _candidateInitials(name),
+                            )
+                          : _candidateInitials(name),
                     ),
                   ),
-                  if ((candidate['manifesto'] as String?)
-                          ?.isNotEmpty ==
-                      true) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      candidate['manifesto'] as String,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                          height: 1.4),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name,
+                            style: AppText.titleMedium.copyWith(
+                                color:
+                                    isSelected ? chateuPrimary : chateuText)),
+                        if (manifesto?.isNotEmpty == true) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            manifesto!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.caption,
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Icon(
+                    isSelected
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    color: isSelected ? chateuPrimary : chateuTextMuted,
+                  ),
                 ],
               ),
             ),
-            const SizedBox(width: 10),
-            // Selector
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: isSelected ? chateuPrimary : Colors.transparent,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected
-                      ? chateuPrimary
-                      : Colors.grey.shade300,
-                  width: 2,
-                ),
-              ),
-              child: isSelected
-                  ? const Icon(Icons.check_rounded,
-                      color: Colors.white, size: 14)
-                  : null,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1094,111 +715,58 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
         .take(2)
         .join()
         .toUpperCase();
-    return Container(
-      color: chateuPrimary.withAlpha(30),
-      child: Center(
-        child: Text(initials,
-            style: const TextStyle(
-                color: chateuPrimary,
-                fontWeight: FontWeight.w700,
-                fontSize: 18)),
-      ),
+    return Center(
+      child: Text(initials,
+          style: AppText.titleMedium.copyWith(color: chateuPrimary)),
     );
   }
 
   Widget _buildSubmitBar() {
-    final selected = _selectedCandidates.values
-        .where((v) => v != null)
-        .length;
+    final selected = _selectedCandidates.values.where((v) => v != null).length;
     final total = _positions.length;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withAlpha(15),
-              blurRadius: 16,
-              offset: const Offset(0, -4)),
-        ],
+        color: chateuSurface,
+        border: Border(top: BorderSide(color: chateuBorder)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Progress
-          Row(
-            children: [
-              Text(
-                "$selected / $total positions selected",
-                style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500),
-              ),
-              const Spacer(),
-              Text(
-                "${((selected / (total == 0 ? 1 : total)) * 100).toInt()}%",
-                style: const TextStyle(
-                    fontSize: 12,
-                    color: chateuPrimary,
-                    fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: total == 0 ? 0 : selected / total,
-              backgroundColor: Colors.grey.shade200,
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(chateuPrimary),
-              minHeight: 6,
+      child: SafeArea(
+        top: false,
+        child: AppContentWidth(
+          maxWidth: 640,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text("$selected of $total positions selected",
+                        style: AppText.caption),
+                    const Spacer(),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: total == 0 ? 0 : selected / total,
+                    backgroundColor: chateuSurfaceMuted,
+                    minHeight: 6,
+                    semanticsLabel: 'Ballot progress',
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppPrimaryButton(
+                  label: "Submit My Vote",
+                  isLoading: _submitting,
+                  onPressed: _allPositionsSelected ? _submitVote : null,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              onPressed: (_allPositionsSelected && !_submitting)
-                  ? _submitVote
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: chateuPrimary,
-                disabledBackgroundColor:
-                    chateuPrimary.withAlpha(100),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
-              ),
-              child: _submitting
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2.5),
-                    )
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.how_to_vote_rounded,
-                            color: Colors.white, size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          "Submit My Vote",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1207,18 +775,12 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
     return Row(
       children: [
         Icon(icon, size: 16, color: chateuPrimary),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpacing.sm),
         Text("$label: ",
-            style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 13,
-                fontWeight: FontWeight.w500)),
+            style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
         Expanded(
           child: Text(value,
-              style: const TextStyle(
-                  color: chateuText,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600)),
+              style: AppText.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
         ),
       ],
     );

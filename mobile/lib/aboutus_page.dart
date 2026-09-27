@@ -1,413 +1,125 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'app_theme.dart';
 
-class AboutPage extends StatefulWidget {
+class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
 
-  @override
-  State<AboutPage> createState() => _AboutPageState();
-}
-
-class _AboutPageState extends State<AboutPage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _animController;
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
-  }
+  static const _features = [
+    (
+      icon: Icons.person_rounded,
+      title: "Profile Management",
+      desc: "Secure accounts with role-based access for all residents.",
+    ),
+    (
+      icon: Icons.event_available_rounded,
+      title: "Facility Reservation",
+      desc: "Book community amenities easily with conflict detection.",
+    ),
+    (
+      icon: Icons.payments_rounded,
+      title: "Payment Tracking",
+      desc: "Track HOA dues and view full payment history.",
+    ),
+    (
+      icon: Icons.report_rounded,
+      title: "Issue Reporting",
+      desc: "Submit and track community issues with photo proof.",
+    ),
+    (
+      icon: Icons.notifications_rounded,
+      title: "Announcements",
+      desc: "Stay informed with real-time HOA notifications.",
+    ),
+    (
+      icon: Icons.calendar_month_rounded,
+      title: "HOA Calendar",
+      desc: "View community events and important HOA dates.",
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final mq = MediaQuery.of(context);
-    final screenW = mq.size.width;
-    final isWide = screenW > 600;
-    final hPad = isWide ? screenW * 0.08 : 20.0;
+    final muted = AppText.bodyLarge.copyWith(color: chateuTextMuted);
 
     return Scaffold(
-      backgroundColor: chateuBackground,
-      appBar: AppBar(
-        backgroundColor: chateuBackground,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: chateuPrimary, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          "About Us",
-          style: TextStyle(
-            color: chateuText,
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-          ),
-        ),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text("About Us")),
       body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        child: Column(
-          children: [
-            // ── Hero Banner ───────────────────────────────────────────
-            _FadeSlide(
-              controller: _animController,
-              delay: 0.0,
-              child: Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [chateuPrimary, chateuSecondary],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    // Decorative circles
-                    Positioned(
-                      top: -40,
-                      right: -40,
-                      child: Container(
-                        width: 180,
-                        height: 180,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withAlpha(15),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: -20,
-                      left: -20,
-                      child: Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withAlpha(10),
-                        ),
-                      ),
-                    ),
-
-                    Padding(
-                      padding: EdgeInsets.symmetric(
-                              horizontal: hPad, vertical: 36)
-                          .copyWith(bottom: 40),
-                      child: Column(
-                        children: [
-                          // Logo
-                          Container(
-                            width: 90,
-                            height: 90,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black
-                                      .withAlpha(40),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            child: ClipOval(
-                              child: Image.asset(
-                                'assets/logo.png',
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) =>
-                                    const Icon(
-                                  Icons.home_rounded,
-                                  size: 50,
-                                  color: chateuPrimary,
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          const Text(
-                            'Chateau Real HOA',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          Text(
-                            'Your trusted homeowners association dedicated to maintaining property values, fostering community spirit, and ensuring a safe, beautiful neighborhood for all residents.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.white.withAlpha(200),
-                              height: 1.6,
-                            ),
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          // Platform pills
-                          Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.center,
-                            children: [
-                              _PlatformPill(
-                                icon: Icons.computer_rounded,
-                                label: "Web for Admin",
-                              ),
-                              const SizedBox(width: 10),
-                              _PlatformPill(
-                                icon:
-                                    Icons.phone_android_rounded,
-                                label: "Mobile for Residents",
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: hPad)
-                  .copyWith(top: 28, bottom: 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── About Us Section ──────────────────────────────
-                  _FadeSlide(
-                    controller: _animController,
-                    delay: 0.1,
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 4,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: chateuPrimary,
-                                borderRadius:
-                                    BorderRadius.circular(2),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            const Text(
-                              'About Us',
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.w800,
-                                color: chateuText,
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 14),
-
-                        Container(
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius:
-                                BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color:
-                                    Colors.black.withAlpha(10),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            'We are committed to providing a reliable and transparent platform that supports effective community management and strengthens communication within our homeowners association. CHATEAU REAL HOA MANAGEMENT SOFTWARE bridges the gap between residents and administrators, making HOA management seamless, modern, and accessible to everyone.',
-                            style: TextStyle(
-                              fontSize: 14,
-                              height: 1.7,
-                              color: Colors.grey.shade700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 28),
-
-                  // ── Features Section ──────────────────────────────
-                  _FadeSlide(
-                    controller: _animController,
-                    delay: 0.18,
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 4,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: chateuPrimary,
-                            borderRadius:
-                                BorderRadius.circular(2),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        const Text(
-                          'What We Offer',
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: chateuText,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // Features grid
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics:
-                        const NeverScrollableScrollPhysics(),
-                    crossAxisCount: isWide ? 3 : 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.1,
+        padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+        child: AppContentWidth(
+          maxWidth: 640,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.lg,
+                AppSpacing.xl, AppSpacing.xxxl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Identity block, centered under the logo.
+                Center(
+                  child: Column(
                     children: [
-                      _FeatureCard(
-                        controller: _animController,
-                        delay: 0.22,
-                        icon: Icons.person_rounded,
-                        color: chateuPrimary,
-                        title: "Profile Management",
-                        desc:
-                            "Secure accounts with role-based access for all residents.",
+                      Image.asset(
+                        'assets/logo.png',
+                        height: 96,
+                        semanticLabel: 'Chateau Real',
+                        errorBuilder: (_, __, ___) => Icon(Icons.home_rounded,
+                            size: 56, color: chateuPrimary),
                       ),
-                      _FeatureCard(
-                        controller: _animController,
-                        delay: 0.26,
-                        icon: Icons.event_available_rounded,
-                        color: const Color(0xFF3B82F6),
-                        title: "Facility Reservation",
-                        desc:
-                            "Book community amenities easily with conflict detection.",
+                      const SizedBox(height: AppSpacing.lg),
+                      Semantics(
+                        header: true,
+                        child: Text('Chateau Real HOA',
+                            textAlign: TextAlign.center,
+                            style: AppText.displayLarge),
                       ),
-                      _FeatureCard(
-                        controller: _animController,
-                        delay: 0.30,
-                        icon: Icons.payments_rounded,
-                        color: chateuAccent,
-                        title: "Payment Tracking",
-                        desc:
-                            "Track HOA dues and view full payment history.",
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        'Your trusted homeowners association dedicated to maintaining property values, fostering community spirit, and ensuring a safe, beautiful neighborhood for all residents.',
+                        textAlign: TextAlign.center,
+                        style: muted,
                       ),
-                      _FeatureCard(
-                        controller: _animController,
-                        delay: 0.34,
-                        icon: Icons.report_rounded,
-                        color: const Color(0xFFDC2626),
-                        title: "Issue Reporting",
-                        desc:
-                            "Submit and track community issues with photo proof.",
-                      ),
-                      _FeatureCard(
-                        controller: _animController,
-                        delay: 0.38,
-                        icon: Icons.notifications_rounded,
-                        color: const Color(0xFF8B5CF6),
-                        title: "Announcements",
-                        desc:
-                            "Stay informed with real-time HOA notifications.",
-                      ),
-                      _FeatureCard(
-                        controller: _animController,
-                        delay: 0.42,
-                        icon: Icons.calendar_month_rounded,
-                        color: chateuSecondary,
-                        title: "HOA Calendar",
-                        desc:
-                            "View community events and important HOA dates.",
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Web for Admin · Mobile for Residents',
+                        textAlign: TextAlign.center,
+                        style: AppText.labelMedium
+                            .copyWith(color: chateuPrimary),
                       ),
                     ],
                   ),
+                ),
 
-                  const SizedBox(height: 28),
+                const SizedBox(height: AppSpacing.xxxl),
+                const AppSectionHeader(title: 'About Us'),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'We are committed to providing a reliable and transparent platform that supports effective community management and strengthens communication within our homeowners association. Chateau Real HOA Management Software bridges the gap between residents and administrators, making HOA management seamless, modern, and accessible to everyone.',
+                  style: muted,
+                ),
 
-                  // ── Mission section ───────────────────────────────
-                  _FadeSlide(
-                    controller: _animController,
-                    delay: 0.46,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            chateuPrimary.withAlpha(15),
-                            chateuSecondary.withAlpha(10),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: chateuPrimary.withAlpha(40),
-                        ),
-                      ),
-                      child: Column(
+                const SizedBox(height: AppSpacing.xxxl),
+                const AppSectionHeader(title: 'What We Offer'),
+                const SizedBox(height: AppSpacing.xs),
+                for (final f in _features)
+                  MergeSemantics(
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: chateuPrimary.withAlpha(20),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                                Icons.flag_rounded,
-                                color: chateuPrimary,
-                                size: 24),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            "Our Mission",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: chateuText,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            "To empower homeowners and administrators with a smart, unified platform that makes community living easier, more transparent, and more connected.",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 13,
-                              height: 1.6,
-                              color: Colors.grey.shade600,
+                          Icon(f.icon, color: chateuPrimary, size: 22),
+                          const SizedBox(width: AppSpacing.lg),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(f.title, style: AppText.titleMedium),
+                                const SizedBox(height: 2),
+                                Text(f.desc,
+                                    style: AppText.bodyMedium
+                                        .copyWith(color: chateuTextMuted)),
+                              ],
                             ),
                           ),
                         ],
@@ -415,193 +127,27 @@ class _AboutPageState extends State<AboutPage>
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.xxl),
+                const AppSectionHeader(title: 'Our Mission'),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  "To empower homeowners and administrators with a smart, unified platform that makes community living easier, more transparent, and more connected.",
+                  style: muted,
+                ),
 
-                  // ── Version footer ─────────────────────────────────
-                  _FadeSlide(
-                    controller: _animController,
-                    delay: 0.5,
-                    child: Center(
-                      child: Column(
-                        children: [
-                          Text(
-                            "Chateau Real HOA Management Software",
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: chateuPrimary
-                                  .withAlpha(160),
-                              letterSpacing: 2,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "Version 1.0.0  •  © 2026 All Rights Reserved",
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey.shade400,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Platform Pill ──────────────────────────────────────────────────────────────
-
-class _PlatformPill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _PlatformPill({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha(30),
-        borderRadius: BorderRadius.circular(20),
-        border:
-            Border.all(color: Colors.white.withAlpha(80), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: Colors.white),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
+                const SizedBox(height: AppSpacing.xxxl),
+                const Divider(),
+                const SizedBox(height: AppSpacing.lg),
+                Text("Chateau Real HOA Management Software",
+                    style: AppText.labelMedium.copyWith(color: chateuText)),
+                const SizedBox(height: AppSpacing.xs),
+                Text("Version 1.0.0  •  © 2026 All Rights Reserved",
+                    style: AppText.caption),
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Feature Card ───────────────────────────────────────────────────────────────
-
-class _FeatureCard extends StatelessWidget {
-  final AnimationController controller;
-  final double delay;
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String desc;
-
-  const _FeatureCard({
-    required this.controller,
-    required this.delay,
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.desc,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _FadeSlide(
-      controller: controller,
-      delay: delay,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(10),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withAlpha(22),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-                color: chateuText,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Expanded(
-              child: Text(
-                desc,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey.shade500,
-                  height: 1.4,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
-  }
-}
-
-// ── Animation Helper ───────────────────────────────────────────────────────────
-
-class _FadeSlide extends StatelessWidget {
-  final AnimationController controller;
-  final double delay;
-  final Widget child;
-
-  const _FadeSlide({
-    required this.controller,
-    required this.delay,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fade = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: Interval(delay, (delay + 0.4).clamp(0.0, 1.0),
-            curve: Curves.easeOut),
-      ),
-    );
-    final slide =
-        Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
-            .animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: Interval(delay, (delay + 0.4).clamp(0.0, 1.0),
-            curve: Curves.easeOut),
-      ),
-    );
-    return FadeTransition(
-        opacity: fade,
-        child: SlideTransition(position: slide, child: child));
   }
 }
