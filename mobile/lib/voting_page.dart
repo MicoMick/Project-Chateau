@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
-import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'audit_logger.dart';
 
@@ -546,65 +545,12 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
       return '$pos: ${candidate['full_name'] as String? ?? '—'}';
     }).join('\n');
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-        contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: chateuPrimary.withAlpha(16), shape: BoxShape.circle),
-            child: const Icon(Icons.how_to_vote_rounded, color: chateuPrimary, size: 32),
-          ),
-          const SizedBox(height: 16),
-          Text('Confirm Your Vote', textAlign: TextAlign.center, style: AppText.titleLarge),
-          const SizedBox(height: 8),
-          Text('This action cannot be undone.',
-              textAlign: TextAlign.center,
-              style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
-          const SizedBox(height: 14),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: chateuBackground,
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-              border: Border.all(color: chateuBorder),
-            ),
-            child: Text(selectionSummary,
-                style: AppText.bodyMedium.copyWith(height: 1.8)),
-          ),
-          const SizedBox(height: 20),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => Navigator.pop(context, false),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: chateuBorder),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                child: Text('Cancel', style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: chateuPrimary, elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                child: Text('Submit Vote', style: AppText.labelMedium.copyWith(color: Colors.white)),
-              ),
-            ),
-          ]),
-        ]),
-      ),
+    final confirm = await showConfirmDialog(
+      context,
+      title: 'Confirm Your Vote',
+      message: 'This action cannot be undone.\n\n$selectionSummary',
+      confirmLabel: 'Submit Vote',
+      icon: Icons.how_to_vote_rounded,
     );
 
     if (confirm != true) return;

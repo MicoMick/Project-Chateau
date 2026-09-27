@@ -1676,63 +1676,12 @@ class _AttachmentPreview extends StatelessWidget {
   }
 
   static Future<void> _confirmOpenPdf(BuildContext context, String url) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.md)),
-        title: Text("Open PDF", style: AppText.titleMedium),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Open this PDF in your browser?", style: AppText.bodyMedium),
-            const SizedBox(height: AppSpacing.sm),
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: chateuError.withAlpha(14),
-                borderRadius: BorderRadius.circular(AppRadius.xs),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.picture_as_pdf_rounded,
-                      color: chateuError, size: 16),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      url.split('/').last.split('?').first,
-                      style:
-                          AppText.caption.copyWith(color: chateuTextMuted),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text("Cancel",
-                style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
-          ),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.open_in_new_rounded,
-                color: Colors.white, size: 16),
-            label: Text("Open PDF",
-                style: AppText.labelMedium.copyWith(color: Colors.white)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: chateuError,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.sm)),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Open PDF',
+      message: 'Open this PDF in your browser?\n\n${url.split('/').last.split('?').first}',
+      confirmLabel: 'Open PDF',
+      icon: Icons.picture_as_pdf_rounded,
     );
 
     if (confirmed == true) {
@@ -1748,53 +1697,12 @@ class _AttachmentPreview extends StatelessWidget {
   }
 
   static Future<void> _confirmOpenLink(BuildContext context, String url) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.md)),
-        title: Text("Open Link", style: AppText.titleMedium),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("You are about to open an external link:",
-                style: AppText.bodyMedium),
-            const SizedBox(height: AppSpacing.sm),
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: chateuSurfaceMuted,
-                borderRadius: BorderRadius.circular(AppRadius.xs),
-              ),
-              child: Text(
-                url,
-                style: AppText.caption.copyWith(color: chateuTextMuted),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text("Cancel",
-                style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: chateuPrimary,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.sm)),
-            ),
-            child: Text("Open",
-                style: AppText.labelMedium.copyWith(color: Colors.white)),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Open Link',
+      message: 'You are about to open an external link:\n\n$url',
+      confirmLabel: 'Open',
+      icon: Icons.open_in_new_rounded,
     );
 
     if (confirmed == true) {

@@ -356,93 +356,19 @@ class _SignupPageState extends State<SignupPage> {
 
   // ── Dialogs & snacks ──────────────────────────────────────────────────────
 
-  void _showPendingDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        contentPadding: const EdgeInsets.all(28),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: chateuPrimary.withAlpha(20),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.how_to_reg_rounded,
-                  color: chateuPrimary, size: 48),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Registration Submitted!',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.w800,
-                  color: chateuText),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Your account is now pending HOA admin review.\n\n'
-              'Please visit the HOA office for your mandatory '
-              'orientation with the Treasurer. Your account will '
-              'be activated once approved by the admin.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.6),
-            ),
-            const SizedBox(height: 20),
-            // Info chip
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: chateuPrimary.withAlpha(15),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: chateuPrimary.withAlpha(60)),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.info_outline_rounded, color: chateuPrimary, size: 15),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'You will be notified once your account is activated.',
-                      style: TextStyle(fontSize: 12, color: chateuPrimary,
-                          fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pushReplacement(context,
-                      MaterialPageRoute(builder: (_) => const LoginPage()));
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: chateuPrimary,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  elevation: 0,
-                ),
-                child: const Text('Back to Login',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15)),
-              ),
-            ),
-          ],
-        ),
-      ),
+  Future<void> _showPendingDialog() async {
+    await showInfoDialog(
+      context,
+      icon: Icons.how_to_reg_rounded,
+      title: 'Registration Submitted!',
+      message: 'Your account is now pending HOA admin review.\n\n'
+          'Please visit the HOA office for your mandatory orientation with '
+          'the Treasurer. You will be notified once your account is activated.',
+      buttonLabel: 'Back to Login',
     );
+    if (!mounted) return;
+    Navigator.pushReplacement(
+        context, MaterialPageRoute(builder: (_) => const LoginPage()));
   }
 
   void _showLotPicker(List<String> lots) {
