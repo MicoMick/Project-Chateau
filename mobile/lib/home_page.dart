@@ -268,16 +268,16 @@ class _HomePageState extends State<HomePage> {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.red.withAlpha(15),
+                    color: chateuError.withAlpha(15),
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
                   child: const Icon(Icons.logout_rounded,
-                      color: Colors.red, size: 20),
+                      color: chateuError, size: 20),
                 ),
                 title: Text(
                   "Sign Out",
                   style: AppText.bodyLarge.copyWith(
-                    color: Colors.red,
+                    color: chateuError,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -358,7 +358,7 @@ class _HomePageState extends State<HomePage> {
       type: BottomNavigationBarType.fixed,
       backgroundColor: Colors.white,
       selectedItemColor: chateuPrimary,
-      unselectedItemColor: Colors.grey.shade400,
+      unselectedItemColor: chateuTextSubtle,
       selectedLabelStyle: AppText.caption.copyWith(fontWeight: FontWeight.w700),
       unselectedLabelStyle: AppText.caption,
       elevation: 8,
@@ -473,7 +473,7 @@ class _LegendDot extends StatelessWidget {
         ),
         const SizedBox(width: 4),
         Text(label,
-            style: AppText.caption.copyWith(color: Colors.grey.shade500)),
+            style: AppText.caption.copyWith(color: chateuTextMuted)),
       ],
     );
   }
@@ -592,13 +592,13 @@ class _HomeDashboardState extends State<HomeDashboard> {
   Color _categoryColor(String? category) {
     switch ((category ?? '').toLowerCase()) {
       case 'event':
-        return const Color(0xFF3B82F6);
+        return chateuInfo;
       case 'maintenance':
         return const Color(0xFFFF8C42);
       case 'election':
-        return const Color(0xFFDC2626);
+        return chateuError;
       case 'security':
-        return const Color(0xFF6B7280);
+        return chateuTextMuted;
       case 'financial':
         return chateuSecondary;
       default: // General
@@ -623,22 +623,20 @@ class _HomeDashboardState extends State<HomeDashboard> {
       textColor = Colors.white;
     } else if (isToday) {
       circleDecoration = BoxDecoration(
-          color: chateuPrimary.withAlpha(30), shape: BoxShape.circle);
+          color: chateuPrimary.withAlpha(24),
+          shape: BoxShape.circle,
+          border: Border.all(color: chateuPrimary, width: 2));
       textColor = chateuPrimary;
     }
 
-    // If there are events and no special state, use the first category
-    // color for the ring but keep text dark for readability
-    final dominantColor =
-        hasRanges ? _categoryColor(ranges.first['category'] as String?) : null;
-
+    // Event days: soft tint of the first category color (the dots below carry
+    // the category), text stays dark for readability.
     if (hasRanges && !isSelected && !isToday) {
       circleDecoration = BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: dominantColor!, width: 2),
+        color: _categoryColor(ranges.first['category'] as String?).withAlpha(24),
       );
-      // Keep text same as dominant color
-      textColor = dominantColor;
+      textColor = chateuText;
     }
 
     return SizedBox(
@@ -702,7 +700,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                         style: TextStyle(
                           fontSize: 8,
                           fontWeight: FontWeight.w800,
-                          color: Colors.grey.shade500,
+                          color: chateuTextMuted,
                           height: 1,
                         ),
                       ),
@@ -766,7 +764,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                         height: 4,
                         margin: const EdgeInsets.only(bottom: AppSpacing.lg),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
+                          color: chateuBorder,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -818,7 +816,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                         borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(
                           color: isEmergency
-                              ? const Color(0xFFDC2626).withAlpha(120)
+                              ? chateuError.withAlpha(120)
                               : color.withAlpha(60),
                           width: isEmergency ? 1.5 : 1,
                         ),
@@ -851,7 +849,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                       const SizedBox(width: AppSpacing.sm),
                                       AppStatusBadge(
                                         label: 'EMERGENCY',
-                                        color: const Color(0xFFDC2626),
+                                        color: chateuError,
                                       ),
                                     ],
                                   ],
@@ -864,7 +862,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                   Text(
                                     r['content'] as String,
                                     style: AppText.bodyMedium
-                                        .copyWith(color: Colors.grey.shade600),
+                                        .copyWith(color: chateuTextMuted),
                                   ),
                                 ],
                               ],
@@ -1134,14 +1132,14 @@ class _HomeDashboardState extends State<HomeDashboard> {
                       const SizedBox(width: AppSpacing.md),
                       _LegendDot(color: chateuSecondary, label: "Financial"),
                       const SizedBox(width: AppSpacing.md),
-                      _LegendDot(color: Color(0xFF3B82F6), label: "Event"),
+                      _LegendDot(color: chateuInfo, label: "Event"),
                       const SizedBox(width: AppSpacing.md),
                       _LegendDot(
                           color: Color(0xFFFF8C42), label: "Maintenance"),
                       const SizedBox(width: AppSpacing.md),
-                      _LegendDot(color: const Color(0xFFDC2626), label: "Election"),
+                      _LegendDot(color: chateuError, label: "Election"),
                       const SizedBox(width: AppSpacing.md),
-                      _LegendDot(color: Color(0xFF6B7280), label: "Security"),
+                      _LegendDot(color: chateuTextMuted, label: "Security"),
                     ],
                   ),
                 ),
@@ -1200,10 +1198,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
                   weekendTextStyle:
                       AppText.bodyMedium.copyWith(color: chateuPrimary),
                   outsideTextStyle: AppText.bodyMedium.copyWith(
-                    color: Colors.grey.shade300,
+                    color: chateuBorder,
                   ),
                   // Range styling (used by calendarBuilders below)
-                  rangeHighlightColor: const Color(0xFF3B82F6).withAlpha(40),
+                  rangeHighlightColor: chateuInfo.withAlpha(40),
                 ),
                 eventLoader: (day) => _isReserved(day) ? [day] : [],
                 onPageChanged: (day) => setState(() => _focusedDay = day),
@@ -1259,7 +1257,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                 child: Text(
                   "No announcements yet",
                   style: AppText.bodyMedium.copyWith(
-                    color: Colors.grey.shade400,
+                    color: chateuTextSubtle,
                   ),
                 ),
               ),
@@ -1294,7 +1292,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                       child: Text(
                         "— All announcements loaded —",
                         style: AppText.caption.copyWith(
-                          color: Colors.grey.shade400,
+                          color: chateuTextSubtle,
                         ),
                       ),
                     ),
@@ -1344,13 +1342,13 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
   static Color _categoryColor(String? category) {
     switch ((category ?? '').toLowerCase()) {
       case 'event':
-        return const Color(0xFF3B82F6);
+        return chateuInfo;
       case 'maintenance':
         return const Color(0xFFFF8C42);
       case 'election':
-        return const Color(0xFFDC2626);
+        return chateuError;
       case 'security':
-        return const Color(0xFF6B7280);
+        return chateuTextMuted;
       case 'financial':
         return chateuSecondary;
       default:
@@ -1397,7 +1395,7 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: isEmergency
             ? Border.all(
-                color: const Color(0xFFDC2626).withAlpha(120),
+                color: chateuError.withAlpha(120),
                 width: 1.5,
               )
             : null,
@@ -1424,7 +1422,7 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.sm, vertical: 3),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFDC2626),
+                      color: chateuError,
                       borderRadius: BorderRadius.circular(AppRadius.xxl),
                     ),
                     child: Row(
@@ -1438,7 +1436,7 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
                           style: AppText.caption.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
-                            fontSize: 9,
+                            fontSize: 11,
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -1452,7 +1450,7 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
                 const Spacer(),
                 Text(
                   dateStr,
-                  style: AppText.caption.copyWith(color: Colors.grey.shade500),
+                  style: AppText.caption.copyWith(color: chateuTextMuted),
                 ),
               ],
             ),
@@ -1476,7 +1474,7 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
                   overflow:
                       _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
                   style: AppText.bodyMedium.copyWith(
-                    color: Colors.grey.shade600,
+                    color: chateuTextMuted,
                   ),
                 ),
                 if (a['author_name'] != null) ...[
@@ -1484,12 +1482,12 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
                   Row(
                     children: [
                       Icon(Icons.person_outline,
-                          size: 13, color: Colors.grey.shade400),
+                          size: 13, color: chateuTextSubtle),
                       const SizedBox(width: 4),
                       Text(
                         a['author_name'] as String,
                         style: AppText.caption
-                            .copyWith(color: Colors.grey.shade400),
+                            .copyWith(color: chateuTextSubtle),
                       ),
                     ],
                   ),
@@ -1513,10 +1511,10 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: chateuSurfaceMuted,
                   borderRadius: const BorderRadius.vertical(
                       bottom: Radius.circular(AppRadius.md)),
-                  border: Border(top: BorderSide(color: Colors.grey.shade100)),
+                  border: Border(top: BorderSide(color: chateuSurfaceMuted)),
                 ),
                 child: Row(
                   children: [
@@ -1537,7 +1535,7 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
                     Text(
                       _expanded ? "Hide" : "View",
                       style: AppText.caption.copyWith(
-                        color: Colors.grey.shade500,
+                        color: chateuTextMuted,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1547,7 +1545,7 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
                           ? Icons.keyboard_arrow_up_rounded
                           : Icons.keyboard_arrow_down_rounded,
                       size: 16,
-                      color: Colors.grey.shade500,
+                      color: chateuTextMuted,
                     ),
                   ],
                 ),
@@ -1583,7 +1581,7 @@ class _AttachmentPreview extends StatelessWidget {
           height: 180,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.sm),
-            color: Colors.grey.shade100,
+            color: chateuSurfaceMuted,
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -1611,11 +1609,11 @@ class _AttachmentPreview extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.broken_image_outlined,
-                            color: Colors.grey.shade400, size: 32),
+                            color: chateuTextSubtle, size: 32),
                         const SizedBox(height: AppSpacing.xs),
                         Text("Could not load image",
                             style: AppText.caption
-                                .copyWith(color: Colors.grey.shade400)),
+                                .copyWith(color: chateuTextSubtle)),
                       ],
                     ),
                   ),
@@ -1654,7 +1652,7 @@ class _AttachmentPreview extends StatelessWidget {
       return _FileTile(
         url: url,
         icon: Icons.picture_as_pdf_rounded,
-        iconColor: const Color(0xFFDC2626),
+        iconColor: chateuError,
         label: url.split('/').last.split('?').first,
         onTap: () => _confirmOpenPdf(context, url),
       );
@@ -1664,7 +1662,7 @@ class _AttachmentPreview extends StatelessWidget {
     return _FileTile(
       url: url,
       icon: Icons.link_rounded,
-      iconColor: const Color(0xFF3B82F6),
+      iconColor: chateuInfo,
       label: url,
       onTap: () => _confirmOpenLink(context, url),
     );
@@ -1693,19 +1691,19 @@ class _AttachmentPreview extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(AppSpacing.sm),
               decoration: BoxDecoration(
-                color: const Color(0xFFDC2626).withAlpha(14),
+                color: chateuError.withAlpha(14),
                 borderRadius: BorderRadius.circular(AppRadius.xs),
               ),
               child: Row(
                 children: [
                   const Icon(Icons.picture_as_pdf_rounded,
-                      color: Color(0xFFDC2626), size: 16),
+                      color: chateuError, size: 16),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
                       url.split('/').last.split('?').first,
                       style:
-                          AppText.caption.copyWith(color: Colors.grey.shade700),
+                          AppText.caption.copyWith(color: chateuTextMuted),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -1718,7 +1716,7 @@ class _AttachmentPreview extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text("Cancel",
-                style: AppText.labelMedium.copyWith(color: Colors.grey)),
+                style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
           ),
           ElevatedButton.icon(
             onPressed: () => Navigator.pop(ctx, true),
@@ -1727,7 +1725,7 @@ class _AttachmentPreview extends StatelessWidget {
             label: Text("Open PDF",
                 style: AppText.labelMedium.copyWith(color: Colors.white)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
+              backgroundColor: chateuError,
               elevation: 0,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppRadius.sm)),
@@ -1747,7 +1745,7 @@ class _AttachmentPreview extends StatelessWidget {
             SnackBar(
               content: Text('Could not open PDF',
                   style: AppText.bodyMedium.copyWith(color: Colors.white)),
-              backgroundColor: const Color(0xFFDC2626),
+              backgroundColor: chateuError,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -1773,12 +1771,12 @@ class _AttachmentPreview extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(AppSpacing.sm),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: chateuSurfaceMuted,
                 borderRadius: BorderRadius.circular(AppRadius.xs),
               ),
               child: Text(
                 url,
-                style: AppText.caption.copyWith(color: Colors.grey.shade700),
+                style: AppText.caption.copyWith(color: chateuTextMuted),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1789,7 +1787,7 @@ class _AttachmentPreview extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text("Cancel",
-                style: AppText.labelMedium.copyWith(color: Colors.grey)),
+                style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -1816,7 +1814,7 @@ class _AttachmentPreview extends StatelessWidget {
             SnackBar(
               content: Text('Could not open link',
                   style: AppText.bodyMedium.copyWith(color: Colors.white)),
-              backgroundColor: const Color(0xFFDC2626),
+              backgroundColor: chateuError,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -1962,8 +1960,8 @@ class _AttachmentFullscreen extends StatelessWidget {
                     Icon(
                       isPdf ? Icons.picture_as_pdf_rounded : Icons.link_rounded,
                       color: isPdf
-                          ? const Color(0xFFDC2626)
-                          : const Color(0xFF3B82F6),
+                          ? chateuError
+                          : chateuInfo,
                       size: 64,
                     ),
                     const SizedBox(height: AppSpacing.lg),

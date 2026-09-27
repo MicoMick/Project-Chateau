@@ -245,12 +245,12 @@ class _NotificationPageState extends State<NotificationPage> {
                           border: Border.all(
                               color: selected
                                   ? chateuPrimary
-                                  : Colors.grey.shade300),
+                                  : chateuBorder),
                         ),
                         child: Text(
                           f.label,
                           style: AppText.caption.copyWith(
-                            color: selected ? Colors.white : Colors.grey.shade600,
+                            color: selected ? Colors.white : chateuTextMuted,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -259,7 +259,7 @@ class _NotificationPageState extends State<NotificationPage> {
                   },
                 ),
               ),
-              Container(height: 1, color: Colors.grey.shade100),
+              Container(height: 1, color: chateuSurfaceMuted),
             ],
           ),
         ),
@@ -309,7 +309,7 @@ class _NotificationPageState extends State<NotificationPage> {
             noneAtAll
                 ? "You're all caught up!"
                 : 'No ${_filter.label.toLowerCase()} notifications right now.',
-            style: AppText.bodyMedium.copyWith(color: Colors.grey.shade500),
+            style: AppText.bodyMedium.copyWith(color: chateuTextMuted),
           ),
         ],
       ),
@@ -353,7 +353,7 @@ class _NotificationCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: chateuBorder),
         boxShadow: AppShadows.card,
       ),
       child: Padding(
@@ -401,7 +401,7 @@ class _NotificationCard extends StatelessWidget {
                       Text(
                         timeAgo,
                         style: AppText.caption
-                            .copyWith(color: Colors.grey.shade400),
+                            .copyWith(color: chateuTextSubtle),
                       ),
                     ],
                   ),
@@ -413,7 +413,7 @@ class _NotificationCard extends StatelessWidget {
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: AppText.bodyMedium.copyWith(
-                      color: Colors.grey.shade700,
+                      color: chateuTextMuted,
                     ),
                   ),
 
@@ -432,7 +432,7 @@ class _NotificationCard extends StatelessWidget {
                         child: Text(
                           isGlobal ? 'Broadcast' : 'Personal',
                           style: AppText.caption.copyWith(
-                            fontSize: 10,
+                            fontSize: 12,
                             color: accentColor,
                             fontWeight: FontWeight.w700,
                           ),

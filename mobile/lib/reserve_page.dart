@@ -278,14 +278,14 @@ class _ReservePageState extends State<ReservePage>
       case 'approved and paid':
         return chateuSecondary; // #007D42
       case 'return pending':
-        return const Color(0xFF2563EB); // blue — reported, awaiting admin verification
+        return chateuInfo; // blue — reported, awaiting admin verification
       case 'completed':
         return chateuPrimary; // #006837 (with yellow accent label)
       case 'rejected':
-        return const Color(0xFFDC2626); // red
+        return chateuError; // red
       case 'cancelled':
       case 'canceled':
-        return Colors.grey;
+        return chateuTextMuted;
       default:
         return chateuAccent;
     }
@@ -420,7 +420,7 @@ class _ReservePageState extends State<ReservePage>
                                     const SizedBox(height: AppSpacing.xs),
                                     Text("Pick a date and book your slot",
                                         style: AppText.bodyMedium.copyWith(
-                                            color: Colors.grey.shade500)),
+                                            color: chateuTextMuted)),
                                   ],
                                 ),
                               ),
@@ -564,7 +564,7 @@ class _ReservePageState extends State<ReservePage>
                             padding: const EdgeInsets.all(AppSpacing.xl),
                             child: Text("No facilities found.",
                                 style: AppText.bodyMedium
-                                    .copyWith(color: Colors.grey.shade400)),
+                                    .copyWith(color: chateuTextSubtle)),
                           ))
                         else
                           ..._facilities.asMap().entries.map((e) {
@@ -612,11 +612,11 @@ class _ReservePageState extends State<ReservePage>
       padding: const EdgeInsets.all(AppSpacing.xxl),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Icon(Icons.error_outline,
-            color: Color(0xFFDC2626), size: 48),
+            color: chateuError, size: 48),
         const SizedBox(height: AppSpacing.md),
         Text('Failed to load facilities.\nPlease try again.',
             textAlign: TextAlign.center,
-            style: AppText.bodyMedium.copyWith(color: Colors.grey.shade600)),
+            style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
         const SizedBox(height: AppSpacing.lg),
         AppPrimaryButton(
             label: "Retry",
@@ -685,7 +685,7 @@ class _ReservationTile extends StatelessWidget {
                       if (!isOwn)
                         Text('Reserved by another resident',
                             style: AppText.caption
-                                .copyWith(color: Colors.grey.shade500)),
+                                .copyWith(color: chateuTextMuted)),
                     ]),
               ),
               if (onCancel != null) ...[
@@ -695,10 +695,10 @@ class _ReservationTile extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
-                        color: const Color(0xFFDC2626).withAlpha(20),
+                        color: chateuError.withAlpha(20),
                         shape: BoxShape.circle),
                     child: const Icon(Icons.close_rounded,
-                        size: 13, color: Color(0xFFDC2626)),
+                        size: 13, color: chateuError),
                   ),
                 ),
               ],
@@ -714,7 +714,7 @@ class _ReservationTile extends StatelessWidget {
               children: [
                 Text('${formatTime(r.startTime)} – ${formatTime(r.endTime)}',
                     style:
-                        AppText.caption.copyWith(color: Colors.grey.shade600)),
+                        AppText.caption.copyWith(color: chateuTextMuted)),
                 AppStatusBadge(label: statusLabel, color: color),
               ],
             ),
@@ -769,7 +769,7 @@ class _BorrowTile extends StatelessWidget {
                 Text(
                     'Qty: ${r.quantity} • Borrowed ${r.date.day}/${r.date.month}/${r.date.year}'
                     '${r.returnDate != null && !isSameDay(r.returnDate!, r.date) ? ' • Return by ${r.returnDate!.day}/${r.returnDate!.month}/${r.returnDate!.year}' : ''}',
-                    style: AppText.caption.copyWith(color: Colors.grey.shade500)),
+                    style: AppText.caption.copyWith(color: chateuTextMuted)),
               ],
             ),
           ),
@@ -917,11 +917,11 @@ class _FacilityCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: AppSpacing.md),
         padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
-          color: isFullyBooked ? Colors.grey.shade100 : Colors.white,
+          color: isFullyBooked ? chateuSurfaceMuted : Colors.white,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
               color: isFullyBooked
-                  ? Colors.grey.shade200
+                  ? chateuBorder
                   : chateuPrimary.withAlpha(40)),
           boxShadow: AppShadows.card,
         ),
@@ -931,11 +931,11 @@ class _FacilityCard extends StatelessWidget {
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
                   color: isFullyBooked
-                      ? Colors.grey.shade200
+                      ? chateuBorder
                       : chateuPrimary.withAlpha(18),
                   borderRadius: BorderRadius.circular(AppRadius.sm)),
               child: Icon(_icon,
-                  color: isFullyBooked ? Colors.grey.shade400 : chateuPrimary,
+                  color: isFullyBooked ? chateuTextSubtle : chateuPrimary,
                   size: 24),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -946,19 +946,19 @@ class _FacilityCard extends StatelessWidget {
                   Text(facility.name,
                       style: AppText.titleMedium.copyWith(
                           color: isFullyBooked
-                              ? Colors.grey.shade400
+                              ? chateuTextSubtle
                               : chateuText)),
                   const SizedBox(height: 2),
                   Text(facility.description,
                       style:
-                          AppText.caption.copyWith(color: Colors.grey.shade500),
+                          AppText.caption.copyWith(color: chateuTextMuted),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: AppSpacing.sm),
                   AppStatusBadge(
                       label: facility.category,
                       color:
-                          isFullyBooked ? Colors.grey.shade400 : chateuPrimary),
+                          isFullyBooked ? chateuTextSubtle : chateuPrimary),
                 ])),
             if (onImageTap != null) ...[
               const SizedBox(width: AppSpacing.sm),
@@ -1029,14 +1029,14 @@ class _FacilityCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.sm, vertical: 5),
               decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
+                  color: chateuBorder,
                   borderRadius: BorderRadius.circular(AppRadius.xs)),
               child: Text(
                   facility.isQuantityBased
                       ? 'None currently available'
                       : 'Fully booked for this day',
                   style: AppText.caption.copyWith(
-                      color: Colors.grey.shade500,
+                      color: chateuTextMuted,
                       fontWeight: FontWeight.w500)),
             ),
           ],
@@ -1054,7 +1054,7 @@ class _Chip extends StatelessWidget {
       {required this.icon, required this.label, required this.disabled});
   @override
   Widget build(BuildContext context) {
-    final c = disabled ? Colors.grey.shade400 : Colors.grey.shade600;
+    final c = disabled ? chateuTextSubtle : chateuTextMuted;
     return Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, size: 12, color: c),
       const SizedBox(width: 3),
@@ -1362,7 +1362,7 @@ class _BookSheetState extends State<_BookSheet> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Failed to submit: $e',
               style: const TextStyle(color: Colors.white)),
-          backgroundColor: const Color(0xFFDC2626),
+          backgroundColor: chateuError,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.sm)),
@@ -1404,7 +1404,7 @@ class _BookSheetState extends State<_BookSheet> {
               margin: const EdgeInsets.only(
                   top: AppSpacing.sm, bottom: AppSpacing.lg),
               decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: chateuBorder,
                   borderRadius: BorderRadius.circular(2)),
             )),
 
@@ -1412,7 +1412,7 @@ class _BookSheetState extends State<_BookSheet> {
             const SizedBox(height: AppSpacing.xs),
             Text(widget.facility.description,
                 style:
-                    AppText.bodyMedium.copyWith(color: Colors.grey.shade500)),
+                    AppText.bodyMedium.copyWith(color: chateuTextMuted)),
 
             const SizedBox(height: AppSpacing.lg),
 
@@ -1508,8 +1508,8 @@ class _BookSheetState extends State<_BookSheet> {
                       : 'None currently available',
                   style: AppText.caption.copyWith(
                       color: _maxQuantity > 0
-                          ? Colors.grey.shade500
-                          : const Color(0xFFDC2626))),
+                          ? chateuTextMuted
+                          : chateuError)),
 
               const SizedBox(height: AppSpacing.lg),
               Text('Item Condition Photo *',
@@ -1518,7 +1518,7 @@ class _BookSheetState extends State<_BookSheet> {
               Text(
                 'A photo of the item as you\'re receiving it — this protects '
                 'you if there\'s ever a dispute about its condition on return.',
-                style: AppText.caption.copyWith(color: Colors.grey.shade500),
+                style: AppText.caption.copyWith(color: chateuTextMuted),
               ),
               const SizedBox(height: AppSpacing.sm),
               GestureDetector(
@@ -1552,7 +1552,7 @@ class _BookSheetState extends State<_BookSheet> {
                         style: AppText.caption.copyWith(
                             color: _conditionPhotoFile != null
                                 ? chateuPrimary
-                                : Colors.grey.shade500),
+                                : chateuTextMuted),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -1566,7 +1566,7 @@ class _BookSheetState extends State<_BookSheet> {
               const SizedBox(height: 4),
               Text(
                 'Borrowing for a multi-day event? Push the return date out.',
-                style: AppText.caption.copyWith(color: Colors.grey.shade500),
+                style: AppText.caption.copyWith(color: chateuTextMuted),
               ),
               const SizedBox(height: AppSpacing.sm),
               Row(children: [
@@ -1674,7 +1674,7 @@ class _BookSheetState extends State<_BookSheet> {
               AppNoticeBanner(
                   text: conflictReason ?? 'Please choose a different slot.',
                   icon: Icons.warning_amber_rounded,
-                  color: const Color(0xFFDC2626)),
+                  color: chateuError),
             ],
 
             // Approved taken slots
@@ -1682,7 +1682,7 @@ class _BookSheetState extends State<_BookSheet> {
               const SizedBox(height: AppSpacing.lg),
               Text("Already approved on this day",
                   style: AppText.labelMedium
-                      .copyWith(color: Colors.grey.shade500)),
+                      .copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.sm),
               ...approvedSlots.map((r) => Container(
                     margin: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -1698,7 +1698,7 @@ class _BookSheetState extends State<_BookSheet> {
                       const SizedBox(width: AppSpacing.sm),
                       Text('${_fmt(r.startTime)} – ${_fmt(r.endTime)}',
                           style: AppText.caption
-                              .copyWith(color: Colors.grey.shade700)),
+                              .copyWith(color: chateuTextMuted)),
                       const Spacer(),
                       Text('Approved — Taken',
                           style: AppText.caption.copyWith(
@@ -1733,7 +1733,7 @@ class _BookSheetState extends State<_BookSheet> {
                   Text(
                     '₱150 for the first hour, +₱50 for each additional hour '
                     '(${(_durationMinutes / 60).ceil()} hr${(_durationMinutes / 60).ceil() > 1 ? 's' : ''} booked)',
-                    style: AppText.caption.copyWith(color: Colors.grey.shade600),
+                    style: AppText.caption.copyWith(color: chateuTextMuted),
                   ),
                 ]),
               ),
@@ -1754,7 +1754,7 @@ class _BookSheetState extends State<_BookSheet> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(color: Colors.grey.shade200),
+                    border: Border.all(color: chateuBorder),
                   ),
                   child: widget.qrImageUrl == null || widget.qrImageUrl!.isEmpty
                       ? _qrPlaceholder()
@@ -1769,7 +1769,7 @@ class _BookSheetState extends State<_BookSheet> {
               Center(
                 child: Text('Scan with your GCash app to pay ₱${_courtFee!.toStringAsFixed(0)}',
                     style:
-                        AppText.caption.copyWith(color: Colors.grey.shade500)),
+                        AppText.caption.copyWith(color: chateuTextMuted)),
               ),
 
               const SizedBox(height: AppSpacing.lg),
@@ -1808,7 +1808,7 @@ class _BookSheetState extends State<_BookSheet> {
                         style: AppText.caption.copyWith(
                             color: _proofFile != null
                                 ? chateuPrimary
-                                : Colors.grey.shade500),
+                                : chateuTextMuted),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -1826,7 +1826,7 @@ class _BookSheetState extends State<_BookSheet> {
                 style: const TextStyle(fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'e.g. 1234567890123',
-                  hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                  hintStyle: TextStyle(color: chateuTextSubtle, fontSize: 13),
                   prefixIcon: const Icon(Icons.confirmation_number_rounded,
                       size: 18, color: chateuPrimary),
                   filled: true,
@@ -1870,11 +1870,11 @@ class _BookSheetState extends State<_BookSheet> {
   Widget _qrPlaceholder() => Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.qr_code_2_rounded, size: 88, color: Colors.grey.shade300),
+          Icon(Icons.qr_code_2_rounded, size: 88, color: chateuBorder),
           const SizedBox(height: AppSpacing.sm),
           Text('GCash QR not yet added',
               textAlign: TextAlign.center,
-              style: AppText.caption.copyWith(color: Colors.grey.shade400)),
+              style: AppText.caption.copyWith(color: chateuTextSubtle)),
         ],
       );
 }
@@ -2019,7 +2019,7 @@ class _ReturnSheetState extends State<_ReturnSheet> {
               Text('Return Borrowed Amenities', style: AppText.titleLarge),
               const SizedBox(height: AppSpacing.xs),
               Text('${widget.facilityName} • Borrowed qty: $_borrowedQty',
-                  style: AppText.bodyMedium.copyWith(color: Colors.grey.shade500)),
+                  style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
 
               const SizedBox(height: AppSpacing.lg),
               Text('Condition',
@@ -2087,7 +2087,7 @@ class _ReturnSheetState extends State<_ReturnSheet> {
               const SizedBox(height: 4),
               Text(
                 'A photo of the item as you\'re returning it.',
-                style: AppText.caption.copyWith(color: Colors.grey.shade500),
+                style: AppText.caption.copyWith(color: chateuTextMuted),
               ),
               const SizedBox(height: AppSpacing.sm),
               GestureDetector(
@@ -2119,7 +2119,7 @@ class _ReturnSheetState extends State<_ReturnSheet> {
                         style: AppText.caption.copyWith(
                             color: _photoFile != null
                                 ? chateuPrimary
-                                : Colors.grey.shade500),
+                                : chateuTextMuted),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -2137,7 +2137,7 @@ class _ReturnSheetState extends State<_ReturnSheet> {
                 style: const TextStyle(fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'e.g. one chair leg is bent',
-                  hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                  hintStyle: TextStyle(color: chateuTextSubtle, fontSize: 13),
                   filled: true,
                   fillColor: chateuBackground,
                   contentPadding: const EdgeInsets.all(AppSpacing.md),
@@ -2184,7 +2184,7 @@ class _ConditionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = label == 'Damaged' ? const Color(0xFFDC2626) : chateuPrimary;
+    final color = label == 'Damaged' ? chateuError : chateuPrimary;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -2197,11 +2197,11 @@ class _ConditionChip extends StatelessWidget {
               width: isSelected ? 1.5 : 1),
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, color: isSelected ? color : Colors.grey.shade400, size: 20),
+          Icon(icon, color: isSelected ? color : chateuTextSubtle, size: 20),
           const SizedBox(height: 4),
           Text(label,
               style: AppText.labelMedium.copyWith(
-                  color: isSelected ? color : Colors.grey.shade500,
+                  color: isSelected ? color : chateuTextMuted,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500)),
         ]),
       ),
@@ -2274,7 +2274,7 @@ class _TimePicker extends StatelessWidget {
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label,
                 style: AppText.caption.copyWith(
-                    color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+                    color: chateuTextMuted, fontWeight: FontWeight.w600)),
             const SizedBox(height: AppSpacing.xs),
             Row(children: [
               const Icon(Icons.access_time_rounded,

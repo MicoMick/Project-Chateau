@@ -320,7 +320,7 @@ class _AccountPageState extends State<AccountPage>
                 width: 40, height: 4,
                 margin: const EdgeInsets.only(bottom: AppSpacing.lg),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: chateuBorder,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -347,7 +347,7 @@ class _AccountPageState extends State<AccountPage>
                 _SheetTile(
                   icon: Icons.delete_outline_rounded,
                   label: "Remove Photo",
-                  color: const Color(0xFFDC2626),
+                  color: chateuError,
                   onTap: () {
                     Navigator.pop(context);
                     setState(() {
@@ -456,7 +456,7 @@ class _AccountPageState extends State<AccountPage>
                     horizontal: AppSpacing.md, vertical: 7),
                 decoration: BoxDecoration(
                   color: _isEditMode
-                      ? Colors.grey.shade200
+                      ? chateuBorder
                       : chateuPrimary,
                   borderRadius: BorderRadius.circular(AppRadius.xxl),
                 ),
@@ -467,7 +467,7 @@ class _AccountPageState extends State<AccountPage>
                       _isEditMode ? Icons.close_rounded : Icons.edit_rounded,
                       size: 14,
                       color: _isEditMode
-                          ? Colors.grey.shade700
+                          ? chateuTextMuted
                           : Colors.white,
                     ),
                     const SizedBox(width: 5),
@@ -476,7 +476,7 @@ class _AccountPageState extends State<AccountPage>
                       style: AppText.caption.copyWith(
                         fontWeight: FontWeight.w700,
                         color: _isEditMode
-                            ? Colors.grey.shade700
+                            ? chateuTextMuted
                             : Colors.white,
                       ),
                     ),
@@ -589,7 +589,7 @@ class _AccountPageState extends State<AccountPage>
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 0.5,
-                                  fontSize: 10,
+                                  fontSize: 12,
                                 ),
                               ),
                             ),
@@ -686,7 +686,7 @@ class _AccountPageState extends State<AccountPage>
                         onPressed: _signOut,
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(
-                              color: Color(0xFFDC2626), width: 1.5),
+                              color: chateuError, width: 1.5),
                           shape: RoundedRectangleBorder(
                               borderRadius:
                                   BorderRadius.circular(AppRadius.md)),
@@ -695,12 +695,12 @@ class _AccountPageState extends State<AccountPage>
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Icon(Icons.logout_rounded,
-                                color: Color(0xFFDC2626), size: 18),
+                                color: chateuError, size: 18),
                             const SizedBox(width: AppSpacing.sm),
                             Text(
                               "Sign Out",
                               style: AppText.labelLarge.copyWith(
-                                  color: const Color(0xFFDC2626)),
+                                  color: chateuError),
                             ),
                           ],
                         ),
@@ -824,7 +824,7 @@ class _AccountPageState extends State<AccountPage>
                           child: Text(
                             "No family members added yet.",
                             style: AppText.bodyMedium
-                                .copyWith(color: Colors.grey.shade400),
+                                .copyWith(color: chateuTextSubtle),
                           ),
                         ),
                       )
@@ -873,7 +873,7 @@ class _AccountPageState extends State<AccountPage>
                 if (relationship != null && relationship.isNotEmpty)
                   Text(relationship,
                       style: AppText.caption
-                          .copyWith(color: Colors.grey.shade500)),
+                          .copyWith(color: chateuTextMuted)),
               ],
             ),
           ),
@@ -890,7 +890,7 @@ class _AccountPageState extends State<AccountPage>
             child: const Padding(
               padding: EdgeInsets.all(6),
               child: Icon(Icons.delete_outline_rounded,
-                  size: 16, color: Color(0xFFDC2626)),
+                  size: 16, color: chateuError),
             ),
           ),
         ],
@@ -953,7 +953,7 @@ class _AccountPageState extends State<AccountPage>
       children: [
         Text(label,
             style: AppText.caption.copyWith(
-              color: Colors.grey.shade500,
+              color: chateuTextMuted,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.3,
             )),
@@ -967,7 +967,7 @@ class _AccountPageState extends State<AccountPage>
           decoration: InputDecoration(
             prefixIcon: Icon(icon, size: 18,
                 color: chateuPrimary.withAlpha(180)),
-            fillColor: enabled ? chateuBackground : Colors.grey.shade50,
+            fillColor: enabled ? chateuBackground : chateuSurfaceMuted,
             filled: true,
             contentPadding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.md, vertical: AppSpacing.md),
@@ -1003,7 +1003,7 @@ class _AccountPageState extends State<AccountPage>
       children: [
         Text("Birth Date",
             style: AppText.caption.copyWith(
-              color: Colors.grey.shade500,
+              color: chateuTextMuted,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.3,
             )),
@@ -1015,7 +1015,7 @@ class _AccountPageState extends State<AccountPage>
             padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.md, vertical: 13),
             decoration: BoxDecoration(
-              color: _isEditMode ? chateuBackground : Colors.grey.shade50,
+              color: _isEditMode ? chateuBackground : chateuSurfaceMuted,
               borderRadius: BorderRadius.circular(AppRadius.sm),
               border: Border.all(
                 color: _isEditMode
@@ -1034,7 +1034,7 @@ class _AccountPageState extends State<AccountPage>
                     fontWeight: FontWeight.w500,
                     color: _birthDate != null
                         ? chateuText
-                        : Colors.grey.shade400,
+                        : chateuTextSubtle,
                   ),
                 ),
                 const Spacer(),
@@ -1208,7 +1208,7 @@ class _FamilyMemberSheetState extends State<_FamilyMemberSheet> {
               style: const TextStyle(fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'e.g. Juan Dela Cruz',
-                hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                hintStyle: TextStyle(color: chateuTextSubtle, fontSize: 13),
                 prefixIcon: const Icon(Icons.badge_rounded,
                     size: 18, color: chateuPrimary),
                 filled: true,

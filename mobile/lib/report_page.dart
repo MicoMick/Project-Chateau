@@ -48,11 +48,11 @@ class _ReportPageState extends State<ReportPage>
 
   final List<_CategoryData> _categories = const [
     _CategoryData(Icons.build_rounded, "Maintenance", Color(0xFFFF8C42)),
-    _CategoryData(Icons.volume_off_rounded, "Noise", Color(0xFFEF4444)),
-    _CategoryData(Icons.delete_sweep_rounded, "Cleanliness", Color(0xFF22C55E)),
-    _CategoryData(Icons.shield_rounded, "Security", Color(0xFF3B82F6)),
+    _CategoryData(Icons.volume_off_rounded, "Noise", chateuError),
+    _CategoryData(Icons.delete_sweep_rounded, "Cleanliness", chateuSuccess),
+    _CategoryData(Icons.shield_rounded, "Security", chateuInfo),
     _CategoryData(Icons.traffic_rounded, "Roads", Color(0xFF92400E)),
-    _CategoryData(Icons.more_horiz_rounded, "Other", Color(0xFF6B7280)),
+    _CategoryData(Icons.more_horiz_rounded, "Other", chateuTextMuted),
   ];
 
   bool get _hasImage => _pickedImage != null || _pickedImageBytes != null;
@@ -324,7 +324,7 @@ class _ReportPageState extends State<ReportPage>
                 child: Text(
                   "Help us keep Chateau safe and comfortable.",
                   style: AppText.bodyMedium.copyWith(
-                    color: Colors.grey.shade500,
+                    color: chateuTextMuted,
                   ),
                 ),
               ),
@@ -373,7 +373,7 @@ class _ReportPageState extends State<ReportPage>
                           border: Border.all(
                             color: isSelected
                                 ? cat.color
-                                : Colors.grey.shade200,
+                                : chateuBorder,
                             width: isSelected ? 2 : 1,
                           ),
                           boxShadow: isSelected
@@ -393,7 +393,7 @@ class _ReportPageState extends State<ReportPage>
                               cat.icon,
                               color: isSelected
                                   ? cat.color
-                                  : Colors.grey.shade400,
+                                  : chateuTextSubtle,
                               size: 26,
                             ),
                             const SizedBox(height: AppSpacing.xs),
@@ -402,7 +402,7 @@ class _ReportPageState extends State<ReportPage>
                               style: AppText.caption.copyWith(
                                 color: isSelected
                                     ? cat.color
-                                    : Colors.grey.shade500,
+                                    : chateuTextMuted,
                                 fontWeight: isSelected
                                     ? FontWeight.w700
                                     : FontWeight.w500,
@@ -477,10 +477,10 @@ class _ReportPageState extends State<ReportPage>
                                 hintText:
                                     "Describe the issue in detail…",
                                 hintStyle: AppText.bodyMedium.copyWith(
-                                  color: Colors.grey.shade400,
+                                  color: chateuTextSubtle,
                                 ),
                                 counterStyle: AppText.caption.copyWith(
-                                  color: Colors.grey.shade400,
+                                  color: chateuTextSubtle,
                                 ),
                                 filled: true,
                                 fillColor: chateuBackground,
@@ -488,13 +488,13 @@ class _ReportPageState extends State<ReportPage>
                                   borderRadius: BorderRadius.circular(
                                       AppRadius.sm),
                                   borderSide: BorderSide(
-                                      color: Colors.grey.shade200),
+                                      color: chateuBorder),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(
                                       AppRadius.sm),
                                   borderSide: BorderSide(
-                                      color: Colors.grey.shade200),
+                                      color: chateuBorder),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(
@@ -581,7 +581,7 @@ class _ReportPageState extends State<ReportPage>
                                           },
                                           child: CustomPaint(
                                             painter: _DashedBorderPainter(
-                                              color: Colors.grey.shade300,
+                                              color: chateuBorder,
                                               borderRadius: AppRadius.sm,
                                               dashWidth: 6,
                                               dashGap: 4,
@@ -594,7 +594,7 @@ class _ReportPageState extends State<ReportPage>
                                                     Icons.add_photo_alternate_outlined,
                                                     size: 36,
                                                     color:
-                                                        Colors.grey.shade400,
+                                                        chateuTextSubtle,
                                                   ),
                                                   const SizedBox(
                                                       height: AppSpacing.sm),
@@ -603,7 +603,7 @@ class _ReportPageState extends State<ReportPage>
                                                     style: AppText.bodyMedium
                                                         .copyWith(
                                                       color:
-                                                          Colors.grey.shade500,
+                                                          chateuTextMuted,
                                                       fontWeight:
                                                           FontWeight.w500,
                                                     ),
@@ -616,7 +616,7 @@ class _ReportPageState extends State<ReportPage>
                                                     style: AppText.caption
                                                         .copyWith(
                                                       color:
-                                                          Colors.grey.shade400,
+                                                          chateuTextSubtle,
                                                     ),
                                                   ),
                                                 ],
@@ -704,7 +704,7 @@ class _ReportPageState extends State<ReportPage>
                 style: AppText.labelMedium.copyWith(color: chateuText)),
             const SizedBox(height: 2),
             Text(subtitle,
-                style: AppText.caption.copyWith(color: Colors.grey.shade500)),
+                style: AppText.caption.copyWith(color: chateuTextMuted)),
           ],
         ),
       ),
@@ -732,7 +732,7 @@ class _ReportPageState extends State<ReportPage>
                 height: 4,
                 margin: const EdgeInsets.only(bottom: AppSpacing.lg),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: chateuBorder,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -751,7 +751,7 @@ class _ReportPageState extends State<ReportPage>
                 child: Text(
                   "Choose a source for your photo or video",
                   style: AppText.bodyMedium
-                      .copyWith(color: Colors.grey.shade500),
+                      .copyWith(color: chateuTextMuted),
                 ),
               ),
 

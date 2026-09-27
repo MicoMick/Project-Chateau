@@ -320,11 +320,11 @@ class _PaymentPageState extends State<PaymentPage>
       case 'pending_verification':
         return chateuAccent;
       case 'pending':
-        return const Color(0xFF2563EB); // blue — awaiting Treasurer confirmation
+        return chateuInfo; // blue — awaiting Treasurer confirmation
       case 'overdue':
-        return const Color(0xFFB45309); // amber-700
+        return chateuWarning; // amber-700
       default:
-        return const Color(0xFFDC2626);
+        return chateuError;
     }
   }
 
@@ -387,7 +387,7 @@ class _PaymentPageState extends State<PaymentPage>
                     height: 4,
                     margin: const EdgeInsets.only(bottom: AppSpacing.lg),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: chateuBorder,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -423,7 +423,7 @@ class _PaymentPageState extends State<PaymentPage>
                           child: Text(
                             "No bills found.",
                             style: AppText.bodyMedium
-                                .copyWith(color: Colors.grey.shade400),
+                                .copyWith(color: chateuTextSubtle),
                           ),
                         )
                       : ListView.builder(
@@ -464,7 +464,7 @@ class _PaymentPageState extends State<PaymentPage>
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: AppText.caption.copyWith(
-                                                color: Colors.grey.shade500),
+                                                color: chateuTextMuted),
                                           ),
                                       ],
                                     ),
@@ -743,12 +743,12 @@ class _PaymentPageState extends State<PaymentPage>
                           children: [
                             Icon(Icons.receipt_long_rounded,
                                 size: 48,
-                                color: Colors.grey.shade300),
+                                color: chateuBorder),
                             const SizedBox(height: AppSpacing.md),
                             Text(
                               "No transactions yet",
                               style: AppText.bodyMedium.copyWith(
-                                  color: Colors.grey.shade400),
+                                  color: chateuTextSubtle),
                             ),
                           ],
                         ),
@@ -818,7 +818,7 @@ class _PaymentPageState extends State<PaymentPage>
                                           ? _formatDateTime(p.paidAt!)
                                           : "Due: ${_formatDate(p.dueDate)}",
                                       style: AppText.caption.copyWith(
-                                          color: Colors.grey.shade500),
+                                          color: chateuTextMuted),
                                     ),
                                   ],
                                 ),
@@ -1087,7 +1087,7 @@ class _PaySheetState extends State<_PaySheet> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(color: Colors.grey.shade200),
+                    border: Border.all(color: chateuBorder),
                   ),
                   child: widget.qrImageUrl == null || widget.qrImageUrl!.isEmpty
                       ? _qrPlaceholder()
@@ -1102,7 +1102,7 @@ class _PaySheetState extends State<_PaySheet> {
               Center(
                 child: Text('Scan with your GCash app to pay',
                     style:
-                        AppText.caption.copyWith(color: Colors.grey.shade500)),
+                        AppText.caption.copyWith(color: chateuTextMuted)),
               ),
 
               const SizedBox(height: AppSpacing.xl),
@@ -1143,7 +1143,7 @@ class _PaySheetState extends State<_PaySheet> {
                         style: AppText.caption.copyWith(
                             color: (_hasNewProof || _hasExistingProof)
                                 ? chateuPrimary
-                                : Colors.grey.shade500),
+                                : chateuTextMuted),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -1161,7 +1161,7 @@ class _PaySheetState extends State<_PaySheet> {
                 style: const TextStyle(fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'e.g. 1234567890123',
-                  hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                  hintStyle: TextStyle(color: chateuTextSubtle, fontSize: 13),
                   prefixIcon: const Icon(Icons.confirmation_number_rounded,
                       size: 18, color: chateuPrimary),
                   filled: true,
@@ -1201,11 +1201,11 @@ class _PaySheetState extends State<_PaySheet> {
   Widget _qrPlaceholder() => Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.qr_code_2_rounded, size: 96, color: Colors.grey.shade300),
+          Icon(Icons.qr_code_2_rounded, size: 96, color: chateuBorder),
           const SizedBox(height: AppSpacing.sm),
           Text('GCash QR not yet added',
               textAlign: TextAlign.center,
-              style: AppText.caption.copyWith(color: Colors.grey.shade400)),
+              style: AppText.caption.copyWith(color: chateuTextSubtle)),
         ],
       );
 }
@@ -1366,7 +1366,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
               Text('Pay in Advance', style: AppText.titleLarge),
               const SizedBox(height: AppSpacing.xs),
               Text('Prepay up to 12 months of your monthly due.',
-                  style: AppText.bodyMedium.copyWith(color: Colors.grey.shade500)),
+                  style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
 
               const SizedBox(height: AppSpacing.lg),
               Text('Number of Months',
@@ -1404,7 +1404,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
               ),
               const SizedBox(height: 4),
               Text('Covers through ${_coversUntil.month}/${_coversUntil.day}/${_coversUntil.year}',
-                  style: AppText.caption.copyWith(color: Colors.grey.shade500)),
+                  style: AppText.caption.copyWith(color: chateuTextMuted)),
 
               const SizedBox(height: AppSpacing.lg),
               Container(
@@ -1433,7 +1433,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(color: Colors.grey.shade200),
+                    border: Border.all(color: chateuBorder),
                   ),
                   child: widget.qrImageUrl == null || widget.qrImageUrl!.isEmpty
                       ? _qrPlaceholder()
@@ -1448,7 +1448,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
               Center(
                 child: Text('Scan with your GCash app to pay ₱${_total.toStringAsFixed(2)}',
                     style:
-                        AppText.caption.copyWith(color: Colors.grey.shade500)),
+                        AppText.caption.copyWith(color: chateuTextMuted)),
               ),
 
               const SizedBox(height: AppSpacing.xl),
@@ -1485,7 +1485,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
                         style: AppText.caption.copyWith(
                             color: _proofFile != null
                                 ? chateuPrimary
-                                : Colors.grey.shade500),
+                                : chateuTextMuted),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -1503,7 +1503,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
                 style: const TextStyle(fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'e.g. 1234567890123',
-                  hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                  hintStyle: TextStyle(color: chateuTextSubtle, fontSize: 13),
                   prefixIcon: const Icon(Icons.confirmation_number_rounded,
                       size: 18, color: chateuPrimary),
                   filled: true,
@@ -1543,11 +1543,11 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
   Widget _qrPlaceholder() => Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.qr_code_2_rounded, size: 96, color: Colors.grey.shade300),
+          Icon(Icons.qr_code_2_rounded, size: 96, color: chateuBorder),
           const SizedBox(height: AppSpacing.sm),
           Text('GCash QR not yet added',
               textAlign: TextAlign.center,
-              style: AppText.caption.copyWith(color: Colors.grey.shade400)),
+              style: AppText.caption.copyWith(color: chateuTextSubtle)),
         ],
       );
 }

@@ -62,11 +62,11 @@ class _VotingPageState extends State<VotingPage> {
   Color _statusColor(String? status) {
     switch ((status ?? '').toLowerCase()) {
       case 'active':
-        return const Color(0xFF22C55E);
+        return chateuSuccess;
       case 'closed':
-        return const Color(0xFFDC2626);
+        return chateuError;
       default:
-        return Colors.grey;
+        return chateuTextMuted;
     }
   }
 
@@ -106,7 +106,7 @@ class _VotingPageState extends State<VotingPage> {
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: Colors.grey.shade100),
+          child: Container(height: 1, color: chateuSurfaceMuted),
         ),
       ),
       body: _loading
@@ -137,12 +137,12 @@ class _VotingPageState extends State<VotingPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.error_outline_rounded,
-                size: 52, color: const Color(0xFFDC2626)),
+                size: 52, color: chateuError),
             const SizedBox(height: 16),
             Text(_error!,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                    color: Colors.grey.shade600, fontSize: 14)),
+                    color: chateuTextMuted, fontSize: 14)),
             const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: _loadElections,
@@ -167,17 +167,17 @@ class _VotingPageState extends State<VotingPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.how_to_vote_outlined,
-              size: 64, color: Colors.grey.shade300),
+              size: 64, color: chateuBorder),
           const SizedBox(height: 16),
           Text("No elections available",
               style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade500)),
+                  color: chateuTextMuted)),
           const SizedBox(height: 6),
           Text("Check back later for upcoming elections.",
               style: TextStyle(
-                  fontSize: 13, color: Colors.grey.shade400)),
+                  fontSize: 13, color: chateuTextSubtle)),
         ],
       ),
     );
@@ -235,7 +235,7 @@ class _VotingPageState extends State<VotingPage> {
               decoration: BoxDecoration(
                 color: isActive
                     ? chateuPrimary.withAlpha(15)
-                    : Colors.grey.shade50,
+                    : chateuSurfaceMuted,
                 borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(16)),
               ),
@@ -266,7 +266,7 @@ class _VotingPageState extends State<VotingPage> {
                           status.toUpperCase(),
                           style: TextStyle(
                               color: statusColor,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.5),
                         ),
@@ -291,7 +291,7 @@ class _VotingPageState extends State<VotingPage> {
                           Text("Vote Now",
                               style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 10,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w700)),
                         ],
                       ),
@@ -324,7 +324,7 @@ class _VotingPageState extends State<VotingPage> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontSize: 13,
-                          color: Colors.grey.shade600,
+                          color: chateuTextMuted,
                           height: 1.4),
                     ),
                   ],
@@ -336,7 +336,7 @@ class _VotingPageState extends State<VotingPage> {
                         label: "Start",
                         value: _formatDate(
                             election['start_date'] as String?),
-                        color: const Color(0xFF22C55E),
+                        color: chateuSuccess,
                       ),
                       const SizedBox(width: 10),
                       _dateBadge(
@@ -344,7 +344,7 @@ class _VotingPageState extends State<VotingPage> {
                         label: "End",
                         value: _formatDate(
                             election['end_date'] as String?),
-                        color: const Color(0xFFDC2626),
+                        color: chateuError,
                       ),
                     ],
                   ),
@@ -370,15 +370,15 @@ class _VotingPageState extends State<VotingPage> {
         Text(
           "$label: ",
           style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade500,
+              fontSize: 12,
+              color: chateuTextMuted,
               fontWeight: FontWeight.w500),
         ),
         Text(
           value,
           style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade700,
+              fontSize: 12,
+              color: chateuTextMuted,
               fontWeight: FontWeight.w600),
         ),
       ],
@@ -564,7 +564,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
           const SizedBox(height: 8),
           Text('This action cannot be undone.',
               textAlign: TextAlign.center,
-              style: AppText.bodyMedium.copyWith(color: Colors.grey.shade500)),
+              style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
           const SizedBox(height: 14),
           Container(
             width: double.infinity,
@@ -572,7 +572,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
             decoration: BoxDecoration(
               color: chateuBackground,
               borderRadius: BorderRadius.circular(AppRadius.sm),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: chateuBorder),
             ),
             child: Text(selectionSummary,
                 style: AppText.bodyMedium.copyWith(height: 1.8)),
@@ -583,11 +583,11 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
               child: OutlinedButton(
                 onPressed: () => Navigator.pop(context, false),
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.grey.shade300),
+                  side: BorderSide(color: chateuBorder),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                child: Text('Cancel', style: AppText.labelMedium.copyWith(color: Colors.grey.shade700)),
+                child: Text('Cancel', style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
               ),
             ),
             const SizedBox(width: 10),
@@ -619,7 +619,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Session expired. Please log in again.'),
-          backgroundColor: Color(0xFFDC2626),
+          backgroundColor: chateuError,
           behavior: SnackBarBehavior.floating,
         ));
         return;
@@ -682,7 +682,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
                         Text("Failed to submit vote. Please try again.")),
               ],
             ),
-            backgroundColor: const Color(0xFFDC2626),
+            backgroundColor: chateuError,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12)),
@@ -730,7 +730,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: Colors.grey.shade100),
+          child: Container(height: 1, color: chateuSurfaceMuted),
         ),
       ),
       body: _loading || _checkingVote
@@ -739,7 +739,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
           : _error != null
               ? Center(
                   child: Text(_error!,
-                      style: TextStyle(color: Colors.grey.shade500)))
+                      style: TextStyle(color: chateuTextMuted)))
               : _hasVoted
                   ? _buildVotedState()
                   : _buildVotingForm(),
@@ -784,7 +784,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
               "Your vote for this election has been recorded. Thank you for participating!",
               textAlign: TextAlign.center,
               style:
-                  TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  TextStyle(fontSize: 14, color: chateuTextMuted),
             ),
             const SizedBox(height: 32),
             // Election period info
@@ -907,11 +907,11 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
                 child: Column(
                   children: [
                     Icon(Icons.person_search_outlined,
-                        size: 48, color: Colors.grey.shade300),
+                        size: 48, color: chateuBorder),
                     const SizedBox(height: 12),
                     Text("No candidates available yet.",
                         style: TextStyle(
-                            color: Colors.grey.shade500,
+                            color: chateuTextMuted,
                             fontSize: 14)),
                   ],
                 ),
@@ -954,7 +954,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
               Text(
                 "(Select 1)",
                 style: TextStyle(
-                    fontSize: 12, color: Colors.grey.shade500),
+                    fontSize: 12, color: chateuTextMuted),
               ),
             ],
           ),
@@ -991,7 +991,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
           border: Border.all(
             color: isSelected
                 ? chateuPrimary
-                : Colors.grey.shade200,
+                : chateuBorder,
             width: isSelected ? 2 : 1,
           ),
           boxShadow: [
@@ -1012,7 +1012,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
               child: Container(
                 width: 60,
                 height: 60,
-                color: Colors.grey.shade100,
+                color: chateuSurfaceMuted,
                 child: photoUrl != null && photoUrl.isNotEmpty
                     ? Image.network(
                         photoUrl,
@@ -1051,7 +1051,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade500,
+                          color: chateuTextMuted,
                           height: 1.4),
                     ),
                   ],
@@ -1070,7 +1070,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
                 border: Border.all(
                   color: isSelected
                       ? chateuPrimary
-                      : Colors.grey.shade300,
+                      : chateuBorder,
                   width: 2,
                 ),
               ),
@@ -1133,7 +1133,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
                 "$selected / $total positions selected",
                 style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey.shade600,
+                    color: chateuTextMuted,
                     fontWeight: FontWeight.w500),
               ),
               const Spacer(),
@@ -1151,7 +1151,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: total == 0 ? 0 : selected / total,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: chateuBorder,
               valueColor:
                   const AlwaysStoppedAnimation<Color>(chateuPrimary),
               minHeight: 6,
@@ -1210,7 +1210,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
         const SizedBox(width: 8),
         Text("$label: ",
             style: TextStyle(
-                color: Colors.grey.shade600,
+                color: chateuTextMuted,
                 fontSize: 13,
                 fontWeight: FontWeight.w500)),
         Expanded(

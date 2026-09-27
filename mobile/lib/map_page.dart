@@ -1834,7 +1834,7 @@ class _MapPageState extends State<MapPage> {
     final hasRoute = _selectedStreet != null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1D2E),
+      backgroundColor: chateuText,
       appBar: AppBar(
         backgroundColor: chateuBackground,
         elevation: 0,
@@ -1842,7 +1842,7 @@ class _MapPageState extends State<MapPage> {
         title: const Text(
           'HOA Chateau Map',
           style: TextStyle(
-              color: Color(0xFF1A1D2E),
+              color: chateuText,
               fontWeight: FontWeight.w700,
               fontSize: 18),
         ),
@@ -1933,7 +1933,7 @@ class _MapPageState extends State<MapPage> {
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color:
-                                active ? Colors.white : const Color(0xFF1A1D2E),
+                                active ? Colors.white : chateuText,
                           ),
                         ),
                       ),
@@ -2000,13 +2000,13 @@ class _MapPageState extends State<MapPage> {
                             style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF1A1D2E)),
+                                color: chateuText),
                             overflow: TextOverflow.ellipsis,
                           ),
                           if (_routeDistance != null && _routeDuration != null)
                             Text('$_routeDuration · $_routeDistance',
                                 style: const TextStyle(
-                                    fontSize: 11, color: Colors.grey)),
+                                    fontSize: 12, color: chateuTextMuted)),
                         ],
                       ),
                     ),
@@ -2083,13 +2083,13 @@ class _MapPageState extends State<MapPage> {
                                 style: const TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
-                                    color: Color(0xFF1A1D2E)),
+                                    color: chateuText),
                                 overflow: TextOverflow.ellipsis,
                               ),
                               Text(
                                 _selectedStreet!['street'] as String? ?? '',
                                 style: const TextStyle(
-                                    fontSize: 12, color: Colors.grey),
+                                    fontSize: 12, color: chateuTextMuted),
                               ),
                             ],
                           ),
@@ -2103,12 +2103,12 @@ class _MapPageState extends State<MapPage> {
                                 style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
-                                    color: Color(0xFF1A1D2E)),
+                                    color: chateuText),
                               ),
                               Text(
                                 _routeDistance!,
                                 style: const TextStyle(
-                                    fontSize: 11, color: Colors.grey),
+                                    fontSize: 12, color: chateuTextMuted),
                               ),
                             ],
                           ),
@@ -2129,11 +2129,11 @@ class _MapPageState extends State<MapPage> {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: Colors.grey.withAlpha(30),
+                            color: chateuTextMuted.withAlpha(30),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Icon(Icons.touch_app_rounded,
-                              color: Colors.grey, size: 22),
+                              color: chateuTextMuted, size: 22),
                         ),
                         const SizedBox(width: 12),
                         const Column(
@@ -2143,10 +2143,10 @@ class _MapPageState extends State<MapPage> {
                                 style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
-                                    color: Color(0xFF1A1D2E))),
+                                    color: chateuText)),
                             Text('Select a lot or landmark to navigate',
                                 style: TextStyle(
-                                    fontSize: 12, color: Colors.grey)),
+                                    fontSize: 12, color: chateuTextMuted)),
                           ],
                         ),
                       ],
@@ -2291,7 +2291,7 @@ class _NavigationPageState extends State<_NavigationPage> {
         : const LatLng(_entranceLat, _entranceLng);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1D2E),
+      backgroundColor: chateuText,
       body: Stack(
         children: [
           FlutterMap(
@@ -2342,7 +2342,7 @@ class _NavigationPageState extends State<_NavigationPage> {
                   left: 12,
                   right: 12,
                   bottom: 12),
-              color: const Color(0xFF1A1D2E).withAlpha(220),
+              color: chateuText.withAlpha(220),
               child: Row(
                 children: [
                   IconButton(
@@ -2393,11 +2393,11 @@ class _NavigationPageState extends State<_NavigationPage> {
                             style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF1A1D2E))),
+                                color: chateuText)),
                         const SizedBox(height: 6),
                         Text(widget.street['label'] as String,
                             style: const TextStyle(
-                                fontSize: 14, color: Colors.grey),
+                                fontSize: 14, color: chateuTextMuted),
                             textAlign: TextAlign.center),
                         const SizedBox(height: 20),
                         SizedBox(
@@ -2801,7 +2801,7 @@ class _LotPin extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? Colors.orange : chateuPrimary;
+    final color = selected ? chateuWarning : chateuPrimary;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -2837,7 +2837,7 @@ class _LandmarkPin extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1D2E),
+            color: chateuText,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: chateuPrimary, width: 1.5),
             boxShadow: [
@@ -2855,12 +2855,12 @@ class _LandmarkPin extends StatelessWidget {
               Text(label,
                   style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600)),
             ],
           ),
         ),
-        _PinTip(color: const Color(0xFF1A1D2E)),
+        _PinTip(color: chateuText),
       ],
     );
   }
@@ -2879,11 +2879,11 @@ class _DestinationPin extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 150),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.red,
+            color: chateuError,
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
-                  color: Colors.red.withAlpha(80),
+                  color: chateuError.withAlpha(80),
                   blurRadius: 8,
                   offset: const Offset(0, 3))
             ],
@@ -2891,12 +2891,12 @@ class _DestinationPin extends StatelessWidget {
           child: Text(label,
               style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600),
               overflow: TextOverflow.ellipsis,
               maxLines: 1),
         ),
-        const _PinTip(color: Colors.red),
+        const _PinTip(color: chateuError),
       ],
     );
   }
@@ -2969,10 +2969,10 @@ class _SearchBar extends StatelessWidget {
       child: TextField(
         controller: controller,
         autofocus: true,
-        style: const TextStyle(color: Color(0xFF1A1D2E), fontSize: 14),
+        style: const TextStyle(color: chateuText, fontSize: 14),
         decoration: InputDecoration(
           hintText: 'Search street or lot…',
-          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+          hintStyle: TextStyle(color: chateuTextSubtle, fontSize: 13),
           prefixIcon:
               const Icon(Icons.search_rounded, color: chateuPrimary, size: 20),
           border: OutlineInputBorder(
@@ -3014,9 +3014,9 @@ class _ResultsList extends StatelessWidget {
                       color: chateuPrimary, size: 18),
                   title: Text(r['label'] as String,
                       style: const TextStyle(
-                          fontSize: 13, color: Color(0xFF1A1D2E))),
+                          fontSize: 13, color: chateuText)),
                   subtitle: Text(r['street'] as String? ?? '',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      style: const TextStyle(fontSize: 12, color: chateuTextMuted)),
                   onTap: () => onTap(r),
                 ))
             .toList(),

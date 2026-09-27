@@ -1,7 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:chateau_mobile_app/app_colors.dart';
 import 'package:chateau_mobile_app/app_theme.dart';
 import 'package:chateau_mobile_app/login_page.dart';
 import 'package:chateau_mobile_app/home_page.dart';
@@ -132,8 +131,21 @@ class LandingPage extends StatelessWidget {
             ),
           ),
 
-          // Overlay
-          Container(color: Colors.black.withAlpha(110)),
+          // Scrim — lighter at the top so the photo reads, dark behind the text
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withAlpha(60),
+                  Colors.black.withAlpha(140),
+                  const Color(0xFF002814).withAlpha(230),
+                ],
+                stops: const [0, 0.5, 1],
+              ),
+            ),
+          ),
 
           SafeArea(
             child: Center(
@@ -160,18 +172,25 @@ class LandingPage extends StatelessWidget {
 
                         const SizedBox(height: 40),
 
-                        // Subtitle
+                        Text(
+                          'Welcome home',
+                          textAlign: TextAlign.center,
+                          style: AppText.displayLarge.copyWith(
+                            color: Colors.white,
+                            fontSize: subtitleSize + 12,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
                         Text(
                           'Build a stronger community with us',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: AppText.bodyLarge.copyWith(
                             fontSize: subtitleSize,
-                            color: Colors.white70,
-                            fontWeight: FontWeight.w300,
+                            color: Colors.white.withAlpha(215),
                           ),
                         ),
 
-                        const SizedBox(height: 40),
+                        const SizedBox(height: AppSpacing.xxxl + AppSpacing.sm),
 
                         // Button
                         SizedBox(
@@ -187,18 +206,15 @@ class LandingPage extends StatelessWidget {
                               );
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: chateuPrimary,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.md),
                               ),
                             ),
                             child: Text(
                               'Join Now',
-                              style: TextStyle(
-                                fontSize: buttonTextSize,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
+                              style: AppText.labelLarge
+                                  .copyWith(fontSize: buttonTextSize),
                             ),
                           ),
                         ),

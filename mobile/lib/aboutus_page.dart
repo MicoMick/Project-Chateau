@@ -247,7 +247,7 @@ class _AboutPageState extends State<AboutPage>
                             style: TextStyle(
                               fontSize: 14,
                               height: 1.7,
-                              color: Colors.grey.shade700,
+                              color: chateuTextMuted,
                             ),
                           ),
                         ),
@@ -311,7 +311,7 @@ class _AboutPageState extends State<AboutPage>
                         controller: _animController,
                         delay: 0.26,
                         icon: Icons.event_available_rounded,
-                        color: const Color(0xFF3B82F6),
+                        color: chateuInfo,
                         title: "Facility Reservation",
                         desc:
                             "Book community amenities easily with conflict detection.",
@@ -329,7 +329,7 @@ class _AboutPageState extends State<AboutPage>
                         controller: _animController,
                         delay: 0.34,
                         icon: Icons.report_rounded,
-                        color: const Color(0xFFDC2626),
+                        color: chateuError,
                         title: "Issue Reporting",
                         desc:
                             "Submit and track community issues with photo proof.",
@@ -407,7 +407,7 @@ class _AboutPageState extends State<AboutPage>
                             style: TextStyle(
                               fontSize: 13,
                               height: 1.6,
-                              color: Colors.grey.shade600,
+                              color: chateuTextMuted,
                             ),
                           ),
                         ],
@@ -438,8 +438,8 @@ class _AboutPageState extends State<AboutPage>
                           Text(
                             "Version 1.0.0  •  © 2026 All Rights Reserved",
                             style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey.shade400,
+                              fontSize: 12,
+                              color: chateuTextSubtle,
                             ),
                           ),
                         ],
@@ -483,7 +483,7 @@ class _PlatformPill extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               color: Colors.white,
               fontWeight: FontWeight.w600,
             ),
@@ -556,8 +556,8 @@ class _FeatureCard extends StatelessWidget {
               child: Text(
                 desc,
                 style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey.shade500,
+                  fontSize: 12,
+                  color: chateuTextMuted,
                   height: 1.4,
                 ),
               ),

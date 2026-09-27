@@ -253,11 +253,11 @@ class _TenantManagementPageState extends State<TenantManagementPage> {
                           child: Column(
                             children: [
                               Icon(Icons.people_outline_rounded,
-                                  size: 48, color: Colors.grey.shade300),
+                                  size: 48, color: chateuBorder),
                               const SizedBox(height: AppSpacing.md),
                               Text('No tenants added yet.',
                                   style: AppText.bodyMedium
-                                      .copyWith(color: Colors.grey.shade400)),
+                                      .copyWith(color: chateuTextSubtle)),
                             ],
                           ),
                         ),
@@ -297,7 +297,7 @@ class _TenantCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = tenant.isPending
         ? chateuAccent
-        : (tenant.isActive ? chateuPrimary : Colors.grey);
+        : (tenant.isActive ? chateuPrimary : chateuTextMuted);
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -327,7 +327,7 @@ class _TenantCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 2),
                     Text(tenant.email,
-                        style: AppText.caption.copyWith(color: Colors.grey.shade500),
+                        style: AppText.caption.copyWith(color: chateuTextMuted),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                   ],
@@ -343,10 +343,10 @@ class _TenantCard extends StatelessWidget {
           if (tenant.phone.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
             Row(children: [
-              Icon(Icons.phone_rounded, size: 14, color: Colors.grey.shade500),
+              Icon(Icons.phone_rounded, size: 14, color: chateuTextMuted),
               const SizedBox(width: 6),
               Text(tenant.phone,
-                  style: AppText.caption.copyWith(color: Colors.grey.shade600)),
+                  style: AppText.caption.copyWith(color: chateuTextMuted)),
             ]),
           ],
           if (tenant.isPending) ...[
@@ -373,17 +373,17 @@ class _TenantCard extends StatelessWidget {
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Color(0xFFB45309)),
+                                strokeWidth: 2, color: chateuWarning),
                           )
                         : Icon(
                             tenant.isActive
                                 ? Icons.block_rounded
                                 : Icons.check_circle_outline_rounded,
                             size: 16,
-                            color: const Color(0xFFB45309)),
+                            color: chateuWarning),
                     label: Text(tenant.isActive ? 'Deactivate' : 'Reactivate',
                         style:
-                            const TextStyle(color: Color(0xFFB45309), fontSize: 12)),
+                            const TextStyle(color: chateuWarning, fontSize: 12)),
                   ),
                 ),
               Expanded(
@@ -394,12 +394,12 @@ class _TenantCard extends StatelessWidget {
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Color(0xFFDC2626)),
+                              strokeWidth: 2, color: chateuError),
                         )
                       : const Icon(Icons.delete_outline_rounded,
-                          size: 16, color: Color(0xFFDC2626)),
+                          size: 16, color: chateuError),
                   label: const Text('Remove',
-                      style: TextStyle(color: Color(0xFFDC2626), fontSize: 12)),
+                      style: TextStyle(color: chateuError, fontSize: 12)),
                 ),
               ),
             ],
@@ -613,12 +613,12 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
               Text('Add Tenant', style: AppText.titleLarge),
               const SizedBox(height: AppSpacing.xs),
               Text('Create a login account for your tenant.',
-                  style: AppText.bodyMedium.copyWith(color: Colors.grey.shade500)),
+                  style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
               if (_errorText != null) ...[
                 const SizedBox(height: AppSpacing.md),
                 AppNoticeBanner(
                   icon: Icons.error_rounded,
-                  color: const Color(0xFFDC2626),
+                  color: chateuError,
                   text: _errorText!,
                 ),
               ],
@@ -692,7 +692,7 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
               Text(
                   'Same requirements as a homeowner move-in — the HOA admin must '
                   'approve this before your tenant can log in.',
-                  style: AppText.bodyMedium.copyWith(color: Colors.grey.shade500)),
+                  style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.md),
 
               Text('Move-In Date *',
@@ -720,7 +720,7 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
                             fontSize: 14,
                             color: _moveInDateCtrl.text.isEmpty
                                 ? Colors.black38
-                                : Colors.black87),
+                                : chateuText),
                       ),
                     ),
                     const Icon(Icons.expand_more_rounded, color: chateuPrimary),
@@ -793,7 +793,7 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
             child: Text(
               hasFile ? file.name : hint,
               style: AppText.caption.copyWith(
-                  color: hasFile ? chateuPrimary : Colors.grey.shade500),
+                  color: hasFile ? chateuPrimary : chateuTextMuted),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -801,7 +801,7 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
             GestureDetector(
               onTap: onRemove,
               child: Icon(Icons.close_rounded,
-                  size: 16, color: Colors.grey.shade500),
+                  size: 16, color: chateuTextMuted),
             ),
         ]),
       ),
@@ -823,7 +823,7 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
       children: [
         Text(label,
             style: AppText.caption
-                .copyWith(color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                .copyWith(color: chateuTextMuted, fontWeight: FontWeight.w600)),
         const SizedBox(height: 5),
         TextField(
           controller: controller,
@@ -836,7 +836,7 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
             prefixIcon: icon != null ? Icon(icon, size: 18, color: chateuPrimary) : null,
             suffixIcon: suffixIcon,
             filled: true,
-            fillColor: enabled ? chateuBackground : Colors.grey.shade100,
+            fillColor: enabled ? chateuBackground : chateuSurfaceMuted,
             isDense: true,
             counterText: '',
             contentPadding:

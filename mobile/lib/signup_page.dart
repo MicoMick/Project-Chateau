@@ -383,7 +383,7 @@ class _SignupPageState extends State<SignupPage> {
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: 18, fontWeight: FontWeight.w800,
-                  color: Color(0xFF1A1A1A)),
+                  color: chateuText),
             ),
             const SizedBox(height: 12),
             const Text(
@@ -469,7 +469,7 @@ class _SignupPageState extends State<SignupPage> {
                 width: 40, height: 4,
                 margin: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: chateuBorder,
                     borderRadius: BorderRadius.circular(2)),
               ),
               Padding(
@@ -481,7 +481,7 @@ class _SignupPageState extends State<SignupPage> {
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                   const Spacer(),
                   Text('${filtered.length} lots',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                      style: TextStyle(fontSize: 12, color: chateuTextMuted)),
                 ]),
               ),
               Padding(
@@ -490,10 +490,10 @@ class _SignupPageState extends State<SignupPage> {
                   autofocus: false,
                   decoration: InputDecoration(
                     hintText: 'Search e.g. Blk 52 Lot 4',
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                    hintStyle: TextStyle(color: chateuTextSubtle, fontSize: 13),
                     prefixIcon: const Icon(Icons.search_rounded, color: chateuPrimary, size: 18),
                     filled: true,
-                    fillColor: Colors.grey.shade100,
+                    fillColor: chateuSurfaceMuted,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                     border: OutlineInputBorder(
@@ -512,7 +512,7 @@ class _SignupPageState extends State<SignupPage> {
               Expanded(
                 child: filtered.isEmpty
                     ? Center(child: Text('No lots found',
-                          style: TextStyle(color: Colors.grey.shade400)))
+                          style: TextStyle(color: chateuTextSubtle)))
                     : ListView.builder(
                         controller: scrollController,
                         itemCount: filtered.length,
@@ -534,7 +534,7 @@ class _SignupPageState extends State<SignupPage> {
                                 style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                                    color: isSelected ? chateuPrimary : const Color(0xFF1A1A1A))),
+                                    color: isSelected ? chateuPrimary : chateuText)),
                             trailing: isSelected
                                 ? const Icon(Icons.check_circle_rounded,
                                     color: chateuPrimary, size: 18)
@@ -711,7 +711,7 @@ class _SignupPageState extends State<SignupPage> {
                         ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
                         : Text('${i + 1}',
                             style: TextStyle(
-                                color: isActive ? Colors.black87 : Colors.white70,
+                                color: isActive ? chateuText : Colors.white70,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13)),
                   ),
@@ -719,7 +719,7 @@ class _SignupPageState extends State<SignupPage> {
                 const SizedBox(height: 4),
                 Text(labels[i],
                     style: TextStyle(
-                        fontSize: 9,
+                        fontSize: 11,
                         color: isActive ? chateuAccent : Colors.white.withAlpha(160),
                         fontWeight: isActive ? FontWeight.w700 : FontWeight.w400)),
               ],
@@ -805,7 +805,7 @@ class _SignupPageState extends State<SignupPage> {
                   style: TextStyle(
                       color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
               Text('Tell us about yourself',
-                  style: TextStyle(color: Colors.white54, fontSize: 11)),
+                  style: TextStyle(color: Colors.white54, fontSize: 12)),
             ],
           ),
         ]),
@@ -880,14 +880,14 @@ class _SignupPageState extends State<SignupPage> {
                 Icon(
                   ok ? Icons.check_circle_rounded : Icons.cancel_rounded,
                   size: 13,
-                  color: ok ? chateuPrimary : const Color(0xFFDC2626),
+                  color: ok ? chateuPrimary : chateuError,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   ok ? 'Valid phone number' : 'Use format: 09XXXXXXXXX or +639XXXXXXXXX',
                   style: TextStyle(
-                      fontSize: 11,
-                      color: ok ? chateuPrimary : const Color(0xFFDC2626)),
+                      fontSize: 12,
+                      color: ok ? chateuPrimary : chateuError),
                 ),
               ]),
             );
@@ -997,7 +997,7 @@ class _SignupPageState extends State<SignupPage> {
                       : 'Tap to choose block / lot'),
                   style: TextStyle(
                       fontSize: 13,
-                      color: _selectedLot != null ? Colors.black87 : Colors.black38),
+                      color: _selectedLot != null ? chateuText : Colors.black38),
                 ),
               ),
               Icon(Icons.expand_more_rounded,
@@ -1097,7 +1097,7 @@ class _SignupPageState extends State<SignupPage> {
                     style: TextStyle(
                         color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
                 Text('CREVHAI – Required Documents',
-                    style: TextStyle(color: Colors.white54, fontSize: 11)),
+                    style: TextStyle(color: Colors.white54, fontSize: 12)),
               ],
             ),
           ),
@@ -1128,13 +1128,13 @@ class _SignupPageState extends State<SignupPage> {
               Text(
                 'Chateau Real Executive Village Homeowners Association Inc. (CREVHAI)',
                 style: TextStyle(
-                    color: Colors.white.withAlpha(180), fontSize: 10),
+                    color: Colors.white.withAlpha(180), fontSize: 12),
               ),
               if (_selectedLot != null && _selectedStreet != null) ...[
                 const SizedBox(height: 6),
                 Text(
                   '$_selectedLot, ${_selectedStreet!.street} St., Chateau Real, Buenavista III, General Trias, Cavite',
-                  style: TextStyle(color: Colors.white.withAlpha(160), fontSize: 10),
+                  style: TextStyle(color: Colors.white.withAlpha(160), fontSize: 12),
                 ),
               ],
             ],
@@ -1286,7 +1286,7 @@ class _SignupPageState extends State<SignupPage> {
             'This must be completed before your account can be activated.',
             style: TextStyle(
                 color: chateuAccent,
-                fontSize: 11,
+                fontSize: 12,
                 height: 1.45),
           ),
         ],
@@ -1321,7 +1321,7 @@ class _SignupPageState extends State<SignupPage> {
               'REQ',
               style: TextStyle(
                   color: chateuAccent,
-                  fontSize: 8,
+                  fontSize: 10,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.5),
             ),
@@ -1352,7 +1352,7 @@ class _SignupPageState extends State<SignupPage> {
               text,
               style: TextStyle(
                   fontSize: 13,
-                  color: isEmpty ? Colors.black38 : Colors.black87),
+                  color: isEmpty ? Colors.black38 : chateuText),
             ),
           ),
           Icon(Icons.expand_more_rounded, color: chateuPrimary),
@@ -1401,7 +1401,7 @@ class _SignupPageState extends State<SignupPage> {
           if (hasFile)
             GestureDetector(
               onTap: onRemove,
-              child: const Icon(Icons.close_rounded, size: 18, color: Colors.red),
+              child: const Icon(Icons.close_rounded, size: 18, color: chateuError),
             )
           else
             const Icon(Icons.add_photo_alternate_rounded, size: 18, color: chateuPrimary),
@@ -1430,7 +1430,7 @@ class _SignupPageState extends State<SignupPage> {
           Expanded(
             child: Text(text,
                 style: TextStyle(
-                    color: color, fontSize: 11, fontWeight: FontWeight.w500)),
+                    color: color, fontSize: 12, fontWeight: FontWeight.w500)),
           ),
         ]),
       );
@@ -1459,7 +1459,7 @@ class _SignupPageState extends State<SignupPage> {
         textCapitalization: textCapitalization,
         maxLength: maxLength,
         inputFormatters: inputFormatters,
-        style: const TextStyle(fontSize: 14, color: Colors.black87),
+        style: const TextStyle(fontSize: 14, color: chateuText),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
@@ -1488,7 +1488,7 @@ class _SignupPageState extends State<SignupPage> {
       TextField(
         controller: controller,
         obscureText: isHidden,
-        style: const TextStyle(fontSize: 14, color: Colors.black87),
+        style: const TextStyle(fontSize: 14, color: chateuText),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
@@ -1621,7 +1621,7 @@ class _InfoDialog extends StatelessWidget {
         const SizedBox(height: 14),
         Text(title,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A))),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: chateuText)),
         const SizedBox(height: 10),
         Text(message,
             textAlign: TextAlign.center,

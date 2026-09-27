@@ -122,7 +122,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
               Text(
                 "Enter your account email. Your HOA admin will be notified and will reset your password for you.",
                 textAlign: TextAlign.center,
-                style: AppText.bodyMedium.copyWith(color: Colors.grey.shade600),
+                style: AppText.bodyMedium.copyWith(color: chateuTextMuted),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -133,7 +133,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                 decoration: InputDecoration(
                   hintText: 'you@email.com',
                   filled: true,
-                  fillColor: Colors.grey.shade100,
+                  fillColor: chateuSurfaceMuted,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                     borderSide: BorderSide.none,
@@ -147,11 +147,11 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                   child: OutlinedButton(
                     onPressed: isSubmitting ? null : () => Navigator.pop(dialogContext, false),
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.grey.shade300),
+                      side: BorderSide(color: chateuBorder),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: Text('Cancel', style: AppText.labelMedium.copyWith(color: Colors.grey.shade700)),
+                    child: Text('Cancel', style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -383,7 +383,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       obscureText: isPassword ? _isObscured : false,
       keyboardType: keyboardType,
       validator: validator,
-      style: const TextStyle(color: Colors.black87, fontSize: 15),
+      style: const TextStyle(color: chateuText, fontSize: 15),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
@@ -391,7 +391,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         filled: true,
         suffixIcon: isPassword
             ? IconButton(
-                icon: Icon(_isObscured ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                icon: Icon(_isObscured ? Icons.visibility_off : Icons.visibility, color: chateuTextMuted),
                 onPressed: () => setState(() => _isObscured = !_isObscured),
               )
             : null,
