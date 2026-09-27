@@ -179,18 +179,16 @@ class _SignupPageState extends State<SignupPage> {
       }) as bool;
       if (!available) {
         if (!mounted) return false;
-        await showDialog(
-          context: context,
-          builder: (_) => const _InfoDialog(
-            icon: Icons.home_rounded,
-            iconColor: chateuAccent,
-            title: 'Lot Already Has a Homeowner',
-            message:
-                'This lot already has a registered and active homeowner.\n\n'
-                'If you are the homeowner, please contact the HOA admin. '
-                'If you are a tenant, ask your homeowner to add you through '
-                'the Tenant Management feature in their account.',
-          ),
+        await showInfoDialog(
+          context,
+          icon: Icons.home_rounded,
+          iconColor: chateuWarning,
+          title: 'Lot Already Has a Homeowner',
+          message:
+              'This lot already has a registered and active homeowner.\n\n'
+              'If you are the homeowner, please contact the HOA admin. '
+              'If you are a tenant, ask your homeowner to add you through '
+              'the Tenant Management feature in their account.',
         );
         return false;
       }
@@ -1590,57 +1588,4 @@ class _SignupPageState extends State<SignupPage> {
           ),
         ),
       );
-}
-
-// ── Info Dialog ────────────────────────────────────────────────────────────────
-
-class _InfoDialog extends StatelessWidget {
-  final IconData icon;
-  final Color    iconColor;
-  final String   title;
-  final String   message;
-
-  const _InfoDialog({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.message,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      contentPadding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: iconColor.withAlpha(20), shape: BoxShape.circle),
-          child: Icon(icon, color: iconColor, size: 36),
-        ),
-        const SizedBox(height: 14),
-        Text(title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: chateuText)),
-        const SizedBox(height: 10),
-        Text(message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: Colors.black54, height: 1.5)),
-        const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: chateuPrimary, elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-            child: const Text('Got it',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
-          ),
-        ),
-      ]),
-    );
-  }
 }
