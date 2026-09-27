@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'app_theme.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared Dialog & Snackbar utilities — v1.0
-//
-// Use these everywhere so popups are 100% cohesive across the app.
-// ─────────────────────────────────────────────────────────────────────────────
+// Shared snackbars and dialogs, so feedback looks the same on every screen.
 
 // ── Snackbar ──────────────────────────────────────────────────────────────────
 
@@ -23,7 +19,7 @@ void showAppSnack(
   final IconData icon;
   switch (type) {
     case SnackType.success:
-      bg   = chateuPrimary;
+      bg   = chateuBrand;
       icon = Icons.check_circle_rounded;
       break;
     case SnackType.error:
@@ -40,18 +36,18 @@ void showAppSnack(
       break;
   }
 
+  final fg = type == SnackType.success ? chateuOnBrand : chateuOnColor;
+
   ScaffoldMessenger.of(context)
     ..clearSnackBars()
     ..showSnackBar(SnackBar(
       content: Row(children: [
-        Icon(icon, color: Colors.white, size: 18),
+        Icon(icon, color: fg, size: 18),
         const SizedBox(width: 10),
         Expanded(child: Text(message,
-            style: AppText.bodyMedium.copyWith(color: Colors.white))),
+            style: AppText.bodyMedium.copyWith(color: fg))),
       ]),
       backgroundColor: bg,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
       margin: const EdgeInsets.all(AppSpacing.lg),
       duration: const Duration(seconds: 3),
     ));
@@ -59,6 +55,8 @@ void showAppSnack(
 
 // ── Confirm Dialog ────────────────────────────────────────────────────────────
 
+/// Material alert dialog. [icon] is accepted for call-site compatibility but
+/// only shown for destructive confirmations, where it earns the attention.
 Future<bool> showConfirmDialog(
   BuildContext context, {
   required String title,
@@ -70,94 +68,30 @@ Future<bool> showConfirmDialog(
 }) async {
   final result = await showDialog<bool>(
     context: context,
-    barrierDismissible: false,
-    builder: (_) => _AppConfirmDialog(
-      title:         title,
-      message:       message,
-      confirmLabel:  confirmLabel,
-      cancelLabel:   cancelLabel,
-      isDanger:      isDanger,
-      icon:          icon,
+    builder: (ctx) => AlertDialog(
+      icon: isDanger
+          ? Icon(icon ?? Icons.warning_rounded, color: chateuError)
+          : null,
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(cancelLabel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: isDanger
+              ? FilledButton.styleFrom(
+                  backgroundColor: chateuError,
+                  foregroundColor: chateuOnColor)
+              : null,
+          child: Text(confirmLabel),
+        ),
+      ],
     ),
   );
   return result ?? false;
-}
-
-class _AppConfirmDialog extends StatelessWidget {
-  final String    title;
-  final String    message;
-  final String    confirmLabel;
-  final String    cancelLabel;
-  final bool      isDanger;
-  final IconData? icon;
-
-  const _AppConfirmDialog({
-    required this.title,
-    required this.message,
-    required this.confirmLabel,
-    required this.cancelLabel,
-    required this.isDanger,
-    this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final confirmColor = isDanger ? chateuError : chateuPrimary;
-    final effectiveIcon = icon ?? (isDanger ? Icons.warning_rounded : Icons.help_outline_rounded);
-
-    return AlertDialog(
-      backgroundColor: chateuSurface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-      contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: confirmColor.withAlpha(16),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(effectiveIcon, color: confirmColor, size: 32),
-        ),
-        const SizedBox(height: 16),
-        Text(title,
-            textAlign: TextAlign.center,
-            style: AppText.titleLarge),
-        const SizedBox(height: 8),
-        Text(message,
-            textAlign: TextAlign.center,
-            style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
-        const SizedBox(height: 20),
-        Row(children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () => Navigator.pop(context, false),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: chateuBorder),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: Text(cancelLabel,
-                  style: AppText.labelMedium.copyWith(color: chateuText)),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: confirmColor,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: Text(confirmLabel,
-                  style: AppText.labelMedium.copyWith(color: Colors.white)),
-            ),
-          ),
-        ]),
-      ]),
-    );
-  }
 }
 
 // ── Info / Notice Dialog ──────────────────────────────────────────────────────
@@ -172,77 +106,30 @@ Future<void> showInfoDialog(
 }) async {
   await showDialog(
     context: context,
-    builder: (_) => _AppInfoDialog(
-      title:       title,
-      message:     message,
-      icon:        icon ?? Icons.info_rounded,
-      iconColor:   iconColor ?? chateuPrimary,
-      buttonLabel: buttonLabel,
+    builder: (ctx) => AlertDialog(
+      icon: icon == null ? null : Icon(icon, color: iconColor ?? chateuPrimary),
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: Text(buttonLabel),
+        ),
+      ],
     ),
   );
 }
 
-class _AppInfoDialog extends StatelessWidget {
-  final String   title;
-  final String   message;
-  final IconData icon;
-  final Color    iconColor;
-  final String   buttonLabel;
-
-  const _AppInfoDialog({
-    required this.title,
-    required this.message,
-    required this.icon,
-    required this.iconColor,
-    required this.buttonLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: chateuSurface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-      contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: iconColor.withAlpha(16), shape: BoxShape.circle),
-          child: Icon(icon, color: iconColor, size: 32),
-        ),
-        const SizedBox(height: 16),
-        Text(title, textAlign: TextAlign.center, style: AppText.titleLarge),
-        const SizedBox(height: 8),
-        Text(message,
-            textAlign: TextAlign.center,
-            style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
-        const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: iconColor,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            child: Text(buttonLabel,
-                style: AppText.labelMedium.copyWith(color: Colors.white)),
-          ),
-        ),
-      ]),
-    );
-  }
-}
-
 // ── Bottom Sheet handle ────────────────────────────────────────────────────────
 
+/// Material 3 drag handle (32×4, on-surface-variant at 40%) for sheets that
+/// draw their own surface.
 Widget buildSheetHandle() => Center(
   child: Container(
-    width: 40, height: 4,
+    width: 32, height: 4,
     margin: const EdgeInsets.only(bottom: AppSpacing.lg),
     decoration: BoxDecoration(
-      color: chateuBorder,
+      color: chateuTextMuted.withAlpha(102),
       borderRadius: BorderRadius.circular(2),
     ),
   ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
@@ -14,6 +15,7 @@ import 'aboutus_page.dart';
 import 'voting_page.dart';
 import 'payment_page.dart';
 import 'tenant_management_page.dart';
+import 'settings_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'push_notifications.dart';
 
@@ -61,46 +63,6 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
-  Widget _getBody(int index) {
-    switch (index) {
-      case 0:
-        return HomeDashboard(residentType: _residentType);
-      case 1:
-        return const ReportPage();
-      case 2:
-        return const MapPage();
-      case 3:
-        return const ReservePage();
-      default:
-        return HomeDashboard(residentType: _residentType);
-    }
-  }
-
-  // Returns a stream that emits the total notification count (personal + broadcast).
-  // Supabase's .stream() doesn't support OR filters, so we poll on any
-  // personal-notification change and then fetch the full OR count manually.
-  Stream<int> _getUnreadCount() {
-    final userId = supabase.auth.currentUser?.id;
-    if (userId == null) return Stream.value(0);
-
-    // Use the personal stream as a trigger; on each tick re-query both types.
-    return supabase
-        .from('notifications')
-        .stream(primaryKey: ['id'])
-        .eq('user_id', userId)
-        .asyncMap((_) async {
-          try {
-            final data = await supabase
-                .from('notifications')
-                .select('id')
-                .or('user_id.eq.$userId,user_id.is.null');
-            return (data as List).length;
-          } catch (_) {
-            return 0;
-          }
-        });
-  }
-
   Future<void> _handleLogout() async {
     if (mounted && (Scaffold.maybeOf(context)?.isDrawerOpen ?? false)) {
       Navigator.of(context).pop();
@@ -108,12 +70,12 @@ class _HomePageState extends State<HomePage> {
 
     final confirm = await showConfirmDialog(
       context,
-      title:        'Sign Out',
-      message:      'Are you sure you want to sign out?',
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out?',
       confirmLabel: 'Sign Out',
-      cancelLabel:  'Cancel',
-      isDanger:     true,
-      icon:         Icons.logout_rounded,
+      cancelLabel: 'Cancel',
+      isDanger: true,
+      icon: Icons.logout_rounded,
     );
 
     if (confirm == true) {
@@ -131,16 +93,96 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  // Tabs are built on first visit and then kept alive, so switching back
+  // doesn't refetch data or reset scroll (the map keeps its tiles).
+  final Set<int> _visitedTabs = {0};
+
+  static const _destinations = [
+    (icon: Icons.home_outlined, selected: Icons.home_rounded, label: 'Home'),
+    (
+      icon: Icons.chat_bubble_outline,
+      selected: Icons.chat_bubble_rounded,
+      label: 'Report'
+    ),
+    (icon: Icons.map_outlined, selected: Icons.map_rounded, label: 'Map'),
+    (
+      icon: Icons.event_available_outlined,
+      selected: Icons.event_available_rounded,
+      label: 'Reserve'
+    ),
+  ];
+
+  Widget _tab(int index) {
+    switch (index) {
+      case 1:
+        return const ReportPage();
+      case 2:
+        return const MapPage();
+      case 3:
+        return const ReservePage();
+      default:
+        return HomeDashboard(
+          residentType: _residentType,
+          displayName: _displayName,
+          onOpenTab: _selectTab,
+        );
+    }
+  }
+
+  void _selectTab(int index) => setState(() {
+        _selectedIndex = index;
+        _visitedTabs.add(index);
+      });
+
   @override
   Widget build(BuildContext context) {
     final user = supabase.auth.currentUser;
+    final wide = MediaQuery.sizeOf(context).width >= 600;
+
+    final body = IndexedStack(
+      index: _selectedIndex,
+      children: [
+        for (var i = 0; i < _destinations.length; i++)
+          _visitedTabs.contains(i) ? _tab(i) : const SizedBox.shrink(),
+      ],
+    );
 
     return Scaffold(
-      backgroundColor: chateuBackground,
       drawer: _buildDrawer(user, _residentType),
       appBar: _buildAppBar(),
-      body: _getBody(_selectedIndex),
-      bottomNavigationBar: _buildBottomNav(),
+      body: wide
+          ? Row(children: [
+              NavigationRail(
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: _selectTab,
+                labelType: NavigationRailLabelType.all,
+                destinations: [
+                  for (final d in _destinations)
+                    NavigationRailDestination(
+                      icon: Icon(d.icon),
+                      selectedIcon: Icon(d.selected),
+                      label: Text(d.label),
+                    ),
+                ],
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(child: body),
+            ])
+          : body,
+      bottomNavigationBar: wide
+          ? null
+          : NavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: _selectTab,
+              destinations: [
+                for (final d in _destinations)
+                  NavigationDestination(
+                    icon: Icon(d.icon),
+                    selectedIcon: Icon(d.selected),
+                    label: d.label,
+                  ),
+              ],
+            ),
     );
   }
 
@@ -150,144 +192,136 @@ class _HomePageState extends State<HomePage> {
     // residentType == null → profile still loading; treat same as tenant
     // to avoid the Payments tile flashing then disappearing.
     final isTenant = residentType == null || residentType == 'tenant';
+    final role = residentType == null
+        ? null
+        : residentType == 'tenant'
+            ? 'Tenant'
+            : 'Homeowner';
+
+    void open(Widget page, {VoidCallback? then}) async {
+      Navigator.pop(context);
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+      then?.call();
+    }
+
     return Drawer(
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.only(
-          topRight: Radius.circular(AppRadius.xl),
-          bottomRight: Radius.circular(AppRadius.xl),
-        ),
-      ),
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── Header ────────────────────────────────────────────────
-            UserAccountsDrawerHeader(
-              margin: EdgeInsets.zero,
-              decoration: const BoxDecoration(color: chateuPrimary),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: Colors.white.withAlpha(50),
-                child: Padding(
-                  padding: const EdgeInsets.all(3.0),
-                  child: CircleAvatar(
-                    radius: 34,
-                    backgroundColor: Colors.white,
-                    child: ClipOval(child: _buildDrawerAvatar()),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Account card: who's signed in; tapping opens My Account
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
+              child: Material(
+                color: chateuSurfaceMuted,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => open(const AccountPage(), then: _loadProfile),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: Row(
+                      children: [
+                        ClipOval(
+                          child: SizedBox(
+                              width: 52,
+                              height: 52,
+                              child: _buildDrawerAvatar()),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _displayName,
+                                style: AppText.titleMedium,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                user?.email ?? '',
+                                style: AppText.caption,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (role != null) ...[
+                                const SizedBox(height: 6),
+                                AppStatusBadge(
+                                    label: role, color: chateuPrimary),
+                              ],
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded,
+                            color: chateuTextMuted),
+                      ],
+                    ),
                   ),
-                ),
-              ),
-              accountName: Text(
-                _displayName,
-                style: AppText.titleMedium.copyWith(color: Colors.white),
-              ),
-              accountEmail: Text(
-                user?.email ?? '',
-                style: AppText.caption.copyWith(
-                  color: Colors.white.withAlpha(180),
                 ),
               ),
             ),
+          ),
 
-            // ── Scrollable nav items ───────────────────────────────────
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                child: Column(
-                  children: [
-                    _drawerTile(
-                      icon: Icons.account_circle_outlined,
-                      label: "My Account",
-                      onTap: () async {
-                        Navigator.pop(context);
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (c) => const AccountPage()),
-                        );
-                        _loadProfile();
-                      },
-                    ),
-                    if (!isTenant) ...[
-                      _drawerTile(
-                        icon: Icons.how_to_vote_outlined,
-                        label: "Voting",
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (c) => const VotingPage()),
-                          );
-                        },
-                      ),
-                      _drawerTile(
-                        icon: Icons.payment_rounded,
-                        label: "Payments",
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (c) => const PaymentPage()),
-                          );
-                        },
-                      ),
-                      _drawerTile(
-                        icon: Icons.people_alt_outlined,
-                        label: "Tenant Management",
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (c) => const TenantManagementPage()),
-                          );
-                        },
-                      ),
-                    ],
-                    _drawerTile(
-                      icon: Icons.info_outline_rounded,
-                      label: "About Us",
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (c) => const AboutPage()),
-                        );
-                      },
-                    ),
-                  ],
+          // ── Destinations, grouped
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
+              children: [
+                if (!isTenant) ...[
+                  _drawerSection('Account'),
+                  _drawerTile(
+                    icon: Icons.receipt_long_outlined,
+                    label: "Payments",
+                    onTap: () => open(const PaymentPage()),
+                  ),
+                  _drawerTile(
+                    icon: Icons.people_alt_outlined,
+                    label: "Tenant Management",
+                    onTap: () => open(const TenantManagementPage()),
+                  ),
+                  _drawerSection('Community'),
+                  _drawerTile(
+                    icon: Icons.how_to_vote_outlined,
+                    label: "Voting",
+                    onTap: () => open(const VotingPage()),
+                  ),
+                ],
+                _drawerSection('App'),
+                _drawerTile(
+                  icon: Icons.settings_outlined,
+                  label: "Settings",
+                  onTap: () => open(const SettingsPage()),
                 ),
-              ),
+                _drawerTile(
+                  icon: Icons.info_outline_rounded,
+                  label: "About Us",
+                  onTap: () => open(const AboutPage()),
+                ),
+              ],
             ),
+          ),
 
-            // ── Fixed footer: Sign Out always visible ─────────────────
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-              child: ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: chateuError.withAlpha(15),
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                  ),
-                  child: const Icon(Icons.logout_rounded,
-                      color: chateuError, size: 20),
-                ),
-                title: Text(
-                  "Sign Out",
-                  style: AppText.bodyLarge.copyWith(
-                    color: chateuError,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.sm)),
+          // ── Footer
+          const Divider(height: 1),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
+              child: _drawerTile(
+                icon: Icons.logout_rounded,
+                label: "Sign Out",
+                color: chateuError,
                 onTap: _handleLogout,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -295,99 +329,76 @@ class _HomePageState extends State<HomePage> {
   // ── AppBar ────────────────────────────────────────────────────────────────
 
   PreferredSizeWidget _buildAppBar() {
+    final buttonStyle = IconButton.styleFrom(
+      backgroundColor: Colors.white.withAlpha(34),
+      foregroundColor: chateuOnBrand,
+    );
     return AppBar(
-      backgroundColor: chateuBackground,
+      backgroundColor: chateuBrand,
       elevation: 0,
+      scrolledUnderElevation: 0,
+      systemOverlayStyle: SystemUiOverlayStyle.light,
+      flexibleSpace: CustomPaint(
+        painter: LotPlanPainter(color: Colors.white.withAlpha(22)),
+      ),
       leading: Builder(
-        builder: (context) => IconButton(
-          icon: const Icon(
-            Icons.grid_view_rounded,
-            color: chateuSecondary,
-            size: 26,
+        builder: (context) => Center(
+          child: IconButton(
+            tooltip: 'Open menu',
+            style: buttonStyle,
+            icon: const Icon(Icons.grid_view_rounded),
+            onPressed: () => Scaffold.of(context).openDrawer(),
           ),
-          onPressed: () => Scaffold.of(context).openDrawer(),
         ),
       ),
       title: Image.asset(
         'assets/logo.png',
-        height: 38,
+        height: 30,
+        semanticLabel: 'Chateau Real',
         errorBuilder: (c, e, s) => Text(
           "CHATEAU",
-          style: AppText.titleLarge.copyWith(color: chateuPrimary),
+          style: AppText.titleLarge.copyWith(color: chateuLogoYellow),
         ),
       ),
       centerTitle: true,
       actions: [
-        StreamBuilder<int>(
-          stream: _getUnreadCount(),
-          builder: (context, snapshot) {
-            final count = snapshot.data ?? 0;
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-                IconButton(
-                  icon: Icon(
-                    count > 0
-                        ? Icons.notifications_rounded
-                        : Icons.notifications_none_outlined,
-                    color: chateuSecondary,
-                    size: 26,
-                  ),
-                  onPressed: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (c) => const NotificationPage()),
-                    );
-                  },
-                ),
-              ],
-            );
-          },
+        IconButton(
+          tooltip: 'Notifications',
+          style: buttonStyle,
+          icon: const Icon(Icons.notifications_none_outlined),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (c) => const NotificationPage()),
+          ),
         ),
+        const SizedBox(width: AppSpacing.xs),
       ],
-    );
-  }
-
-  // ── Bottom Nav ────────────────────────────────────────────────────────────
-
-  Widget _buildBottomNav() {
-    return BottomNavigationBar(
-      currentIndex: _selectedIndex,
-      onTap: (index) => setState(() => _selectedIndex = index),
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: Colors.white,
-      selectedItemColor: chateuPrimary,
-      unselectedItemColor: chateuTextSubtle,
-      selectedLabelStyle: AppText.caption.copyWith(fontWeight: FontWeight.w700),
-      unselectedLabelStyle: AppText.caption,
-      elevation: 8,
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          activeIcon: Icon(Icons.home_rounded),
-          label: "Home",
+      // Signature rule in the logo's colors: dark green, with a short
+      // yellow segment under the wordmark.
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(2),
+        child: SizedBox(
+          height: 2,
+          child: Stack(
+            children: [
+              const Positioned.fill(
+                  child: ColoredBox(color: Color(0xFF004D29))),
+              Center(child: Container(width: 48, color: chateuLogoYellow)),
+            ],
+          ),
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.chat_bubble_outline),
-          activeIcon: Icon(Icons.chat_bubble_rounded),
-          label: "Report",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.map_outlined),
-          activeIcon: Icon(Icons.map_rounded),
-          label: "Map",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.event_available_outlined),
-          activeIcon: Icon(Icons.event_available_rounded),
-          label: "Reserve",
-        ),
-      ],
+      ),
     );
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+
+  Widget _drawerSection(String label) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xs),
+        child: Text(label,
+            style: AppText.caption.copyWith(fontWeight: FontWeight.w600)),
+      );
 
   Widget _drawerTile({
     required IconData icon,
@@ -395,22 +406,17 @@ class _HomePageState extends State<HomePage> {
     required VoidCallback onTap,
     Color? color,
   }) {
-    final c = color ?? chateuSecondary;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      child: ListTile(
-        leading: Icon(icon, color: c, size: 22),
-        title: Text(
-          label,
-          style: AppText.bodyLarge.copyWith(
-            color: c,
-            fontWeight: FontWeight.w500,
-          ),
+    return ListTile(
+      leading: Icon(icon, color: color ?? chateuPrimary),
+      title: Text(
+        label,
+        style: AppText.bodyLarge.copyWith(
+          color: color,
+          fontWeight: FontWeight.w500,
         ),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.sm)),
-        onTap: onTap,
       ),
+      shape: const StadiumBorder(),
+      onTap: onTap,
     );
   }
 
@@ -420,6 +426,7 @@ class _HomePageState extends State<HomePage> {
         _avatarUrl!,
         width: 60,
         height: 60,
+        cacheWidth: 180,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _defaultAvatar(),
       );
@@ -441,14 +448,11 @@ class _HomePageState extends State<HomePage> {
     return Container(
       width: 60,
       height: 60,
-      color: chateuSecondary,
+      color: chateuBrand,
       alignment: Alignment.center,
       child: Text(
         initials,
-        style: AppText.displayMedium.copyWith(
-          fontSize: 22,
-          color: Colors.white,
-        ),
+        style: AppText.displayMedium.copyWith(color: chateuOnBrand),
       ),
     );
   }
@@ -472,9 +476,53 @@ class _LegendDot extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 4),
-        Text(label,
-            style: AppText.caption.copyWith(color: chateuTextMuted)),
+        Text(label, style: AppText.caption.copyWith(color: chateuTextMuted)),
       ],
+    );
+  }
+}
+
+// ── Hero quick action ─────────────────────────────────────────────────────────
+
+class _HeroAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _HeroAction(
+      {required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xs, vertical: AppSpacing.xs),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: chateuOnBrand.withAlpha(26),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Icon(icon, color: chateuOnBrand, size: 22),
+              ),
+              const SizedBox(height: 6),
+              Text(label,
+                  style: AppText.caption.copyWith(
+                      color: chateuOnBrand, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -483,7 +531,14 @@ class _LegendDot extends StatelessWidget {
 
 class HomeDashboard extends StatefulWidget {
   final String? residentType;
-  const HomeDashboard({super.key, this.residentType});
+  final String displayName;
+  final ValueChanged<int> onOpenTab;
+  const HomeDashboard({
+    super.key,
+    this.residentType,
+    required this.displayName,
+    required this.onOpenTab,
+  });
 
   @override
   State<HomeDashboard> createState() => _HomeDashboardState();
@@ -498,7 +553,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
   // Each entry: {start: DateTime, end: DateTime, category: String}
   List<Map<String, dynamic>> _announcementRanges = [];
 
-  double _balance = 0.0;        // sum of unpaid payments
+  double _balance = 0.0; // sum of unpaid payments
   double _pendingBalance = 0.0; // sum of pending_verification payments
   double _overdueBalance = 0.0; // sum of overdue payments
   // Back-filled past dues awaiting the Treasurer's manual confirmation (see
@@ -589,22 +644,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
     }).toList();
   }
 
-  Color _categoryColor(String? category) {
-    switch ((category ?? '').toLowerCase()) {
-      case 'event':
-        return chateuInfo;
-      case 'maintenance':
-        return const Color(0xFFFF8C42);
-      case 'election':
-        return chateuError;
-      case 'security':
-        return chateuTextMuted;
-      case 'financial':
-        return chateuSecondary;
-      default: // General
-        return chateuPrimary;
-    }
-  }
+  Color _categoryColor(String? category) => announcementCategoryColor(category);
 
   // ── Day cell builder ─────────────────────────────────────────────────────
 
@@ -619,8 +659,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
     if (isSelected) {
       circleDecoration =
-          const BoxDecoration(color: chateuPrimary, shape: BoxShape.circle);
-      textColor = Colors.white;
+          const BoxDecoration(color: chateuBrand, shape: BoxShape.circle);
+      textColor = chateuOnBrand;
     } else if (isToday) {
       circleDecoration = BoxDecoration(
           color: chateuPrimary.withAlpha(24),
@@ -634,83 +674,96 @@ class _HomeDashboardState extends State<HomeDashboard> {
     if (hasRanges && !isSelected && !isToday) {
       circleDecoration = BoxDecoration(
         shape: BoxShape.circle,
-        color: _categoryColor(ranges.first['category'] as String?).withAlpha(24),
+        color:
+            _categoryColor(ranges.first['category'] as String?).withAlpha(24),
       );
       textColor = chateuText;
     }
 
-    return SizedBox(
-      width: 40,
-      height: 46,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Day number circle
-          Container(
-            width: 32,
-            height: 32,
-            decoration: circleDecoration,
-            child: Center(
-              child: Text(
-                '${day.day}',
-                style: AppText.bodyMedium.copyWith(
-                  color: textColor,
-                  fontWeight: (isToday || isSelected || hasRanges)
-                      ? FontWeight.w700
-                      : FontWeight.w400,
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
+    ];
+    final label = [
+      '${monthNames[day.month - 1]} ${day.day}',
+      if (isToday) 'today',
+      if (hasRanges)
+        '${ranges.length} announcement${ranges.length == 1 ? '' : 's'}',
+    ].join(', ');
+
+    return Semantics(
+      label: label,
+      selected: isSelected,
+      excludeSemantics: true,
+      child: SizedBox(
+        width: 40,
+        height: 46,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Day number circle
+            Container(
+              width: 32,
+              height: 32,
+              decoration: circleDecoration,
+              child: Center(
+                child: Text(
+                  '${day.day}',
+                  style: AppText.bodyMedium.copyWith(
+                    color: textColor,
+                    fontWeight: (isToday || isSelected || hasRanges)
+                        ? FontWeight.w700
+                        : FontWeight.w400,
+                  ),
                 ),
               ),
             ),
-          ),
-          // Category dots — show up to 3
-          if (hasRanges) ...[
-            const SizedBox(height: 3),
-            SizedBox(
-              height: 9,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Show up to 3 unique-category dots
-                  ...ranges
-                      .fold<List<String>>([], (acc, r) {
-                        final cat = r['category'] as String? ?? '';
-                        if (!acc.contains(cat)) acc.add(cat);
-                        return acc;
-                      })
-                      .take(3)
-                      .map((cat) {
-                        final color = _categoryColor(cat);
-                        return Container(
-                          width: 6,
-                          height: 6,
-                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
-                          ),
-                        );
-                      }),
-                  // "+N" if more than 3 unique categories
-                  if (ranges.map((r) => r['category']).toSet().length > 3)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 2),
-                      child: Text(
-                        '+',
-                        style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w800,
-                          color: chateuTextMuted,
-                          height: 1,
-                        ),
-                      ),
-                    ),
-                ],
+            // Category dots — show up to 3
+            if (hasRanges) ...[
+              const SizedBox(height: 3),
+              SizedBox(
+                height: 9,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Show up to 3 unique-category dots
+                    ...ranges
+                        .fold<List<String>>([], (acc, r) {
+                          final cat = r['category'] as String? ?? '';
+                          if (!acc.contains(cat)) acc.add(cat);
+                          return acc;
+                        })
+                        .take(3)
+                        .map((cat) {
+                          final color = _categoryColor(cat);
+                          return Container(
+                            width: 6,
+                            height: 6,
+                            margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                            ),
+                          );
+                        }),
+                  ],
+                ),
               ),
-            ),
-          ] else
-            const SizedBox(height: 9),
-        ],
+            ] else
+              const SizedBox(height: 9),
+          ],
+        ),
       ),
     );
   }
@@ -745,10 +798,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
         minChildSize: 0.3,
         maxChildSize: 0.92,
         builder: (sheetCtx, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: chateuSurface,
             borderRadius:
-                BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+                const BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
           ),
           child: Column(
             children: [
@@ -771,7 +824,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                     ),
                     Row(
                       children: [
-                        const Icon(Icons.calendar_today_rounded,
+                        Icon(Icons.calendar_today_rounded,
                             color: chateuPrimary, size: 18),
                         const SizedBox(width: AppSpacing.sm),
                         Text(dateLabel, style: AppText.titleMedium),
@@ -802,8 +855,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
               Expanded(
                 child: ListView.builder(
                   controller: scrollController,
-                  padding: const EdgeInsets.fromLTRB(AppSpacing.xl,
-                      AppSpacing.md, AppSpacing.xl, AppSpacing.xxxl),
+                  padding: EdgeInsets.fromLTRB(
+                      AppSpacing.xl,
+                      AppSpacing.md,
+                      AppSpacing.xl,
+                      AppSpacing.xxxl + MediaQuery.paddingOf(context).bottom),
                   itemCount: ranges.length,
                   itemBuilder: (_, i) {
                     final r = ranges[i];
@@ -812,7 +868,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                     return Container(
                       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: chateuSurface,
                         borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(
                           color: isEmergency
@@ -825,14 +881,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            height: 3,
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(AppRadius.md)),
-                            ),
-                          ),
                           Padding(
                             padding: const EdgeInsets.all(AppSpacing.md),
                             child: Column(
@@ -841,14 +889,13 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                 Row(
                                   children: [
                                     AppStatusBadge(
-                                      label: (r['category'] as String)
-                                          .toUpperCase(),
+                                      label: r['category'] as String,
                                       color: color,
                                     ),
                                     if (isEmergency) ...[
                                       const SizedBox(width: AppSpacing.sm),
                                       AppStatusBadge(
-                                        label: 'EMERGENCY',
+                                        label: 'Emergency',
                                         color: chateuError,
                                       ),
                                     ],
@@ -892,7 +939,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
           .from('payments')
           .select('amount, status')
           .eq('user_id', user.id)
-          .inFilter('status', ['unpaid', 'overdue', 'pending_verification', 'pending']);
+          .inFilter('status',
+              ['unpaid', 'overdue', 'pending_verification', 'pending']);
 
       double unpaid = 0.0;
       double pending = 0.0;
@@ -985,323 +1033,342 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
+  String get _balanceStatus {
+    final o = _overdueBalance, p = _pendingBalance, u = _balance;
+    String peso(double v) => '₱${v.toStringAsFixed(2)}';
+    if (o > 0 && p > 0) return '${peso(o)} overdue · ${peso(p)} pending';
+    if (o > 0) return '${peso(o)} overdue';
+    if (u > 0 && p > 0) return '${peso(u)} unpaid · ${peso(p)} pending';
+    if (u > 0) return '${peso(u)} unpaid dues';
+    if (p > 0) return '${peso(p)} pending verification';
+    if (_awaitingConfirmationBalance > 0) {
+      return '${peso(_awaitingConfirmationBalance)} awaiting confirmation';
+    }
+    return 'No dues pending';
+  }
+
+  String get _greeting {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  Widget _buildHero(bool showBalance) {
+    const on = chateuOnBrand;
+    final soft = on.withAlpha(235);
+    final firstName = widget.displayName.split(' ').first;
+    final total = _balance +
+        _pendingBalance +
+        _overdueBalance +
+        _awaitingConfirmationBalance;
+    final isTenant = widget.residentType == 'tenant';
+
+    void openPayments() => Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const PaymentPage()));
+    void openNotifications() => Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const NotificationPage()));
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        // A step lighter than the brand-green header above it (white 5:1).
+        color: const Color(0xFF1A7F4D),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(appDark ? 90 : 40),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: CustomPaint(
+        painter: LotPlanPainter(color: on.withAlpha(20)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Greeting
+              Text(_greeting, style: AppText.bodyMedium.copyWith(color: soft)),
+              const SizedBox(height: 2),
+              Semantics(
+                header: true,
+                child: Text(firstName,
+                    style: AppText.displayLarge.copyWith(color: on)),
+              ),
+
+              // ── Balance (homeowners)
+              if (showBalance) ...[
+                const SizedBox(height: AppSpacing.xl),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Balance due",
+                              style: AppText.caption.copyWith(
+                                  color: soft, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          _balanceLoading
+                              ? const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: on),
+                                  ),
+                                )
+                              : Text(
+                                  "₱ ${total.toStringAsFixed(2)}",
+                                  style: AppText.displayMedium.copyWith(
+                                    color: on,
+                                    fontSize: 26,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures()
+                                    ],
+                                  ),
+                                ),
+                          if (!_balanceLoading)
+                            Row(
+                              children: [
+                                if (_overdueBalance > 0) ...[
+                                  const Icon(Icons.warning_amber_rounded,
+                                      size: 14, color: Color(0xFFF4DD03)),
+                                  const SizedBox(width: 4),
+                                ],
+                                Flexible(
+                                  child: Text(
+                                    _balanceStatus,
+                                    style: AppText.caption.copyWith(
+                                      color: _overdueBalance > 0 ? on : soft,
+                                      fontWeight: _overdueBalance > 0
+                                          ? FontWeight.w700
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: on,
+                        foregroundColor: const Color(0xFF1A7F4D),
+                      ),
+                      onPressed: openPayments,
+                      child: Text(total > 0 ? "Pay now" : "Payments"),
+                    ),
+                  ],
+                ),
+              ],
+
+              // ── Quick actions
+              const SizedBox(height: AppSpacing.lg),
+              Divider(color: on.withAlpha(40), height: 1),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _HeroAction(
+                      icon: Icons.chat_bubble_outline,
+                      label: 'Report',
+                      onTap: () => widget.onOpenTab(1)),
+                  _HeroAction(
+                      icon: Icons.map_outlined,
+                      label: 'Map',
+                      onTap: () => widget.onOpenTab(2)),
+                  _HeroAction(
+                      icon: Icons.event_available_outlined,
+                      label: 'Reserve',
+                      onTap: () => widget.onOpenTab(3)),
+                  isTenant || widget.residentType == null
+                      ? _HeroAction(
+                          icon: Icons.notifications_none_outlined,
+                          label: 'Alerts',
+                          onTap: openNotifications)
+                      : _HeroAction(
+                          icon: Icons.receipt_long_outlined,
+                          label: 'Bills',
+                          onTap: openPayments),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final mq = MediaQuery.of(context);
-    final screenW = mq.size.width;
-    final hPad = screenW > 600 ? screenW * 0.06 : AppSpacing.lg;
+    const hPad = AppSpacing.lg;
+    // Emergency announcements always pinned first.
+    final sorted = [
+      ..._announcements.where((a) => a['is_emergency'] == true),
+      ..._announcements.where((a) => a['is_emergency'] != true),
+    ];
+
+    final showBalance =
+        widget.residentType != null && widget.residentType != 'tenant';
 
     return RefreshIndicator(
       onRefresh: _refreshDashboard,
-      color: chateuPrimary,
       child: SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(
-          parent: BouncingScrollPhysics()),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: AppSpacing.md),
-
-          // ── Balance Card ──────────────────────────────────────────
-          // Guard: residentType == null means profile is still loading.
-          // Only render once we know for certain the user is NOT a tenant
-          // to prevent a 1-frame flicker for tenants.
-          if (widget.residentType != null &&
-              widget.residentType != 'tenant') ...[
-            AnimatedOpacity(
-              opacity: 1.0,
-              duration: const Duration(milliseconds: 350),
-              curve: Curves.easeOut,
+        padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          children: [
+            AppContentWidth(
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: hPad),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(AppSpacing.xl),
-                  decoration:
-                      AppDecorations.primaryGradient(radius: AppRadius.lg),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Account Balance",
-                              style: AppText.caption.copyWith(
-                                color: Colors.white.withAlpha(200),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            _balanceLoading
-                                ? const SizedBox(
-                                    height: 32,
-                                    child: Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                : Text(
-                                    "₱ ${(_balance + _pendingBalance + _overdueBalance + _awaitingConfirmationBalance).toStringAsFixed(2)}",
-                                    style: AppText.displayLarge.copyWith(
-                                      color: Colors.white,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                            const SizedBox(height: AppSpacing.sm),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.sm, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withAlpha(30),
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.xxl),
-                              ),
-                              child: Text(
-                                _balanceLoading
-                                    ? "Loading..."
-                                    : (_overdueBalance > 0 && _pendingBalance > 0)
-                                        ? "₱${_overdueBalance.toStringAsFixed(2)} overdue · ₱${_pendingBalance.toStringAsFixed(2)} pending"
-                                        : _overdueBalance > 0
-                                            ? "₱${_overdueBalance.toStringAsFixed(2)} overdue"
-                                            : _balance > 0 && _pendingBalance > 0
-                                                ? "₱${_balance.toStringAsFixed(2)} unpaid · ₱${_pendingBalance.toStringAsFixed(2)} pending"
-                                                : _balance > 0
-                                                    ? "₱${_balance.toStringAsFixed(2)} unpaid dues"
-                                                    : _pendingBalance > 0
-                                                        ? "₱${_pendingBalance.toStringAsFixed(2)} pending verification"
-                                                        : _awaitingConfirmationBalance > 0
-                                                            ? "₱${_awaitingConfirmationBalance.toStringAsFixed(2)} awaiting confirmation"
-                                                            : "No dues pending ✓",
-                                style: AppText.caption.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const PaymentPage()),
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.all(AppSpacing.md + 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withAlpha(30),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.account_balance_wallet_rounded,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-          ],
+                padding: const EdgeInsets.symmetric(horizontal: hPad),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: AppSpacing.md),
 
-          // ── Calendar Header ───────────────────────────────────────
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: hPad),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const AppSectionHeader(title: "HOA Calendar"),
-                const SizedBox(height: AppSpacing.sm),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _LegendDot(color: chateuPrimary, label: "General"),
-                      const SizedBox(width: AppSpacing.md),
-                      _LegendDot(color: chateuSecondary, label: "Financial"),
-                      const SizedBox(width: AppSpacing.md),
-                      _LegendDot(color: chateuInfo, label: "Event"),
-                      const SizedBox(width: AppSpacing.md),
-                      _LegendDot(
-                          color: Color(0xFFFF8C42), label: "Maintenance"),
-                      const SizedBox(width: AppSpacing.md),
-                      _LegendDot(color: chateuError, label: "Election"),
-                      const SizedBox(width: AppSpacing.md),
-                      _LegendDot(color: chateuTextMuted, label: "Security"),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+                    // showBalance guards on residentType != null so the
+                    // balance never flashes for tenants while loading.
+                    _buildHero(showBalance),
+                    const SizedBox(height: AppSpacing.xxl),
 
-          const SizedBox(height: AppSpacing.md),
-
-          // ── Calendar ──────────────────────────────────────────────
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: hPad),
-            child: Container(
-              decoration: AppDecorations.card,
-              child: TableCalendar(
-                firstDay: DateTime.utc(2020, 1, 1),
-                lastDay: DateTime.utc(2030, 12, 31),
-                focusedDay: _focusedDay,
-                selectedDayPredicate: (day) =>
-                    _selectedDay != null && isSameDay(_selectedDay!, day),
-                calendarFormat: CalendarFormat.month,
-                headerStyle: HeaderStyle(
-                  formatButtonVisible: false,
-                  titleCentered: true,
-                  titleTextStyle: AppText.titleMedium,
-                  leftChevronIcon: const Icon(
-                    Icons.chevron_left_rounded,
-                    color: chateuPrimary,
-                  ),
-                  rightChevronIcon: const Icon(
-                    Icons.chevron_right_rounded,
-                    color: chateuPrimary,
-                  ),
-                ),
-                calendarStyle: CalendarStyle(
-                  todayDecoration: BoxDecoration(
-                    color: chateuPrimary.withAlpha(30),
-                    shape: BoxShape.circle,
-                  ),
-                  todayTextStyle: AppText.bodyMedium.copyWith(
-                    color: chateuPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  selectedDecoration: const BoxDecoration(
-                    color: chateuPrimary,
-                    shape: BoxShape.circle,
-                  ),
-                  selectedTextStyle:
-                      AppText.bodyMedium.copyWith(color: Colors.white),
-                  // Reservation dot marker
-                  markerDecoration: const BoxDecoration(
-                    color: chateuSecondary,
-                    shape: BoxShape.circle,
-                  ),
-                  defaultTextStyle: AppText.bodyMedium,
-                  weekendTextStyle:
-                      AppText.bodyMedium.copyWith(color: chateuPrimary),
-                  outsideTextStyle: AppText.bodyMedium.copyWith(
-                    color: chateuBorder,
-                  ),
-                  // Range styling (used by calendarBuilders below)
-                  rangeHighlightColor: chateuInfo.withAlpha(40),
-                ),
-                eventLoader: (day) => _isReserved(day) ? [day] : [],
-                onPageChanged: (day) => setState(() => _focusedDay = day),
-                onDaySelected: (selected, focused) {
-                  setState(() {
-                    _selectedDay = selected;
-                    _focusedDay = focused;
-                  });
-                  // Show bottom sheet if this day has announcements
-                  final ranges = _rangesForDay(selected);
-                  if (ranges.isNotEmpty) {
-                    _showDayAnnouncementsSheet(selected, ranges);
-                  }
-                },
-                // Custom builder — stacks colored strips for multiple ranges
-                calendarBuilders: CalendarBuilders(
-                  defaultBuilder: (ctx, day, focusedDay) => _buildDayCell(
-                      ctx, day,
-                      isToday: false, isSelected: false),
-                  todayBuilder: (ctx, day, focusedDay) =>
-                      _buildDayCell(ctx, day, isToday: true, isSelected: false),
-                  selectedBuilder: (ctx, day, focusedDay) =>
-                      _buildDayCell(ctx, day, isToday: false, isSelected: true),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: AppSpacing.xl),
-
-          // ── Announcements Header ──────────────────────────────────
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: hPad),
-            child: const AppSectionHeader(title: "Announcements"),
-          ),
-
-          const SizedBox(height: AppSpacing.md),
-
-          // ── Announcements List ────────────────────────────────────
-          if (_announcementsLoading)
-            Padding(
-              padding: EdgeInsets.symmetric(
-                  horizontal: hPad, vertical: AppSpacing.xxxl),
-              child: const Center(
-                child: CircularProgressIndicator(color: chateuPrimary),
-              ),
-            )
-          else if (_announcements.isEmpty)
-            Padding(
-              padding: EdgeInsets.symmetric(
-                  horizontal: hPad, vertical: AppSpacing.xxxl),
-              child: Center(
-                child: Text(
-                  "No announcements yet",
-                  style: AppText.bodyMedium.copyWith(
-                    color: chateuTextSubtle,
-                  ),
-                ),
-              ),
-            )
-          else ...[
-            // Emergency announcements always pinned first
-            ...List.generate(
-              _announcements.length,
-              (i) {
-                final sorted = [
-                  ..._announcements.where((a) => a['is_emergency'] == true),
-                  ..._announcements.where((a) => a['is_emergency'] != true),
-                ];
-                return Padding(
-                  padding: EdgeInsets.symmetric(horizontal: hPad),
-                  child: _AnnouncementCard(data: sorted[i]),
-                );
-              },
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(
-                  horizontal: hPad, vertical: AppSpacing.md),
-              child: _hasMore
-                  ? AppPrimaryButton(
-                      label: "Load More",
-                      icon: Icons.expand_more_rounded,
-                      isLoading: _loadingMore,
-                      onPressed: _loadAnnouncements,
-                      height: 46,
-                    )
-                  : Center(
-                      child: Text(
-                        "— All announcements loaded —",
-                        style: AppText.caption.copyWith(
-                          color: chateuTextSubtle,
-                        ),
-                      ),
+                    const AppSectionHeader(title: "HOA Calendar"),
+                    const SizedBox(height: AppSpacing.sm),
+                    Wrap(
+                      spacing: AppSpacing.md,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        _LegendDot(color: chateuPrimary, label: "General"),
+                        _LegendDot(color: chateuSecondary, label: "Financial"),
+                        _LegendDot(color: chateuInfo, label: "Event"),
+                        _LegendDot(
+                            color: chateuMaintenance, label: "Maintenance"),
+                        _LegendDot(color: chateuError, label: "Election"),
+                        _LegendDot(color: chateuTextMuted, label: "Security"),
+                      ],
                     ),
+                    const SizedBox(height: AppSpacing.md),
+                    Container(
+                      decoration: AppDecorations.card,
+                      child: _buildCalendar(),
+                    ),
+
+                    const SizedBox(height: AppSpacing.xxl),
+                    const AppSectionHeader(title: "Announcements"),
+                    const SizedBox(height: AppSpacing.md),
+
+                    if (_announcementsLoading)
+                      const Padding(
+                        padding:
+                            EdgeInsets.symmetric(vertical: AppSpacing.xxxl),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (_announcements.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: AppSpacing.xxxl),
+                        child: Center(
+                          child: Text(
+                            "No announcements yet",
+                            style: AppText.bodyMedium
+                                .copyWith(color: chateuTextMuted),
+                          ),
+                        ),
+                      )
+                    else ...[
+                      for (final a in sorted) _AnnouncementCard(data: a),
+                      if (_hasMore)
+                        Center(
+                          child: _loadingMore
+                              ? const Padding(
+                                  padding: EdgeInsets.all(AppSpacing.md),
+                                  child: SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  ),
+                                )
+                              : OutlinedButton(
+                                  onPressed: _loadAnnouncements,
+                                  child: const Text("Load more"),
+                                ),
+                        ),
+                    ],
+
+                    const SizedBox(height: AppSpacing.xxxl),
+                  ],
+                ),
+              ),
             ),
           ],
-
-          const SizedBox(height: AppSpacing.xxxl),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildCalendar() {
+    return TableCalendar(
+      firstDay: DateTime.utc(2020, 1, 1),
+      lastDay: DateTime.utc(2030, 12, 31),
+      focusedDay: _focusedDay,
+      selectedDayPredicate: (day) =>
+          _selectedDay != null && isSameDay(_selectedDay!, day),
+      calendarFormat: CalendarFormat.month,
+      availableGestures: AvailableGestures.horizontalSwipe,
+      headerStyle: HeaderStyle(
+        formatButtonVisible: false,
+        titleCentered: true,
+        titleTextStyle: AppText.titleMedium,
+        leftChevronIcon: Icon(Icons.chevron_left_rounded,
+            color: chateuPrimary, semanticLabel: 'Previous month'),
+        rightChevronIcon: Icon(Icons.chevron_right_rounded,
+            color: chateuPrimary, semanticLabel: 'Next month'),
+      ),
+      daysOfWeekStyle: DaysOfWeekStyle(
+        weekdayStyle: AppText.caption.copyWith(fontWeight: FontWeight.w600),
+        weekendStyle: AppText.caption
+            .copyWith(color: chateuPrimary, fontWeight: FontWeight.w600),
+      ),
+      calendarStyle: CalendarStyle(
+        // Reservation dot marker
+        markerDecoration: BoxDecoration(
+          color: chateuSecondary,
+          shape: BoxShape.circle,
+        ),
+        defaultTextStyle: AppText.bodyMedium,
+        weekendTextStyle: AppText.bodyMedium.copyWith(color: chateuPrimary),
+        outsideTextStyle: AppText.bodyMedium.copyWith(color: chateuTextSubtle),
+      ),
+      eventLoader: (day) => _isReserved(day) ? [day] : [],
+      onPageChanged: (day) => setState(() => _focusedDay = day),
+      onDaySelected: (selected, focused) {
+        setState(() {
+          _selectedDay = selected;
+          _focusedDay = focused;
+        });
+        final ranges = _rangesForDay(selected);
+        if (ranges.isNotEmpty) {
+          _showDayAnnouncementsSheet(selected, ranges);
+        }
+      },
+      // Custom cells: tint + category dots for announcement ranges
+      calendarBuilders: CalendarBuilders(
+        defaultBuilder: (ctx, day, focusedDay) =>
+            _buildDayCell(ctx, day, isToday: false, isSelected: false),
+        todayBuilder: (ctx, day, focusedDay) =>
+            _buildDayCell(ctx, day, isToday: true, isSelected: false),
+        selectedBuilder: (ctx, day, focusedDay) =>
+            _buildDayCell(ctx, day, isToday: false, isSelected: true),
       ),
     );
   }
@@ -1339,22 +1406,8 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
     return _attachmentUrl.toLowerCase().contains('.pdf');
   }
 
-  static Color _categoryColor(String? category) {
-    switch ((category ?? '').toLowerCase()) {
-      case 'event':
-        return chateuInfo;
-      case 'maintenance':
-        return const Color(0xFFFF8C42);
-      case 'election':
-        return chateuError;
-      case 'security':
-        return chateuTextMuted;
-      case 'financial':
-        return chateuSecondary;
-      default:
-        return chateuPrimary;
-    }
-  }
+  static Color _categoryColor(String? category) =>
+      announcementCategoryColor(category);
 
   static String _formatDate(String? raw) {
     if (raw == null) return '';
@@ -1391,14 +1444,14 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: chateuSurface,
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: isEmergency
             ? Border.all(
                 color: chateuError.withAlpha(120),
                 width: 1.5,
               )
-            : null,
+            : Border.all(color: chateuBorder),
         boxShadow: AppShadows.card,
       ),
       child: Column(
@@ -1428,23 +1481,21 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.warning_rounded,
-                            color: Colors.white, size: 11),
-                        const SizedBox(width: 3),
+                        Icon(Icons.warning_rounded,
+                            color: chateuOnColor, size: 14),
+                        const SizedBox(width: 4),
                         Text(
-                          "EMERGENCY",
+                          "Emergency",
                           style: AppText.caption.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 11,
-                            letterSpacing: 0.5,
+                            color: chateuOnColor,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
                     ),
                   ),
                 AppStatusBadge(
-                  label: (a['category'] as String? ?? 'General').toUpperCase(),
+                  label: a['category'] as String? ?? 'General',
                   color: color,
                 ),
                 const Spacer(),
@@ -1486,8 +1537,8 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
                       const SizedBox(width: 4),
                       Text(
                         a['author_name'] as String,
-                        style: AppText.caption
-                            .copyWith(color: chateuTextSubtle),
+                        style:
+                            AppText.caption.copyWith(color: chateuTextSubtle),
                       ),
                     ],
                   ),
@@ -1573,75 +1624,81 @@ class _AttachmentPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isImage) {
-      return GestureDetector(
-        onTap: () => _openFullscreen(context),
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(
-              AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
-          height: 180,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            color: chateuSurfaceMuted,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.network(
-                  url,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (_, child, progress) {
-                    if (progress == null) return child;
-                    return Center(
-                      child: CircularProgressIndicator(
-                        value: progress.expectedTotalBytes != null
-                            ? progress.cumulativeBytesLoaded /
-                                progress.expectedTotalBytes!
-                            : null,
-                        color: chateuPrimary,
-                        strokeWidth: 2,
+      final mq = MediaQuery.of(context);
+      return Semantics(
+        button: true,
+        label: 'View full image',
+        child: GestureDetector(
+          onTap: () => _openFullscreen(context),
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(
+                AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
+            height: 180,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              color: chateuSurfaceMuted,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.network(
+                    url,
+                    fit: BoxFit.cover,
+                    cacheWidth: (mq.size.width * mq.devicePixelRatio).round(),
+                    loadingBuilder: (_, child, progress) {
+                      if (progress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          value: progress.expectedTotalBytes != null
+                              ? progress.cumulativeBytesLoaded /
+                                  progress.expectedTotalBytes!
+                              : null,
+                          color: chateuPrimary,
+                          strokeWidth: 2,
+                        ),
+                      );
+                    },
+                    errorBuilder: (_, __, ___) => Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.broken_image_outlined,
+                              color: chateuTextSubtle, size: 32),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text("Could not load image",
+                              style: AppText.caption
+                                  .copyWith(color: chateuTextSubtle)),
+                        ],
                       ),
-                    );
-                  },
-                  errorBuilder: (_, __, ___) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.broken_image_outlined,
-                            color: chateuTextSubtle, size: 32),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text("Could not load image",
-                            style: AppText.caption
-                                .copyWith(color: chateuTextSubtle)),
-                      ],
                     ),
                   ),
-                ),
-                Positioned(
-                  bottom: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(AppRadius.xxl),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.fullscreen_rounded,
-                            color: Colors.white, size: 14),
-                        const SizedBox(width: 3),
-                        Text("View full",
-                            style:
-                                AppText.caption.copyWith(color: Colors.white)),
-                      ],
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(AppRadius.xxl),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.fullscreen_rounded,
+                              color: Colors.white, size: 14),
+                          const SizedBox(width: 3),
+                          Text("View full",
+                              style: AppText.caption
+                                  .copyWith(color: Colors.white)),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -1679,7 +1736,8 @@ class _AttachmentPreview extends StatelessWidget {
     final confirmed = await showConfirmDialog(
       context,
       title: 'Open PDF',
-      message: 'Open this PDF in your browser?\n\n${url.split('/').last.split('?').first}',
+      message:
+          'Open this PDF in your browser?\n\n${url.split('/').last.split('?').first}',
       confirmLabel: 'Open PDF',
       icon: Icons.picture_as_pdf_rounded,
     );
@@ -1737,36 +1795,42 @@ class _FileTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(
-            AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: iconColor.withAlpha(10),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
+      child: Material(
+        color: iconColor.withAlpha(10),
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(color: iconColor.withAlpha(40)),
+          side: BorderSide(color: iconColor.withAlpha(40)),
         ),
-        child: Row(
-          children: [
-            Icon(icon, color: iconColor, size: 20),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                label.isNotEmpty ? label : "Attachment",
-                style: AppText.bodyMedium.copyWith(
-                  color: iconColor,
-                  fontWeight: FontWeight.w600,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+            child: Row(
+              children: [
+                Icon(icon, color: iconColor, size: 20),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    label.isNotEmpty ? label : "Attachment",
+                    style: AppText.bodyMedium.copyWith(
+                      color: iconColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                  ),
                 ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 2,
-              ),
+                const SizedBox(width: AppSpacing.sm),
+                Icon(Icons.open_in_new_rounded, color: iconColor, size: 16),
+              ],
             ),
-            const SizedBox(width: AppSpacing.sm),
-            Icon(Icons.open_in_new_rounded, color: iconColor, size: 16),
-          ],
+          ),
         ),
       ),
     );
@@ -1802,10 +1866,8 @@ class _AttachmentFullscreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => Navigator.pop(context),
-        ),
+        iconTheme: const IconThemeData(color: Colors.white),
+        leading: const CloseButton(),
         title: Text(title,
             style: AppText.titleMedium.copyWith(color: Colors.white)),
       ),
@@ -1853,9 +1915,7 @@ class _AttachmentFullscreen extends StatelessWidget {
                   children: [
                     Icon(
                       isPdf ? Icons.picture_as_pdf_rounded : Icons.link_rounded,
-                      color: isPdf
-                          ? chateuError
-                          : chateuInfo,
+                      color: isPdf ? chateuError : chateuInfo,
                       size: 64,
                     ),
                     const SizedBox(height: AppSpacing.lg),
@@ -1866,8 +1926,7 @@ class _AttachmentFullscreen extends StatelessWidget {
                       maxLines: 4,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: AppSpacing.sm),
-                    const SizedBox(height: AppSpacing.xl),
+                    const SizedBox(height: AppSpacing.xxl),
                     ElevatedButton.icon(
                       onPressed: () async {
                         final uri = Uri.tryParse(url);
@@ -1876,20 +1935,8 @@ class _AttachmentFullscreen extends StatelessWidget {
                               mode: LaunchMode.externalApplication);
                         }
                       },
-                      icon: const Icon(Icons.open_in_new_rounded,
-                          color: Colors.white, size: 16),
-                      label: Text(
-                        isPdf ? "Open PDF" : "Open Link",
-                        style:
-                            AppText.labelMedium.copyWith(color: Colors.white),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: chateuPrimary,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                        ),
-                      ),
+                      icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                      label: Text(isPdf ? "Open PDF" : "Open Link"),
                     ),
                   ],
                 ),

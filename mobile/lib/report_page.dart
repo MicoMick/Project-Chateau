@@ -15,8 +15,7 @@ import 'audit_logger.dart';
 class _CategoryData {
   final IconData icon;
   final String label;
-  final Color color;
-  const _CategoryData(this.icon, this.label, this.color);
+  const _CategoryData(this.icon, this.label);
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────────
@@ -28,10 +27,7 @@ class ReportPage extends StatefulWidget {
   State<ReportPage> createState() => _ReportPageState();
 }
 
-class _ReportPageState extends State<ReportPage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _entranceController;
-
+class _ReportPageState extends State<ReportPage> {
   final _descController = TextEditingController();
   final _picker = ImagePicker();
   final _supabase = Supabase.instance.client;
@@ -46,13 +42,13 @@ class _ReportPageState extends State<ReportPage>
   bool _isSubmitting = false;
   int _selectedIndex = 0;
 
-  final List<_CategoryData> _categories = const [
-    _CategoryData(Icons.build_rounded, "Maintenance", Color(0xFFFF8C42)),
-    _CategoryData(Icons.volume_off_rounded, "Noise", chateuError),
-    _CategoryData(Icons.delete_sweep_rounded, "Cleanliness", chateuSuccess),
-    _CategoryData(Icons.shield_rounded, "Security", chateuInfo),
-    _CategoryData(Icons.traffic_rounded, "Roads", Color(0xFF92400E)),
-    _CategoryData(Icons.more_horiz_rounded, "Other", chateuTextMuted),
+  static const _categories = [
+    _CategoryData(Icons.build_rounded, "Maintenance"),
+    _CategoryData(Icons.volume_off_rounded, "Noise"),
+    _CategoryData(Icons.delete_sweep_rounded, "Cleanliness"),
+    _CategoryData(Icons.shield_rounded, "Security"),
+    _CategoryData(Icons.traffic_rounded, "Roads"),
+    _CategoryData(Icons.more_horiz_rounded, "Other"),
   ];
 
   bool get _hasImage => _pickedImage != null || _pickedImageBytes != null;
@@ -61,17 +57,7 @@ class _ReportPageState extends State<ReportPage>
   // ──────────────────────────────────────────────────────────────────────────
 
   @override
-  void initState() {
-    super.initState();
-    _entranceController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    )..forward();
-  }
-
-  @override
   void dispose() {
-    _entranceController.dispose();
     _descController.dispose();
     _videoController?.dispose(); // added
     super.dispose();
@@ -104,9 +90,10 @@ class _ReportPageState extends State<ReportPage>
         imageQuality: 80,
         maxWidth: 1200,
       );
-      if (xfile != null) {
+      if (xfile != null && mounted) {
         if (kIsWeb) {
           final bytes = await xfile.readAsBytes();
+          if (!mounted) return;
           setState(() {
             _pickedImageBytes = bytes;
             _pickedImage = null;
@@ -137,7 +124,7 @@ class _ReportPageState extends State<ReportPage>
         source: source,
         maxDuration: const Duration(minutes: 2),
       );
-      if (xfile == null) return;
+      if (xfile == null || !mounted) return;
 
       // clear any image when video chosen
       _pickedImage = null;
@@ -147,6 +134,7 @@ class _ReportPageState extends State<ReportPage>
 
       if (kIsWeb) {
         final bytes = await xfile.readAsBytes();
+        if (!mounted) return;
         setState(() {
           _pickedVideoBytes = bytes;
           _pickedVideo = null;
@@ -268,12 +256,15 @@ class _ReportPageState extends State<ReportPage>
         _showSuccess("Report submitted successfully!");
       }
     } on StorageException catch (e) {
+      if (!mounted) return;
       setState(() => _isSubmitting = false);
-      _showError("Photo upload failed: ${e.message}");
+      _showError("Upload failed: ${e.message}");
     } on PostgrestException catch (e) {
+      if (!mounted) return;
       setState(() => _isSubmitting = false);
       _showError("Could not save report: ${e.message}");
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isSubmitting = false);
       _showError("Something went wrong. Please try again.");
     }
@@ -289,606 +280,228 @@ class _ReportPageState extends State<ReportPage>
 
   @override
   Widget build(BuildContext context) {
-    final mq = MediaQuery.of(context);
-    final screenW = mq.size.width;
-    final screenH = mq.size.height;
-    final isSmall = screenH < 680;
-    final isWide = screenW > 600;
-    final hPad = isWide ? screenW * 0.08 : AppSpacing.lg;
-    final selected = _categories[_selectedIndex];
+    final hasMedia = _hasImage || _hasVideo;
 
-    return Container(
-      color: chateuBackground,
-      child: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: EdgeInsets.symmetric(horizontal: hPad)
-              .copyWith(bottom: AppSpacing.xxxl),
+    return SingleChildScrollView(
+      padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+      child: AppContentWidth(
+        maxWidth: 640,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.xxxl),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(height: isSmall ? 12 : AppSpacing.xl),
-
-              // ── Header ────────────────────────────────────────────
-              AppFadeSlide(
-                controller: _entranceController,
-                delay: 0.0,
-                child: const AppSectionHeader(title: "Submit a Report"),
-              ),
-
+              const AppSectionHeader(title: "Submit a Report"),
               const SizedBox(height: AppSpacing.xs),
-
-              AppFadeSlide(
-                controller: _entranceController,
-                delay: 0.05,
-                child: Text(
-                  "Help us keep Chateau safe and comfortable.",
-                  style: AppText.bodyMedium.copyWith(
-                    color: chateuTextMuted,
-                  ),
-                ),
+              Text(
+                "Help us keep Chateau safe and comfortable.",
+                style: AppText.bodyMedium.copyWith(color: chateuTextMuted),
               ),
 
-              SizedBox(height: isSmall ? 16 : AppSpacing.xl),
-
-              // ── Category picker ───────────────────────────────────
-              AppFadeSlide(
-                controller: _entranceController,
-                delay: 0.1,
-                child: Text(
-                  "Category",
-                  style: AppText.labelMedium.copyWith(color: chateuText),
-                ),
-              ),
-
+              const SizedBox(height: AppSpacing.xl),
+              Text("Category",
+                  style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.sm),
-
-              AppFadeSlide(
-                controller: _entranceController,
-                delay: 0.15,
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    childAspectRatio: 1.1,
-                    crossAxisSpacing: AppSpacing.sm,
-                    mainAxisSpacing: AppSpacing.sm,
-                  ),
-                  itemCount: _categories.length,
-                  itemBuilder: (context, i) {
-                    final cat = _categories[i];
-                    final isSelected = _selectedIndex == i;
-                    return GestureDetector(
-                      onTap: () => _selectCategory(i),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? cat.color.withAlpha(22)
-                              : Colors.white,
-                          borderRadius:
-                              BorderRadius.circular(AppRadius.sm),
-                          border: Border.all(
-                            color: isSelected
-                                ? cat.color
-                                : chateuBorder,
-                            width: isSelected ? 2 : 1,
-                          ),
-                          boxShadow: isSelected
-                              ? [
-                                  BoxShadow(
-                                    color: cat.color.withAlpha(30),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  )
-                                ]
-                              : AppShadows.card,
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              cat.icon,
-                              color: isSelected
-                                  ? cat.color
-                                  : chateuTextSubtle,
-                              size: 26,
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            Text(
-                              cat.label,
-                              style: AppText.caption.copyWith(
-                                color: isSelected
-                                    ? cat.color
-                                    : chateuTextMuted,
-                                fontWeight: isSelected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (var i = 0; i < _categories.length; i++)
+                    ChoiceChip(
+                      avatar: Icon(_categories[i].icon, size: 18),
+                      label: Text(_categories[i].label),
+                      selected: _selectedIndex == i,
+                      showCheckmark: false,
+                      onSelected: (_) => _selectCategory(i),
+                    ),
+                ],
               ),
 
-              SizedBox(height: isSmall ? 16 : AppSpacing.xl),
-
-              // ── Form card ─────────────────────────────────────────
-              AppFadeSlide(
-                controller: _entranceController,
-                delay: 0.2,
-                child: Container(
-                  decoration: AppDecorations.card,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Card header
-                      Container(
-                        padding: const EdgeInsets.fromLTRB(
-                            AppSpacing.lg,
-                            AppSpacing.md,
-                            AppSpacing.lg,
-                            AppSpacing.md),
-                        decoration: BoxDecoration(
-                          color: selected.color.withAlpha(16),
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(AppRadius.md),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(selected.icon,
-                                color: selected.color, size: 20),
-                            const SizedBox(width: AppSpacing.sm),
-                            Text(
-                              selected.label,
-                              style: AppText.titleMedium.copyWith(
-                                color: selected.color,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      Padding(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Description
-                            Text(
-                              "Description",
-                              style: AppText.labelMedium
-                                  .copyWith(color: chateuText),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            TextField(
-                              controller: _descController,
-                              maxLines: isSmall ? 3 : 4,
-                              maxLength: 500,
-                              style: AppText.bodyMedium,
-                              decoration: InputDecoration(
-                                hintText:
-                                    "Describe the issue in detail…",
-                                hintStyle: AppText.bodyMedium.copyWith(
-                                  color: chateuTextSubtle,
-                                ),
-                                counterStyle: AppText.caption.copyWith(
-                                  color: chateuTextSubtle,
-                                ),
-                                filled: true,
-                                fillColor: chateuBackground,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                      AppRadius.sm),
-                                  borderSide: BorderSide(
-                                      color: chateuBorder),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                      AppRadius.sm),
-                                  borderSide: BorderSide(
-                                      color: chateuBorder),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                      AppRadius.sm),
-                                  borderSide: const BorderSide(
-                                      color: chateuPrimary, width: 1.5),
-                                ),
-                                contentPadding: const EdgeInsets.all(
-                                    AppSpacing.md),
-                              ),
-                            ),
-
-                            SizedBox(height: isSmall ? 12 : AppSpacing.lg),
-
-                            // Photo label + menu trigger
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  "Photo / Video (optional)", // updated label
-                                  style: AppText.labelMedium
-                                      .copyWith(color: chateuText),
-                                ),
-                                // ── updated: bottom sheet media picker ────────
-                                GestureDetector(
-                                  onTap: () => _showMediaPicker(context),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: AppSpacing.sm,
-                                      vertical: AppSpacing.xs,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: chateuPrimary.withAlpha(14),
-                                      borderRadius: BorderRadius.circular(
-                                          AppRadius.xs),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          (_hasImage || _hasVideo)
-                                              ? Icons.edit_rounded
-                                              : Icons.add_photo_alternate_rounded,
-                                          color: chateuPrimary,
-                                          size: 16,
-                                        ),
-                                        const SizedBox(
-                                            width: AppSpacing.xs),
-                                        Text(
-                                          (_hasImage || _hasVideo)
-                                              ? "Change"
-                                              : "Add",
-                                          style:
-                                              AppText.labelMedium.copyWith(
-                                            color: chateuPrimary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                // ─────────────────────────────────────────────
-                              ],
-                            ),
-
-                            const SizedBox(height: AppSpacing.sm),
-
-                            // Photo / video preview / placeholder
-                            AspectRatio(
-                              aspectRatio: 16 / 9,
-                              child: _hasVideo
-                                  ? _buildVideoPreview() // added
-                                  : _hasImage
-                                      ? _buildImagePreview()
-                                      : GestureDetector(
-                                          onTap: () async {
-                                            if (kIsWeb) {
-                                              await _pickImage(
-                                                  ImageSource.gallery);
-                                            } else {
-                                              // trigger same popup elsewhere
-                                            }
-                                          },
-                                          child: CustomPaint(
-                                            painter: _DashedBorderPainter(
-                                              color: chateuBorder,
-                                              borderRadius: AppRadius.sm,
-                                              dashWidth: 6,
-                                              dashGap: 4,
-                                            ),
-                                            child: Center(
-                                              child: Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(
-                                                    Icons.add_photo_alternate_outlined,
-                                                    size: 36,
-                                                    color:
-                                                        chateuTextSubtle,
-                                                  ),
-                                                  const SizedBox(
-                                                      height: AppSpacing.sm),
-                                                  Text(
-                                                    "Use the Add button above",
-                                                    style: AppText.bodyMedium
-                                                        .copyWith(
-                                                      color:
-                                                          chateuTextMuted,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 3),
-                                                  Text(
-                                                    kIsWeb
-                                                        ? "Gallery  •  JPG, PNG, MP4"
-                                                        : "Camera or Gallery  •  JPG, PNG, MP4",
-                                                    style: AppText.caption
-                                                        .copyWith(
-                                                      color:
-                                                          chateuTextSubtle,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                            ),
-
-                            SizedBox(height: isSmall ? 20 : AppSpacing.xxl),
-
-                            // Submit Button
-                            AppPrimaryButton(
-                              label: "Submit Report",
-                              icon: Icons.send_rounded,
-                              isLoading: _isSubmitting,
-                              onPressed: _submitReport,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              SizedBox(height: isSmall ? 16 : AppSpacing.xxl),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Media picker bottom sheet (added) ────────────────────────────────────
-
-  Widget _mediaSectionHeader(String label) {
-    return Row(
-      children: [
-        Container(
-          width: 3,
-          height: 14,
-          decoration: BoxDecoration(
-            color: chateuPrimary,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.xs),
-        Text(label, style: AppText.labelMedium.copyWith(color: chateuText)),
-      ],
-    );
-  }
-
-  Widget _mediaOptionTile({
-    required BuildContext ctx,
-    required IconData icon,
-    required String label,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            vertical: AppSpacing.md, horizontal: AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: chateuPrimary.withAlpha(10),
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(color: chateuPrimary.withAlpha(40)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: chateuPrimary.withAlpha(20),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: chateuPrimary, size: 22),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(label,
-                style: AppText.labelMedium.copyWith(color: chateuText)),
-            const SizedBox(height: 2),
-            Text(subtitle,
-                style: AppText.caption.copyWith(color: chateuTextMuted)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showMediaPicker(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.xxl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // drag handle
-              Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-                decoration: BoxDecoration(
-                  color: chateuBorder,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-
-              // title
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "Add Media",
-                  style: AppText.titleMedium.copyWith(color: chateuText),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "Choose a source for your photo or video",
-                  style: AppText.bodyMedium
-                      .copyWith(color: chateuTextMuted),
+              const SizedBox(height: AppSpacing.xl),
+              TextField(
+                controller: _descController,
+                minLines: 4,
+                maxLines: 8,
+                maxLength: 500,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: "Description",
+                  hintText: "Describe the issue in detail…",
+                  alignLabelWithHint: true,
                 ),
               ),
 
               const SizedBox(height: AppSpacing.lg),
-
-              if (!kIsWeb) ...[
-                _mediaSectionHeader("Camera"),
-                const SizedBox(height: AppSpacing.sm),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _mediaOptionTile(
-                        ctx: context,
-                        icon: Icons.camera_alt_rounded,
-                        label: "Photo",
-                        subtitle: "Take a photo",
-                        onTap: () {
-                          Navigator.pop(context);
-                          _pickImage(ImageSource.camera);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: _mediaOptionTile(
-                        ctx: context,
-                        icon: Icons.videocam_rounded,
-                        label: "Video",
-                        subtitle: "Record a clip",
-                        onTap: () {
-                          Navigator.pop(context);
-                          _pickVideo(ImageSource.camera);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.lg),
-              ],
-
-              _mediaSectionHeader("Gallery"),
-              const SizedBox(height: AppSpacing.sm),
               Row(
                 children: [
                   Expanded(
-                    child: _mediaOptionTile(
-                      ctx: context,
-                      icon: Icons.photo_library_rounded,
-                      label: "Photo",
-                      subtitle: "JPG, PNG",
-                      onTap: () {
-                        Navigator.pop(context);
-                        _pickImage(ImageSource.gallery);
-                      },
-                    ),
+                    child: Text("Photo / Video (optional)",
+                        style: AppText.labelMedium
+                            .copyWith(color: chateuTextMuted)),
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: _mediaOptionTile(
-                      ctx: context,
-                      icon: Icons.video_library_rounded,
-                      label: "Video",
-                      subtitle: "MP4, MOV",
-                      onTap: () {
-                        Navigator.pop(context);
-                        _pickVideo(ImageSource.gallery);
-                      },
+                  if (hasMedia)
+                    TextButton.icon(
+                      onPressed: () => _showMediaPicker(context),
+                      icon: const Icon(Icons.edit_rounded, size: 18),
+                      label: const Text("Change"),
                     ),
-                  ),
                 ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: _hasVideo
+                    ? _buildVideoPreview()
+                    : _hasImage
+                        ? _buildImagePreview()
+                        : Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => _showMediaPicker(context),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.sm),
+                              child: CustomPaint(
+                                painter: _DashedBorderPainter(
+                                  color: chateuTextSubtle,
+                                  borderRadius: AppRadius.sm,
+                                  dashWidth: 6,
+                                  dashGap: 4,
+                                ),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.add_photo_alternate_outlined,
+                                          size: 36, color: chateuPrimary),
+                                      const SizedBox(height: AppSpacing.sm),
+                                      Text(
+                                        "Add a photo or video",
+                                        style: AppText.bodyMedium.copyWith(
+                                          color: chateuPrimary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text("JPG, PNG, MP4",
+                                          style: AppText.caption),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+              ),
+
+              const SizedBox(height: AppSpacing.xxl),
+              AppPrimaryButton(
+                label: "Submit Report",
+                isLoading: _isSubmitting,
+                onPressed: _submitReport,
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // ── Media picker bottom sheet ────────────────────────────────────────────
+
+  void _showMediaPicker(BuildContext context) {
+    ListTile tile(IconData icon, String label, VoidCallback onTap) => ListTile(
+          leading: Icon(icon),
+          title: Text(label),
+          onTap: () {
+            Navigator.pop(context);
+            onTap();
+          },
         );
-      },
+
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.sm, AppSpacing.sm, AppSpacing.sm, AppSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              buildSheetHandle(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                child: Text("Add Media", style: AppText.titleMedium),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              if (!kIsWeb) ...[
+                tile(Icons.camera_alt_rounded, "Take a photo",
+                    () => _pickImage(ImageSource.camera)),
+                tile(Icons.videocam_rounded, "Record a video",
+                    () => _pickVideo(ImageSource.camera)),
+              ],
+              tile(Icons.photo_library_rounded, "Choose a photo",
+                  () => _pickImage(ImageSource.gallery)),
+              tile(Icons.video_library_rounded, "Choose a video",
+                  () => _pickVideo(ImageSource.gallery)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
   // ── Image preview ─────────────────────────────────────────────────────────
 
+  Widget _attachedLabel(IconData icon, String text) => Positioned(
+        bottom: 0,
+        left: 0,
+        right: 0,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+          color: Colors.black.withAlpha(150),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.white, size: 16),
+              const SizedBox(width: AppSpacing.sm),
+              Text(text,
+                  style: AppText.caption.copyWith(
+                      color: Colors.white, fontWeight: FontWeight.w500)),
+            ],
+          ),
+        ),
+      );
+
   Widget _buildImagePreview() {
+    final w = (MediaQuery.sizeOf(context).width *
+            MediaQuery.devicePixelRatioOf(context))
+        .round();
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Stack(
         fit: StackFit.expand,
         children: [
           kIsWeb
-              ? Image.memory(_pickedImageBytes!, fit: BoxFit.cover)
-              : Image.file(_pickedImage!, fit: BoxFit.cover),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withAlpha(160),
-                  ],
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle_rounded,
-                      color: Colors.white, size: 15),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    "Photo attached  •  Use menu above to change",
-                    style: AppText.caption.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+              ? Image.memory(_pickedImageBytes!,
+                  fit: BoxFit.cover, cacheWidth: w)
+              : Image.file(_pickedImage!, fit: BoxFit.cover, cacheWidth: w),
+          _attachedLabel(Icons.check_circle_rounded, "Photo attached"),
         ],
       ),
     );
   }
 
-  // ── Video preview (added) ─────────────────────────────────────────────────
+  // ── Video preview ─────────────────────────────────────────────────────────
 
   Widget _buildVideoPreview() {
     final ctrl = _videoController;
+    final playing = ctrl?.value.isPlaying ?? false;
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // player or loading spinner
           (ctrl != null && ctrl.value.isInitialized)
               ? FittedBox(
                   fit: BoxFit.cover,
@@ -898,68 +511,38 @@ class _ReportPageState extends State<ReportPage>
                     child: VideoPlayer(ctrl),
                   ),
                 )
-              : Container(
+              : const ColoredBox(
                   color: Colors.black,
-                  child: const Center(
+                  child: Center(
                     child: CircularProgressIndicator(
                         color: Colors.white, strokeWidth: 2),
                   ),
                 ),
-          // play / pause tap
-          GestureDetector(
-            onTap: _toggleVideoPlayback,
-            behavior: HitTestBehavior.opaque,
-            child: Center(
-              child: AnimatedOpacity(
-                opacity: (ctrl?.value.isPlaying ?? false) ? 0.0 : 1.0,
-                duration: const Duration(milliseconds: 200),
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withAlpha(140),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.play_arrow_rounded,
-                      color: Colors.white, size: 30),
-                ),
-              ),
-            ),
-          ),
-          // bottom label (mirrors image preview style)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withAlpha(160),
-                  ],
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.videocam_rounded,
-                      color: Colors.white, size: 15),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    "Video attached  •  Use menu above to change",
-                    style: AppText.caption.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
+          Semantics(
+            button: true,
+            label: playing ? 'Pause video' : 'Play video',
+            child: GestureDetector(
+              onTap: _toggleVideoPlayback,
+              behavior: HitTestBehavior.opaque,
+              child: Center(
+                child: AnimatedOpacity(
+                  opacity: playing ? 0.0 : 1.0,
+                  duration: const Duration(milliseconds: 150),
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(140),
+                      shape: BoxShape.circle,
                     ),
+                    child: const Icon(Icons.play_arrow_rounded,
+                        color: Colors.white, size: 32),
                   ),
-                ],
+                ),
               ),
             ),
           ),
+          _attachedLabel(Icons.videocam_rounded, "Video attached"),
         ],
       ),
     );

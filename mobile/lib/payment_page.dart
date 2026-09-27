@@ -88,9 +88,7 @@ class PaymentPage extends StatefulWidget {
   State<PaymentPage> createState() => _PaymentPageState();
 }
 
-class _PaymentPageState extends State<PaymentPage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _animController;
+class _PaymentPageState extends State<PaymentPage> {
   final _supabase = Supabase.instance.client;
 
   List<_Payment> _payments = [];
@@ -103,17 +101,7 @@ class _PaymentPageState extends State<PaymentPage>
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    )..forward();
     _loadData();
-  }
-
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
   }
 
   // ── Load ──────────────────────────────────────────────────────────────────
@@ -183,7 +171,7 @@ class _PaymentPageState extends State<PaymentPage>
         });
       }
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -212,8 +200,7 @@ class _PaymentPageState extends State<PaymentPage>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(
-          child: CircularProgressIndicator(color: chateuPrimary)),
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
     try {
@@ -318,9 +305,9 @@ class _PaymentPageState extends State<PaymentPage>
       case 'paid':
         return chateuPrimary;
       case 'pending_verification':
-        return chateuAccent;
+        return chateuInfo;
       case 'pending':
-        return chateuInfo; // blue — awaiting Treasurer confirmation
+        return chateuTextMuted; // awaiting Treasurer confirmation
       case 'overdue':
         return chateuWarning; // amber-700
       default:
@@ -364,11 +351,6 @@ class _PaymentPageState extends State<PaymentPage>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
       builder: (_) => DraggableScrollableSheet(
         initialChildSize: 0.7,
         maxChildSize: 0.9,
@@ -381,32 +363,8 @@ class _PaymentPageState extends State<PaymentPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-                    decoration: BoxDecoration(
-                      color: chateuBorder,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: chateuPrimary.withAlpha(20),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.receipt_long_rounded,
-                          color: chateuPrimary, size: 18),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Text("All Bills", style: AppText.titleMedium),
-                  ],
-                ),
+                buildSheetHandle(),
+                Text("All Bills", style: AppText.titleLarge),
                 if (_advanceMonthsRemaining > 0) ...[
                   const SizedBox(height: AppSpacing.md),
                   AppNoticeBanner(
@@ -423,7 +381,7 @@ class _PaymentPageState extends State<PaymentPage>
                           child: Text(
                             "No bills found.",
                             style: AppText.bodyMedium
-                                .copyWith(color: chateuTextSubtle),
+                                .copyWith(color: chateuTextMuted),
                           ),
                         )
                       : ListView.builder(
@@ -439,10 +397,10 @@ class _PaymentPageState extends State<PaymentPage>
                                   horizontal: AppSpacing.md,
                                   vertical: AppSpacing.md),
                               decoration: BoxDecoration(
-                                color: color.withAlpha(10),
+                                color: chateuSurface,
                                 borderRadius:
                                     BorderRadius.circular(AppRadius.sm),
-                                border: Border.all(color: color.withAlpha(40)),
+                                border: Border.all(color: chateuBorder),
                               ),
                               child: Row(
                                 children: [
@@ -477,8 +435,7 @@ class _PaymentPageState extends State<PaymentPage>
                                     children: [
                                       Text(
                                         "₱${p.amount.toStringAsFixed(2)}",
-                                        style: AppText.titleMedium
-                                            .copyWith(color: color),
+                                        style: AppText.titleMedium,
                                       ),
                                       const SizedBox(height: 4),
                                       AppStatusBadge(
@@ -503,360 +460,229 @@ class _PaymentPageState extends State<PaymentPage>
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
+  Widget _buildSummary(_Payment? unpaid) {
+    final divider = const Padding(
+      padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+      child: Divider(),
+    );
+    return Container(
+      width: double.infinity,
+      decoration: AppDecorations.card,
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _LabeledValue(
+                  label: "Account Name",
+                  value: _userName.isNotEmpty ? _userName : "Resident",
+                ),
+              ),
+              if (unpaid != null)
+                _LabeledValue(
+                  label: "Payment Due",
+                  value: _formatDate(unpaid.dueDate),
+                  end: true,
+                ),
+            ],
+          ),
+          divider,
+          _BillRow(
+            label: "Monthly Fee",
+            value: unpaid != null
+                ? "₱ ${unpaid.amount.toStringAsFixed(2)}"
+                : "₱ 0.00",
+          ),
+          divider,
+          _BillRow(
+            label: "Total Amount Due",
+            value: "₱ ${_outstandingBalance.toStringAsFixed(2)}",
+            labelStyle: AppText.titleMedium,
+            valueStyle: AppText.displayMedium.copyWith(
+                fontFeatures: const [FontFeature.tabularFigures()]),
+          ),
+          if (_advanceMonthsRemaining > 0) ...[
+            divider,
+            _BillRow(
+              label: "Advance Paid ($_advanceMonthsRemaining mo. ahead)",
+              value: "₱ ${_advanceAmountRemaining.toStringAsFixed(2)}",
+              valueColor: chateuSuccess,
+            ),
+          ],
+          const SizedBox(height: AppSpacing.xl),
+          Row(children: [
+            if (unpaid != null && unpaid.canSubmitPayment) ...[
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => _showPaySheet(unpaid),
+                  icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                  label: const Text("Pay via GCash"),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+            ],
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _showAllBills,
+                child: const Text("View Bill"),
+              ),
+            ),
+          ]),
+          const SizedBox(height: AppSpacing.xs),
+          Center(
+            child: TextButton.icon(
+              onPressed: _showAdvancePaySheet,
+              icon: const Icon(Icons.event_available_rounded, size: 18),
+              label: const Text("Pay in Advance"),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentRow(_Payment p) {
+    final color = _statusColor(p.status);
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: AppDecorations.card,
+      child: Row(
+        children: [
+          Icon(
+            p.isPaid
+                ? Icons.check_circle_rounded
+                : (p.isPending || p.isAwaitingConfirmation)
+                    ? Icons.hourglass_top_rounded
+                    : Icons.receipt_rounded,
+            color: color,
+            size: 22,
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  p.isPaid
+                      ? "Payment Success"
+                      : p.isPending
+                          ? "Payment Pending"
+                          : p.isAwaitingConfirmation
+                              ? "Awaiting Confirmation"
+                              : p.isOverdue
+                                  ? "Overdue Bill"
+                                  : "Monthly Due",
+                  style: AppText.bodyMedium
+                      .copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  p.isPaid && p.paidAt != null
+                      ? _formatDateTime(p.paidAt!)
+                      : "Due: ${_formatDate(p.dueDate)}",
+                  style: AppText.caption,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text("₱${p.amount.toStringAsFixed(2)}",
+                  style: AppText.titleMedium),
+              const SizedBox(height: AppSpacing.xs),
+              AppStatusBadge(label: _statusLabel(p.status), color: color),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final screenW = MediaQuery.of(context).size.width;
-    final hPad = screenW > 600 ? screenW * 0.08 : AppSpacing.lg;
     final unpaid = _latestUnpaid;
+    // Summary, spacing, header, then one row per payment (or the empty state).
+    const headerCount = 3;
 
     return Scaffold(
-      backgroundColor: chateuBackground,
       appBar: buildStandardAppBar(
         context: context,
         title: 'Payments',
         actions: [
           IconButton(
-            icon: const Icon(Icons.description_outlined, color: chateuPrimary),
+            icon: const Icon(Icons.description_outlined),
             tooltip: 'Statement of Account',
             onPressed: _isLoading ? null : _downloadStatementOfAccount,
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: chateuPrimary))
+          ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _loadData,
-              color: chateuPrimary,
-              child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics()),
-              padding: EdgeInsets.symmetric(horizontal: hPad)
-                  .copyWith(bottom: AppSpacing.xxxl),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: AppSpacing.xl),
-
-                  // ── Bill Summary Card ─────────────────────────────
-                  AppFadeSlide(
-                    controller: _animController,
-                    delay: 0.0,
-                    child: Container(
-                      width: double.infinity,
-                      decoration: AppDecorations.primaryGradient(
-                          radius: AppRadius.lg),
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.xl),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Account name + due date
-                            Row(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "Account Name",
-                                        style: AppText.caption.copyWith(
-                                          color:
-                                              Colors.white.withAlpha(180),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        _userName.isNotEmpty
-                                            ? _userName
-                                            : "Resident",
-                                        style: AppText.titleMedium
-                                            .copyWith(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                if (unpaid != null)
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        "Payment Due",
-                                        style: AppText.caption.copyWith(
-                                          color:
-                                              Colors.white.withAlpha(180),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        _formatDate(unpaid.dueDate),
-                                        style: AppText.titleMedium
-                                            .copyWith(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                              ],
-                            ),
-
-                            const SizedBox(height: AppSpacing.lg),
-                            Divider(
-                                color: Colors.white.withAlpha(40)),
-                            const SizedBox(height: AppSpacing.md),
-
-                            _BillRow(
-                              label: "Monthly Fee",
-                              value: unpaid != null
-                                  ? "₱ ${unpaid.amount.toStringAsFixed(2)}"
-                                  : "₱ 0.00",
-                      
-                              valueColor: Colors.white,
-                            ),
-
-                            const SizedBox(height: AppSpacing.md),
-                            Divider(
-                                color: Colors.white.withAlpha(40)),
-                            const SizedBox(height: AppSpacing.md),
-
-                            _BillRow(
-                              label: "Total Amount Due",
-                              value:
-                                  "₱ ${_outstandingBalance.toStringAsFixed(2)}",
-                              labelStyle: AppText.titleMedium
-                                  .copyWith(color: Colors.white),
-                              valueStyle: AppText.displayMedium
-                                  .copyWith(color: Colors.white),
-                            ),
-
-                            if (_advanceMonthsRemaining > 0) ...[
-                              const SizedBox(height: AppSpacing.md),
-                              Divider(color: Colors.white.withAlpha(40)),
-                              const SizedBox(height: AppSpacing.md),
-                              _BillRow(
-                                label:
-                                    "Advance Paid ($_advanceMonthsRemaining mo. ahead)",
-                                value:
-                                    "₱ ${_advanceAmountRemaining.toStringAsFixed(2)}",
-                                valueColor: Colors.greenAccent.shade100,
-                              ),
-                            ],
-
-                            const SizedBox(height: AppSpacing.xl),
-
-                            Row(children: [
-                              if (unpaid != null && unpaid.canSubmitPayment) ...[
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: () => _showPaySheet(unpaid),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      foregroundColor: chateuPrimary,
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(AppRadius.sm),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: AppSpacing.md),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        const Icon(Icons.qr_code_2_rounded,
-                                            size: 18),
-                                        const SizedBox(width: AppSpacing.sm),
-                                        Text("Pay via GCash",
-                                            style: AppText.labelMedium
-                                                .copyWith(color: chateuPrimary)),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.sm),
-                              ],
-                              // View Bill button
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _showAllBills,
-                                  style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(
-                                        color: Colors.white54),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(
-                                          AppRadius.sm),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: AppSpacing.md),
-                                  ),
-                                  child: Text(
-                                    "View Bill",
-                                    style:
-                                        AppText.labelLarge,
-                                  ),
-                                ),
-                              ),
-                            ]),
-
-                            const SizedBox(height: AppSpacing.sm),
-                            SizedBox(
-                              width: double.infinity,
-                              child: TextButton.icon(
-                                onPressed: _showAdvancePaySheet,
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: AppSpacing.sm),
-                                ),
-                                icon: const Icon(Icons.event_available_rounded,
-                                    size: 16, color: Colors.white),
-                                label: Text("Pay in Advance",
-                                    style: AppText.labelMedium
-                                        .copyWith(color: Colors.white)),
-                              ),
-                            ),
-                          ],
-                        ),
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: appListPadding(context,
+                    top: AppSpacing.xl, bottom: AppSpacing.xxxl),
+                itemCount:
+                    headerCount + (_payments.isEmpty ? 1 : _payments.length),
+                itemBuilder: (context, i) {
+                  if (i == 0) return _buildSummary(unpaid);
+                  if (i == 1) return const SizedBox(height: AppSpacing.xxl);
+                  if (i == 2) {
+                    return const Padding(
+                      padding: EdgeInsets.only(bottom: AppSpacing.md),
+                      child: AppSectionHeader(title: "Transaction History"),
+                    );
+                  }
+                  if (_payments.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.all(AppSpacing.xxl),
+                      child: Text(
+                        "No transactions yet",
+                        textAlign: TextAlign.center,
+                        style: AppText.bodyMedium
+                            .copyWith(color: chateuTextMuted),
                       ),
-                    ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.xxl + 4),
-
-                  // ── Transaction History ───────────────────────────
-                  AppFadeSlide(
-                    controller: _animController,
-                    delay: 0.16,
-                    child: const AppSectionHeader(
-                        title: "Transaction History"),
-                  ),
-
-                  const SizedBox(height: AppSpacing.md),
-
-                  if (_payments.isEmpty)
-                    Center(
-                      child: Padding(
-                        padding:
-                            const EdgeInsets.all(AppSpacing.xxl),
-                        child: Column(
-                          children: [
-                            Icon(Icons.receipt_long_rounded,
-                                size: 48,
-                                color: chateuBorder),
-                            const SizedBox(height: AppSpacing.md),
-                            Text(
-                              "No transactions yet",
-                              style: AppText.bodyMedium.copyWith(
-                                  color: chateuTextSubtle),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  else
-                    ..._payments.asMap().entries.map((e) {
-                      final index = e.key;
-                      final p = e.value;
-                      final color = _statusColor(p.status);
-                      return AppFadeSlide(
-                        controller: _animController,
-                        delay: 0.2 + index * 0.05,
-                        child: Container(
-                          margin: const EdgeInsets.only(
-                              bottom: AppSpacing.sm),
-                          padding:
-                              const EdgeInsets.all(AppSpacing.md),
-                          decoration: AppDecorations.card,
-                          child: Row(
-                            children: [
-                              // Status icon
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: color.withAlpha(25),
-                                  borderRadius: BorderRadius.circular(
-                                      AppRadius.sm),
-                                ),
-                                child: Icon(
-                                  p.isPaid
-                                      ? Icons.check_circle_rounded
-                                      : (p.isPending || p.isAwaitingConfirmation)
-                                          ? Icons.hourglass_top_rounded
-                                          : Icons.receipt_rounded,
-                                  color: color,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.md),
-
-                              // Description
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      p.isPaid
-                                          ? "Payment Success"
-                                          : p.isPending
-                                              ? "Payment Pending"
-                                              : p.isAwaitingConfirmation
-                                                  ? "Awaiting Confirmation"
-                                                  : p.isOverdue
-                                                      ? "Overdue Bill"
-                                                      : "Monthly Due",
-                                      style: AppText.bodyMedium
-                                          .copyWith(
-                                              fontWeight:
-                                                  FontWeight.w700),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      p.isPaid && p.paidAt != null
-                                          ? _formatDateTime(p.paidAt!)
-                                          : "Due: ${_formatDate(p.dueDate)}",
-                                      style: AppText.caption.copyWith(
-                                          color: chateuTextMuted),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              const SizedBox(width: AppSpacing.sm),
-
-                              // Amount + badge
-                              Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    "₱${p.amount.toStringAsFixed(2)}",
-                                    style: AppText.titleMedium
-                                        .copyWith(color: color),
-                                  ),
-                                  const SizedBox(height: AppSpacing.xs),
-                                  AppStatusBadge(
-                                    label: _statusLabel(p.status),
-                                    color: color,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }),
-                ],
+                    );
+                  }
+                  return _buildPaymentRow(_payments[i - headerCount]);
+                },
               ),
             ),
-              ),
     );
   }
 }
 
-// ── Bill Row ───────────────────────────────────────────────────────────────────
+// ── Labeled value / Bill Row ───────────────────────────────────────────────────
+
+class _LabeledValue extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool end;
+
+  const _LabeledValue(
+      {required this.label, required this.value, this.end = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment:
+          end ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Text(label, style: AppText.caption),
+        const SizedBox(height: 2),
+        Text(value, style: AppText.titleMedium),
+      ],
+    );
+  }
+}
 
 class _BillRow extends StatelessWidget {
   final String label;
@@ -876,21 +702,19 @@ class _BillRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: labelStyle ??
-              AppText.caption.copyWith(
-                color: Colors.white.withAlpha(180),
-              ),
+        Expanded(
+          child: Text(label,
+              style: labelStyle ??
+                  AppText.bodyMedium.copyWith(color: chateuTextMuted)),
         ),
+        const SizedBox(width: AppSpacing.sm),
         Text(
           value,
           style: valueStyle ??
               AppText.bodyMedium.copyWith(
                 fontWeight: FontWeight.w600,
-                color: valueColor ?? Colors.white,
+                color: valueColor ?? chateuText,
               ),
         ),
       ],
@@ -936,9 +760,10 @@ class _PaySheetState extends State<_PaySheet> {
 
   Future<void> _pickProof() async {
     final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (file == null) return;
+    if (file == null || !mounted) return;
     if (kIsWeb) {
       final bytes = await file.readAsBytes();
+      if (!mounted) return;
       setState(() {
         _newProofFile = file;
         _newProofBytes = bytes;
@@ -1030,7 +855,9 @@ class _PaySheetState extends State<_PaySheet> {
               left: AppSpacing.xl,
               right: AppSpacing.xl,
               top: AppSpacing.sm,
-              bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.xxl),
+              bottom: MediaQuery.of(context).viewInsets.bottom +
+                  MediaQuery.paddingOf(context).bottom +
+                  AppSpacing.xxl),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1048,6 +875,7 @@ class _PaySheetState extends State<_PaySheet> {
                   width: 220,
                   height: 220,
                   padding: const EdgeInsets.all(AppSpacing.sm),
+                  // Always white: QR scanners need a light quiet zone.
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(AppRadius.md),
@@ -1058,6 +886,8 @@ class _PaySheetState extends State<_PaySheet> {
                       : Image.network(
                           widget.qrImageUrl!,
                           fit: BoxFit.contain,
+                          cacheWidth: 660,
+                          semanticLabel: 'GCash QR code',
                           errorBuilder: (_, __, ___) => _qrPlaceholder(),
                         ),
                 ),
@@ -1072,70 +902,28 @@ class _PaySheetState extends State<_PaySheet> {
               const SizedBox(height: AppSpacing.xl),
 
               Text('Proof of Payment *',
-                  style: AppText.labelMedium.copyWith(color: chateuText)),
+                  style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.sm),
-              GestureDetector(
+              AppUploadTile(
                 onTap: _pickProof,
-                child: Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: chateuBackground,
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    border: Border.all(
-                        color: (_hasNewProof || _hasExistingProof)
-                            ? chateuPrimary.withAlpha(80)
-                            : Colors.black12),
-                  ),
-                  child: Row(children: [
-                    Icon(
-                      (_hasNewProof || _hasExistingProof)
-                          ? Icons.check_circle_rounded
-                          : Icons.upload_file_rounded,
-                      size: 20,
-                      color: (_hasNewProof || _hasExistingProof)
-                          ? chateuPrimary
-                          : Colors.black38,
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        _hasNewProof
-                            ? _newProofFile!.name
-                            : _hasExistingProof
-                                ? 'Proof already on file — tap to replace'
-                                : 'Upload screenshot of payment confirmation',
-                        style: AppText.caption.copyWith(
-                            color: (_hasNewProof || _hasExistingProof)
-                                ? chateuPrimary
-                                : chateuTextMuted),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ]),
-                ),
+                hasFile: _hasNewProof || _hasExistingProof,
+                label: _hasNewProof
+                    ? _newProofFile!.name
+                    : _hasExistingProof
+                        ? 'Proof already on file — tap to replace'
+                        : 'Upload screenshot of payment confirmation',
               ),
 
               const SizedBox(height: AppSpacing.lg),
 
-              Text('Transaction Reference Number *',
-                  style: AppText.labelMedium.copyWith(color: chateuText)),
-              const SizedBox(height: AppSpacing.sm),
               TextField(
                 controller: _referenceCtrl,
-                style: const TextStyle(fontSize: 14),
-                decoration: InputDecoration(
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Transaction Reference Number *',
                   hintText: 'e.g. 1234567890123',
-                  hintStyle: TextStyle(color: chateuTextSubtle, fontSize: 13),
-                  prefixIcon: const Icon(Icons.confirmation_number_rounded,
-                      size: 18, color: chateuPrimary),
-                  filled: true,
-                  fillColor: chateuBackground,
-                  isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none),
+                  prefixIcon:
+                      Icon(Icons.confirmation_number_rounded, size: 18),
                 ),
               ),
 
@@ -1151,7 +939,6 @@ class _PaySheetState extends State<_PaySheet> {
 
               AppPrimaryButton(
                 label: 'Submit Payment',
-                icon: Icons.check_circle_rounded,
                 isLoading: _isSubmitting,
                 onPressed: _isSubmitting ? null : _submit,
               ),
@@ -1165,11 +952,11 @@ class _PaySheetState extends State<_PaySheet> {
   Widget _qrPlaceholder() => Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.qr_code_2_rounded, size: 96, color: chateuBorder),
+          const Icon(Icons.qr_code_2_rounded, size: 96, color: Colors.black26),
           const SizedBox(height: AppSpacing.sm),
-          Text('GCash QR not yet added',
+          const Text('GCash QR not yet added',
               textAlign: TextAlign.center,
-              style: AppText.caption.copyWith(color: chateuTextSubtle)),
+              style: TextStyle(fontSize: 12, color: Color(0xFF5B6B61))),
         ],
       );
 }
@@ -1226,9 +1013,10 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
 
   Future<void> _pickProof() async {
     final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (file == null) return;
+    if (file == null || !mounted) return;
     if (kIsWeb) {
       final bytes = await file.readAsBytes();
+      if (!mounted) return;
       setState(() {
         _proofFile = file;
         _proofBytes = bytes;
@@ -1322,7 +1110,9 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
               left: AppSpacing.xl,
               right: AppSpacing.xl,
               top: AppSpacing.sm,
-              bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.xxl),
+              bottom: MediaQuery.of(context).viewInsets.bottom +
+                  MediaQuery.paddingOf(context).bottom +
+                  AppSpacing.xxl),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1334,18 +1124,18 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
 
               const SizedBox(height: AppSpacing.lg),
               Text('Number of Months',
-                  style: AppText.labelMedium.copyWith(color: chateuText)),
+                  style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.sm),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                padding: const EdgeInsets.all(AppSpacing.xs),
                 decoration: BoxDecoration(
-                  color: chateuBackground,
+                  color: chateuSurfaceMuted,
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Row(children: [
                   IconButton(
-                    icon: const Icon(Icons.remove_circle_outline_rounded,
+                    tooltip: 'Fewer months',
+                    icon: Icon(Icons.remove_circle_outline_rounded,
                         color: chateuPrimary),
                     onPressed:
                         _months > 1 ? () => setState(() => _months--) : null,
@@ -1358,7 +1148,8 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.add_circle_outline_rounded,
+                    tooltip: 'More months',
+                    icon: Icon(Icons.add_circle_outline_rounded,
                         color: chateuPrimary),
                     onPressed: _months < _maxMonths
                         ? () => setState(() => _months++)
@@ -1394,6 +1185,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
                   width: 220,
                   height: 220,
                   padding: const EdgeInsets.all(AppSpacing.sm),
+                  // Always white: QR scanners need a light quiet zone.
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(AppRadius.md),
@@ -1404,6 +1196,8 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
                       : Image.network(
                           widget.qrImageUrl!,
                           fit: BoxFit.contain,
+                          cacheWidth: 660,
+                          semanticLabel: 'GCash QR code',
                           errorBuilder: (_, __, ___) => _qrPlaceholder(),
                         ),
                 ),
@@ -1418,66 +1212,26 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
               const SizedBox(height: AppSpacing.xl),
 
               Text('Proof of Payment *',
-                  style: AppText.labelMedium.copyWith(color: chateuText)),
+                  style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.sm),
-              GestureDetector(
+              AppUploadTile(
                 onTap: _pickProof,
-                child: Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: chateuBackground,
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    border: Border.all(
-                        color: _proofFile != null
-                            ? chateuPrimary.withAlpha(80)
-                            : Colors.black12),
-                  ),
-                  child: Row(children: [
-                    Icon(
-                      _proofFile != null
-                          ? Icons.check_circle_rounded
-                          : Icons.upload_file_rounded,
-                      size: 20,
-                      color: _proofFile != null ? chateuPrimary : Colors.black38,
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        _proofFile != null
-                            ? _proofFile!.name
-                            : 'Upload screenshot of payment confirmation',
-                        style: AppText.caption.copyWith(
-                            color: _proofFile != null
-                                ? chateuPrimary
-                                : chateuTextMuted),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ]),
-                ),
+                hasFile: _proofFile != null,
+                label: _proofFile != null
+                    ? _proofFile!.name
+                    : 'Upload screenshot of payment confirmation',
               ),
 
               const SizedBox(height: AppSpacing.lg),
 
-              Text('Transaction Reference Number *',
-                  style: AppText.labelMedium.copyWith(color: chateuText)),
-              const SizedBox(height: AppSpacing.sm),
               TextField(
                 controller: _referenceCtrl,
-                style: const TextStyle(fontSize: 14),
-                decoration: InputDecoration(
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Transaction Reference Number *',
                   hintText: 'e.g. 1234567890123',
-                  hintStyle: TextStyle(color: chateuTextSubtle, fontSize: 13),
-                  prefixIcon: const Icon(Icons.confirmation_number_rounded,
-                      size: 18, color: chateuPrimary),
-                  filled: true,
-                  fillColor: chateuBackground,
-                  isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none),
+                  prefixIcon:
+                      Icon(Icons.confirmation_number_rounded, size: 18),
                 ),
               ),
 
@@ -1493,7 +1247,6 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
 
               AppPrimaryButton(
                 label: 'Submit Advance Payment',
-                icon: Icons.check_circle_rounded,
                 isLoading: _isSubmitting,
                 onPressed: _isSubmitting ? null : _submit,
               ),
@@ -1507,11 +1260,11 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
   Widget _qrPlaceholder() => Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.qr_code_2_rounded, size: 96, color: chateuBorder),
+          const Icon(Icons.qr_code_2_rounded, size: 96, color: Colors.black26),
           const SizedBox(height: AppSpacing.sm),
-          Text('GCash QR not yet added',
+          const Text('GCash QR not yet added',
               textAlign: TextAlign.center,
-              style: AppText.caption.copyWith(color: chateuTextSubtle)),
+              style: TextStyle(fontSize: 12, color: Color(0xFF5B6B61))),
         ],
       );
 }

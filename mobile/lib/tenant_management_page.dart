@@ -211,66 +211,61 @@ class _TenantManagementPageState extends State<TenantManagementPage> {
 
   @override
   Widget build(BuildContext context) {
-    final screenW = MediaQuery.of(context).size.width;
-    final hPad = screenW > 600 ? screenW * 0.08 : AppSpacing.lg;
+    final hasAddress = _address != null && _address!.isNotEmpty;
+    // Optional address banner, section header, then tenants (or empty state).
+    final lead = <Widget>[
+      if (hasAddress) ...[
+        AppNoticeBanner(
+          icon: Icons.home_rounded,
+          text: 'Tenants added here are linked to: $_address',
+        ),
+        const SizedBox(height: AppSpacing.xl),
+      ],
+      AppSectionHeader(title: 'Your Tenants (${_tenants.length})'),
+      const SizedBox(height: AppSpacing.md),
+    ];
 
     return Scaffold(
-      backgroundColor: chateuBackground,
       appBar: buildStandardAppBar(context: context, title: 'Tenant Management'),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddSheet,
-        backgroundColor: chateuPrimary,
-        icon: const Icon(Icons.person_add_alt_1_rounded, color: Colors.white),
-        label: const Text('Add Tenant',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        icon: const Icon(Icons.person_add_alt_1_rounded),
+        label: const Text('Add Tenant'),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: chateuPrimary))
+          ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              color: chateuPrimary,
               onRefresh: _loadData,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(
-                    parent: BouncingScrollPhysics()),
-                padding: EdgeInsets.symmetric(horizontal: hPad)
-                    .copyWith(top: AppSpacing.xl, bottom: AppSpacing.xxxl + 60),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_address != null && _address!.isNotEmpty)
-                      AppNoticeBanner(
-                        icon: Icons.home_rounded,
-                        text: 'Tenants added here are linked to: $_address',
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: appListPadding(context,
+                    top: AppSpacing.xl, bottom: AppSpacing.xxxl + 72),
+                itemCount: lead.length + (_tenants.isEmpty ? 1 : _tenants.length),
+                itemBuilder: (context, i) {
+                  if (i < lead.length) return lead[i];
+                  if (_tenants.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.all(AppSpacing.xxl),
+                      child: Column(
+                        children: [
+                          Icon(Icons.people_outline_rounded,
+                              size: 48, color: chateuTextMuted),
+                          const SizedBox(height: AppSpacing.md),
+                          Text('No tenants added yet.',
+                              style: AppText.bodyMedium
+                                  .copyWith(color: chateuTextMuted)),
+                        ],
                       ),
-                    const SizedBox(height: AppSpacing.xl),
-                    AppSectionHeader(
-                        title: 'Your Tenants (${_tenants.length})'),
-                    const SizedBox(height: AppSpacing.md),
-                    if (_tenants.isEmpty)
-                      Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.xxl),
-                          child: Column(
-                            children: [
-                              Icon(Icons.people_outline_rounded,
-                                  size: 48, color: chateuBorder),
-                              const SizedBox(height: AppSpacing.md),
-                              Text('No tenants added yet.',
-                                  style: AppText.bodyMedium
-                                      .copyWith(color: chateuTextSubtle)),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      ..._tenants.map((t) => _TenantCard(
-                            tenant: t,
-                            isBusy: _busyTenantId == t.id,
-                            onToggleStatus: () => _toggleStatus(t),
-                            onRemove: () => _removeTenant(t),
-                          )),
-                  ],
-                ),
+                    );
+                  }
+                  final t = _tenants[i - lead.length];
+                  return _TenantCard(
+                    tenant: t,
+                    isBusy: _busyTenantId == t.id,
+                    onToggleStatus: () => _toggleStatus(t),
+                    onRemove: () => _removeTenant(t),
+                  );
+                },
               ),
             ),
     );
@@ -296,27 +291,24 @@ class _TenantCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = tenant.isPending
-        ? chateuAccent
+        ? chateuWarning
         : (tenant.isActive ? chateuPrimary : chateuTextMuted);
+    Widget spinner(Color c) => SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2, color: c),
+        );
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xs),
       decoration: AppDecorations.card,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color.withAlpha(20),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                ),
-                child: Icon(Icons.vpn_key_rounded, color: color, size: 20),
-              ),
-              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -327,12 +319,13 @@ class _TenantCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 2),
                     Text(tenant.email,
-                        style: AppText.caption.copyWith(color: chateuTextMuted),
+                        style: AppText.caption,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                   ],
                 ),
               ),
+              const SizedBox(width: AppSpacing.sm),
               AppStatusBadge(
                   label: tenant.isPending
                       ? 'Pending Approval'
@@ -345,62 +338,44 @@ class _TenantCard extends StatelessWidget {
             Row(children: [
               Icon(Icons.phone_rounded, size: 14, color: chateuTextMuted),
               const SizedBox(width: 6),
-              Text(tenant.phone,
-                  style: AppText.caption.copyWith(color: chateuTextMuted)),
+              Text(tenant.phone, style: AppText.caption),
             ]),
           ],
           if (tenant.isPending) ...[
             const SizedBox(height: AppSpacing.sm),
             AppNoticeBanner(
               icon: Icons.pending_actions_rounded,
-              color: chateuAccent,
+              color: chateuWarning,
               text: 'Awaiting HOA admin approval of the move-in clearance.',
             ),
           ],
           const SizedBox(height: AppSpacing.md),
           const Divider(height: 1),
-          const SizedBox(height: AppSpacing.sm),
           Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
               // The owner can't activate a pending tenant themselves — that
               // only happens once the admin approves the move-in clearance.
               if (!tenant.isPending)
-                Expanded(
-                  child: TextButton.icon(
-                    onPressed: isBusy ? null : onToggleStatus,
-                    icon: isBusy
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: chateuWarning),
-                          )
-                        : Icon(
-                            tenant.isActive
-                                ? Icons.block_rounded
-                                : Icons.check_circle_outline_rounded,
-                            size: 16,
-                            color: chateuWarning),
-                    label: Text(tenant.isActive ? 'Deactivate' : 'Reactivate',
-                        style:
-                            const TextStyle(color: chateuWarning, fontSize: 12)),
-                  ),
-                ),
-              Expanded(
-                child: TextButton.icon(
-                  onPressed: isBusy ? null : onRemove,
+                TextButton.icon(
+                  style: TextButton.styleFrom(foregroundColor: chateuWarning),
+                  onPressed: isBusy ? null : onToggleStatus,
                   icon: isBusy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: chateuError),
-                        )
-                      : const Icon(Icons.delete_outline_rounded,
-                          size: 16, color: chateuError),
-                  label: const Text('Remove',
-                      style: TextStyle(color: chateuError, fontSize: 12)),
+                      ? spinner(chateuWarning)
+                      : Icon(
+                          tenant.isActive
+                              ? Icons.block_rounded
+                              : Icons.check_circle_outline_rounded,
+                          size: 18),
+                  label: Text(tenant.isActive ? 'Deactivate' : 'Reactivate'),
                 ),
+              TextButton.icon(
+                style: TextButton.styleFrom(foregroundColor: chateuError),
+                onPressed: isBusy ? null : onRemove,
+                icon: isBusy
+                    ? spinner(chateuError)
+                    : const Icon(Icons.delete_outline_rounded, size: 18),
+                label: const Text('Remove'),
               ),
             ],
           ),
@@ -465,13 +440,8 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
       initialDate: DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime.now().add(const Duration(days: 365)),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-            colorScheme: const ColorScheme.light(primary: chateuPrimary)),
-        child: child!,
-      ),
     );
-    if (picked != null) {
+    if (picked != null && mounted) {
       setState(() {
         _moveInDateCtrl.text =
             '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
@@ -481,12 +451,12 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
 
   Future<void> _pickContractCopy() async {
     final f = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (f != null) setState(() => _contractCopy = f);
+    if (f != null && mounted) setState(() => _contractCopy = f);
   }
 
   Future<void> _pickBarangayClearance() async {
     final f = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (f != null) setState(() => _barangayClearance = f);
+    if (f != null && mounted) setState(() => _barangayClearance = f);
   }
 
   // Uploads on behalf of the tenant using the OWNER's own session (the
@@ -605,7 +575,9 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
               left: AppSpacing.xl,
               right: AppSpacing.xl,
               top: AppSpacing.sm,
-              bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.xxl),
+              bottom: MediaQuery.of(context).viewInsets.bottom +
+                  MediaQuery.paddingOf(context).bottom +
+                  AppSpacing.xxl),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -669,12 +641,12 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
                 icon: Icons.lock_rounded,
                 obscureText: _isPasswordHidden,
                 suffixIcon: IconButton(
+                  tooltip: _isPasswordHidden ? 'Show password' : 'Hide password',
                   icon: Icon(
                       _isPasswordHidden
                           ? Icons.visibility_off_rounded
                           : Icons.visibility_rounded,
-                      size: 18,
-                      color: Colors.black45),
+                      size: 18),
                   onPressed: () =>
                       setState(() => _isPasswordHidden = !_isPasswordHidden),
                 ),
@@ -695,42 +667,30 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
                   style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.md),
 
-              Text('Move-In Date *',
-                  style: AppText.labelMedium.copyWith(color: chateuText)),
-              const SizedBox(height: AppSpacing.sm),
-              GestureDetector(
+              InkWell(
                 onTap: _pickMoveInDate,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 13),
-                  decoration: BoxDecoration(
-                    color: chateuBackground,
-                    borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Move-In Date *',
+                    prefixIcon: Icon(Icons.calendar_today_rounded, size: 18),
+                    suffixIcon: Icon(Icons.expand_more_rounded),
                   ),
-                  child: Row(children: [
-                    const Icon(Icons.calendar_today_rounded,
-                        size: 18, color: chateuPrimary),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        _moveInDateCtrl.text.isEmpty
-                            ? 'Select move-in date'
-                            : _moveInDateCtrl.text,
-                        style: TextStyle(
-                            fontSize: 14,
-                            color: _moveInDateCtrl.text.isEmpty
-                                ? Colors.black38
-                                : chateuText),
-                      ),
-                    ),
-                    const Icon(Icons.expand_more_rounded, color: chateuPrimary),
-                  ]),
+                  child: Text(
+                    _moveInDateCtrl.text.isEmpty
+                        ? 'Select move-in date'
+                        : _moveInDateCtrl.text,
+                    style: AppText.bodyMedium.copyWith(
+                        color: _moveInDateCtrl.text.isEmpty
+                            ? chateuTextMuted
+                            : chateuText),
+                  ),
                 ),
               ),
 
               const SizedBox(height: AppSpacing.md),
               Text('Contract Copy *',
-                  style: AppText.labelMedium.copyWith(color: chateuText)),
+                  style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.sm),
               _docUploadTile(
                 hint: 'Lease agreement / contract of tenancy',
@@ -741,7 +701,7 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
 
               const SizedBox(height: AppSpacing.md),
               Text('Barangay / HOA Move-Out Clearance *',
-                  style: AppText.labelMedium.copyWith(color: chateuText)),
+                  style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.sm),
               _docUploadTile(
                 hint: 'Upload Barangay Clearance or HOA Move-Out Clearance',
@@ -753,7 +713,6 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
               const SizedBox(height: AppSpacing.xl),
               AppPrimaryButton(
                 label: 'Create Tenant Account',
-                icon: Icons.person_add_alt_1_rounded,
                 isLoading: _isSubmitting,
                 onPressed: _isSubmitting ? null : _submit,
               ),
@@ -770,41 +729,11 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
     required VoidCallback onTap,
     required VoidCallback onRemove,
   }) {
-    final hasFile = file != null;
-    return GestureDetector(
-      onTap: hasFile ? null : onTap,
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: hasFile ? chateuPrimary.withAlpha(20) : chateuBackground,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(
-            color: hasFile ? chateuPrimary.withAlpha(80) : Colors.black12,
-          ),
-        ),
-        child: Row(children: [
-          Icon(
-            hasFile ? Icons.check_circle_rounded : Icons.upload_file_rounded,
-            size: 20,
-            color: hasFile ? chateuPrimary : Colors.black38,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              hasFile ? file.name : hint,
-              style: AppText.caption.copyWith(
-                  color: hasFile ? chateuPrimary : chateuTextMuted),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (hasFile)
-            GestureDetector(
-              onTap: onRemove,
-              child: Icon(Icons.close_rounded,
-                  size: 16, color: chateuTextMuted),
-            ),
-        ]),
-      ),
+    return AppUploadTile(
+      hasFile: file != null,
+      label: file?.name ?? hint,
+      onTap: file != null ? null : onTap,
+      onRemove: onRemove,
     );
   }
 
@@ -815,42 +744,19 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
     TextInputType? keyboardType,
     int? maxLength,
     bool obscureText = false,
-    bool enabled = true,
     Widget? suffixIcon,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: AppText.caption
-                .copyWith(color: chateuTextMuted, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 5),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          maxLength: maxLength,
-          obscureText: obscureText,
-          enabled: enabled,
-          style: const TextStyle(fontSize: 14),
-          decoration: InputDecoration(
-            prefixIcon: icon != null ? Icon(icon, size: 18, color: chateuPrimary) : null,
-            suffixIcon: suffixIcon,
-            filled: true,
-            fillColor: enabled ? chateuBackground : chateuSurfaceMuted,
-            isDense: true,
-            counterText: '',
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-            enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-            focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: chateuPrimary, width: 1.5)),
-          ),
-        ),
-      ],
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLength: maxLength,
+      obscureText: obscureText,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: icon != null ? Icon(icon, size: 18) : null,
+        suffixIcon: suffixIcon,
+        counterText: '',
+      ),
     );
   }
 }

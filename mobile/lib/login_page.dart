@@ -7,6 +7,7 @@ import 'app_theme.dart';
 import 'signup_page.dart';
 import 'home_page.dart';
 import 'audit_logger.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -14,7 +15,7 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
+class _LoginPageState extends State<LoginPage> {
   // Form handling
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
@@ -25,29 +26,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   bool _isObscured = true;
   bool _isLoading = false;
 
-  // Animations
-  late final AnimationController _animController;
-  late final Animation<double> _fadeAnim;
-  late final Animation<Offset> _slideAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.12),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
-    _animController.forward();
-  }
-
   @override
   void dispose() {
-    _animController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -76,6 +56,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
       if (profile['account_status'] != 'active') {
         await _supabase.auth.signOut();
+        if (!mounted) return;
         _showError("Your account is disabled/pending admin approval.");
         return;
       }
@@ -105,98 +86,64 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-          contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          title: const Text('Forgot Your Password?'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: chateuPrimary.withAlpha(16), shape: BoxShape.circle),
-                child: Icon(Icons.lock_reset_rounded, color: chateuPrimary, size: 32),
-              ),
-              const SizedBox(height: 16),
-              Text('Forgot Your Password?', textAlign: TextAlign.center, style: AppText.titleLarge),
-              const SizedBox(height: 8),
-              Text(
+              const Text(
                 "Enter your account email. Your HOA admin will be notified and will reset your password for you.",
-                textAlign: TextAlign.center,
-                style: AppText.bodyMedium.copyWith(color: chateuTextMuted),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
               TextField(
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
                 autofocus: true,
                 enabled: !isSubmitting,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
+                  labelText: 'Email',
                   hintText: 'you@email.com',
-                  filled: true,
-                  fillColor: chateuSurfaceMuted,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 ),
               ),
-              const SizedBox(height: 20),
-              Row(children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: isSubmitting ? null : () => Navigator.pop(dialogContext, false),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: chateuBorder),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: Text('Cancel', style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: isSubmitting
-                        ? null
-                        : () async {
-                            final email = emailController.text.trim();
-                            if (email.isEmpty || !email.contains('@')) {
-                              showAppSnack(context, 'Enter a valid email address.', type: SnackType.error);
-                              return;
-                            }
-                            setDialogState(() => isSubmitting = true);
-                            try {
-                              await _supabase.functions.invoke(
-                                'request-password-reset',
-                                body: {'email': email},
-                              );
-                              if (dialogContext.mounted) Navigator.pop(dialogContext, true);
-                            } catch (_) {
-                              setDialogState(() => isSubmitting = false);
-                              if (context.mounted) {
-                                showAppSnack(context, 'Something went wrong. Please try again.', type: SnackType.error);
-                              }
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: chateuPrimary,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: isSubmitting
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : Text('Send Request', style: AppText.labelMedium.copyWith(color: Colors.white)),
-                  ),
-                ),
-              ]),
             ],
           ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      final email = emailController.text.trim();
+                      if (email.isEmpty || !email.contains('@')) {
+                        showAppSnack(context, 'Enter a valid email address.', type: SnackType.error);
+                        return;
+                      }
+                      setDialogState(() => isSubmitting = true);
+                      try {
+                        await _supabase.functions.invoke(
+                          'request-password-reset',
+                          body: {'email': email},
+                        );
+                        if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                      } catch (_) {
+                        setDialogState(() => isSubmitting = false);
+                        if (context.mounted) {
+                          showAppSnack(context, 'Something went wrong. Please try again.', type: SnackType.error);
+                        }
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Send Request'),
+            ),
+          ],
         ),
       ),
     );
@@ -230,64 +177,61 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. Background Image
           Positioned.fill(
             child: Image.asset(
               'assets/chateau.png',
               fit: BoxFit.cover,
-              errorBuilder: (c, e, s) => Container(color: const Color(0xFF1a1a2e)),
+              excludeFromSemantics: true,
+              errorBuilder: (c, e, s) => const SizedBox.shrink(),
             ),
           ),
-
-          // 2. Dark Overlay
           Positioned.fill(
-            child: Container(color: Colors.black.withValues(alpha: 0.65)),
+            child: ColoredBox(color: Colors.black.withValues(alpha: 0.65)),
           ),
-
-          // 3. Content
           SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: mq.size.height - mq.padding.vertical),
                 child: IntrinsicHeight(
-                  child: FadeTransition(
-                    opacity: _fadeAnim,
-                    child: SlideTransition(
-                      position: _slideAnim,
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 440),
                       child: Form(
                         key: _formKey,
-                        child: Column(
-                          children: [
-                            SizedBox(height: isSmall ? 30 : 50),
-                            
-                            // Original Logo
-                            Image.asset(
-                              'assets/logo.png',
-                              height: isSmall ? 90 : 120,
-                              errorBuilder: (c, e, s) => const Icon(Icons.home_rounded, color: Colors.white, size: 100),
-                            ),
-                            
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Build a stronger community with us',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.white70, fontSize: 15),
-                            ),
-
-                            const Spacer(flex: 1),
-
-                            // Glass Card
-                            _buildGlassCard(isSmall),
-
-                            const Spacer(flex: 2),
-
-                            // Footer
-                            _buildFooter(),
-                            const SizedBox(height: 20),
-                          ],
+                        child: AutofillGroup(
+                          child: Column(
+                            children: [
+                              if (Navigator.canPop(context))
+                                const Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: BackButton(color: Colors.white),
+                                ),
+                              SizedBox(height: isSmall ? 8 : 24),
+                              Image.asset(
+                                'assets/logo.png',
+                                height: isSmall ? 90 : 120,
+                                semanticLabel: 'Chateau Real',
+                                errorBuilder: (c, e, s) => const Icon(Icons.home_rounded, color: Colors.white, size: 100),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              Text(
+                                'Build a stronger community with us',
+                                textAlign: TextAlign.center,
+                                style: AppText.bodyLarge.copyWith(color: Colors.white70),
+                              ),
+                              const Spacer(flex: 1),
+                              const SizedBox(height: AppSpacing.xl),
+                              _buildFormCard(isSmall),
+                              const Spacer(flex: 2),
+                              const SizedBox(height: AppSpacing.xl),
+                              _buildFooter(),
+                              const SizedBox(height: AppSpacing.lg),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -301,120 +245,78 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     );
   }
 
-  Widget _buildGlassCard(bool isSmall) {
+  Widget _buildFormCard(bool isSmall) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(isSmall ? 20 : 28),
+      padding: EdgeInsets.all(isSmall ? AppSpacing.xl : AppSpacing.xxl),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 20, spreadRadius: 5),
-        ],
+        color: chateuSurface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildLabel('Email'),
-          const SizedBox(height: 8),
-          _buildTextField(
+          TextFormField(
             controller: _emailController,
-            hint: 'Enter your email',
             keyboardType: TextInputType.emailAddress,
+            autofillHints: const [AutofillHints.email],
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(
+              labelText: 'Email',
+              hintText: 'you@email.com',
+            ),
             validator: (v) => v != null && RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(v.trim())
                 ? null
                 : 'Enter a valid email address',
           ),
-          const SizedBox(height: 20),
-          _buildLabel('Password'),
-          const SizedBox(height: 8),
-          _buildTextField(
+          const SizedBox(height: AppSpacing.lg),
+          TextFormField(
             controller: _passwordController,
-            hint: 'Enter your password',
-            isPassword: true,
+            obscureText: _isObscured,
+            autofillHints: const [AutofillHints.password],
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _isLoading ? null : _handleSignIn(),
+            decoration: InputDecoration(
+              labelText: 'Password',
+              suffixIcon: IconButton(
+                tooltip: _isObscured ? 'Show password' : 'Hide password',
+                icon: Icon(_isObscured ? Icons.visibility_off : Icons.visibility),
+                onPressed: () => setState(() => _isObscured = !_isObscured),
+              ),
+            ),
             validator: (v) => v != null && v.length >= 8 ? null : 'Password must be at least 8 characters',
           ),
-          
-          // Forgot Password
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: _isLoading ? null : _handleForgotPassword,
-              child: Text('Forgot password?', style: TextStyle(color: chateuAccent, fontSize: 13)),
+              child: const Text('Forgot password?'),
             ),
           ),
-
-          const SizedBox(height: 16),
-
-          // Sign In Button
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _handleSignIn,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: chateuPrimary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: _isLoading
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('Sign in', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
+          const SizedBox(height: AppSpacing.sm),
+          AppPrimaryButton(
+            label: 'Sign in',
+            isLoading: _isLoading,
+            onPressed: _handleSignIn,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildLabel(String text) {
-    return Text(text, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500));
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    bool isPassword = false,
-    TextInputType? keyboardType,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      obscureText: isPassword ? _isObscured : false,
-      keyboardType: keyboardType,
-      validator: validator,
-      style: const TextStyle(color: chateuText, fontSize: 15),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
-        fillColor: Colors.white.withValues(alpha: 0.9),
-        filled: true,
-        suffixIcon: isPassword
-            ? IconButton(
-                icon: Icon(_isObscured ? Icons.visibility_off : Icons.visibility, color: chateuTextMuted),
-                onPressed: () => setState(() => _isObscured = !_isObscured),
-              )
-            : null,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        errorStyle: const TextStyle(color: Color(0xFFFCA5A5)),
       ),
     );
   }
 
   Widget _buildFooter() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        const Text('New to CHATEAU? ', style: TextStyle(color: Colors.white70, fontSize: 14)),
-        GestureDetector(
-          onTap: () {
+        Text('New to Chateau?', style: AppText.bodyMedium.copyWith(color: Colors.white70)),
+        TextButton(
+          style: TextButton.styleFrom(foregroundColor: chateuAccent),
+          onPressed: () {
             HapticFeedback.selectionClick();
             Navigator.push(context, MaterialPageRoute(builder: (_) => const SignupPage()));
           },
-          child: Text(
-            'SIGN UP',
-            style: TextStyle(color: chateuAccent, fontWeight: FontWeight.bold, decoration: TextDecoration.underline),
-          ),
+          child: const Text('Sign up'),
         ),
       ],
     );

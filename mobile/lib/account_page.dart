@@ -9,6 +9,8 @@ import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'login_page.dart';
 import 'audit_logger.dart';
+import 'push_notifications.dart';
+
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
 
@@ -16,9 +18,7 @@ class AccountPage extends StatefulWidget {
   State<AccountPage> createState() => _AccountPageState();
 }
 
-class _AccountPageState extends State<AccountPage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _animController;
+class _AccountPageState extends State<AccountPage> {
   final _supabase = Supabase.instance.client;
   final _picker   = ImagePicker();
 
@@ -51,17 +51,12 @@ class _AccountPageState extends State<AccountPage>
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..forward();
     _loadProfile();
     _loadFamilyMembers();
   }
 
   @override
   void dispose() {
-    _animController.dispose();
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _middleInitialCtrl.dispose();
@@ -80,6 +75,7 @@ class _AccountPageState extends State<AccountPage>
           .select()
           .eq('id', user.id)
           .single();
+      if (!mounted) return;
       setState(() {
         _firstNameCtrl.text     = data['first_name']         ?? '';
         _lastNameCtrl.text      = data['last_name']          ?? '';
@@ -93,7 +89,7 @@ class _AccountPageState extends State<AccountPage>
         _isLoading = false;
       });
     } catch (_) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -262,6 +258,7 @@ class _AccountPageState extends State<AccountPage>
       });
 
       await logAudit('UPDATE_PROFILE', 'Updated profile details.');
+      if (!mounted) return;
 
       setState(() {
         _avatarUrl      = newAvatarUrl;
@@ -272,12 +269,15 @@ class _AccountPageState extends State<AccountPage>
       });
       _showSnack("Profile updated successfully!");
     } on StorageException catch (e) {
+      if (!mounted) return;
       setState(() => _isSaving = false);
       _showSnack("Avatar upload failed: ${e.message}", isError: true);
     } on PostgrestException catch (e) {
+      if (!mounted) return;
       setState(() => _isSaving = false);
       _showSnack("Could not save profile: ${e.message}", isError: true);
     } catch (_) {
+      if (!mounted) return;
       setState(() => _isSaving = false);
       _showSnack("Something went wrong. Please try again.", isError: true);
     }
@@ -289,9 +289,10 @@ class _AccountPageState extends State<AccountPage>
     try {
       final xfile = await _picker.pickImage(
           source: source, imageQuality: 85, maxWidth: 600);
-      if (xfile != null) {
+      if (xfile != null && mounted) {
         if (kIsWeb) {
           final bytes = await xfile.readAsBytes();
+          if (!mounted) return;
           setState(() { _newAvatarBytes = bytes; _newAvatarFile = null; });
         } else {
           setState(() { _newAvatarFile = File(xfile.path); _newAvatarBytes = null; });
@@ -305,10 +306,6 @@ class _AccountPageState extends State<AccountPage>
   void _showAvatarOptions() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
       builder: (_) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
@@ -316,14 +313,7 @@ class _AccountPageState extends State<AccountPage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 40, height: 4,
-                margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-                decoration: BoxDecoration(
-                  color: chateuBorder,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              buildSheetHandle(),
               Text("Profile Photo", style: AppText.titleMedium),
               const SizedBox(height: AppSpacing.lg),
               if (!kIsWeb)
@@ -372,16 +362,6 @@ class _AccountPageState extends State<AccountPage>
       initialDate: _birthDate ?? DateTime(1995),
       firstDate: DateTime(1940),
       lastDate: DateTime.now().subtract(const Duration(days: 365 * 10)),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.light(
-            primary: chateuPrimary,
-            onPrimary: Colors.white,
-            surface: Colors.white,
-          ),
-        ),
-        child: child!,
-      ),
     );
     if (picked != null) setState(() => _birthDate = picked);
   }
@@ -399,6 +379,7 @@ class _AccountPageState extends State<AccountPage>
       icon:         Icons.logout_rounded,
     );
     if (confirm) {
+      await PushNotifications.unregisterToken();
       await _supabase.auth.signOut();
       if (mounted) {
         Navigator.pushAndRemoveUntil(
@@ -420,29 +401,18 @@ class _AccountPageState extends State<AccountPage>
 
   @override
   Widget build(BuildContext context) {
-    final mq      = MediaQuery.of(context);
-    final screenW = mq.size.width;
-    final isWide  = screenW > 600;
-    final hPad    = isWide ? screenW * 0.08 : AppSpacing.lg;
-    final user    = _supabase.auth.currentUser;
+    final user = _supabase.auth.currentUser;
+    final name = (_firstNameCtrl.text.isNotEmpty || _lastNameCtrl.text.isNotEmpty)
+        ? '${_firstNameCtrl.text.trim()} ${_lastNameCtrl.text.trim()}'.trim()
+        : 'Chateau Resident';
 
     return Scaffold(
-      backgroundColor: chateuBackground,
       appBar: AppBar(
-        backgroundColor: chateuBackground,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: chateuPrimary, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text("My Account", style: AppText.titleLarge),
-        centerTitle: true,
+        title: const Text("My Account"),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.md),
-            child: GestureDetector(
-              onTap: () {
+          if (!_isLoading)
+            TextButton(
+              onPressed: () {
                 if (_isEditMode) {
                   setState(() => _isEditMode = false);
                   _loadProfile();
@@ -450,312 +420,187 @@ class _AccountPageState extends State<AccountPage>
                   setState(() => _isEditMode = true);
                 }
               },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md, vertical: 7),
-                decoration: BoxDecoration(
-                  color: _isEditMode
-                      ? chateuBorder
-                      : chateuPrimary,
-                  borderRadius: BorderRadius.circular(AppRadius.xxl),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _isEditMode ? Icons.close_rounded : Icons.edit_rounded,
-                      size: 14,
-                      color: _isEditMode
-                          ? chateuTextMuted
-                          : Colors.white,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      _isEditMode ? "Cancel" : "Edit",
-                      style: AppText.caption.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: _isEditMode
-                            ? chateuTextMuted
-                            : Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              child: Text(_isEditMode ? "Cancel" : "Edit"),
             ),
-          ),
+          const SizedBox(width: AppSpacing.xs),
         ],
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: chateuPrimary))
+          ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _refreshAll,
-              color: chateuPrimary,
               child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics()),
-              padding: EdgeInsets.symmetric(horizontal: hPad)
-                  .copyWith(bottom: AppSpacing.xxxl),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // ── Avatar hero card ────────────────────────────────
-                  AppFadeSlide(
-                    controller: _animController,
-                    delay: 0.0,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          vertical: AppSpacing.xxl,
-                          horizontal: AppSpacing.xl),
-                      decoration: AppDecorations.primaryGradient(
-                          radius: AppRadius.lg),
-                      child: Column(
-                        children: [
-                          // Avatar
-                          Stack(
+                padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: AppContentWidth(
+                  maxWidth: 640,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.lg,
+                        AppSpacing.lg, AppSpacing.lg, AppSpacing.xxxl),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // ── Identity ─────────────────────────────────────
+                        Center(
+                          child: Stack(
+                            clipBehavior: Clip.none,
                             children: [
                               Container(
                                 width: 88,
                                 height: 88,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: Colors.white.withAlpha(80),
-                                      width: 3),
+                                  border: Border.all(color: chateuBorder),
                                 ),
                                 child: ClipOval(child: _buildAvatarImage()),
                               ),
                               if (_isEditMode)
                                 Positioned(
-                                  right: 0, bottom: 0,
-                                  child: GestureDetector(
-                                    onTap: _showAvatarOptions,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                        boxShadow: AppShadows.card,
-                                      ),
-                                      child: const Icon(
+                                  right: -12,
+                                  bottom: -12,
+                                  child: IconButton.filledTonal(
+                                    tooltip: 'Change profile photo',
+                                    onPressed: _showAvatarOptions,
+                                    icon: const Icon(
                                         Icons.camera_alt_rounded,
-                                        size: 16,
-                                        color: chateuPrimary,
-                                      ),
-                                    ),
+                                        size: 20),
                                   ),
                                 ),
                             ],
                           ),
-                          const SizedBox(height: AppSpacing.md),
-
-                          // Name
-                          Text(
-                            (_firstNameCtrl.text.isNotEmpty ||
-                                    _lastNameCtrl.text.isNotEmpty)
-                                ? '${_firstNameCtrl.text.trim()} ${_lastNameCtrl.text.trim()}'
-                                    .trim()
-                                : 'Chateau Resident',
-                            style: AppText.displayMedium.copyWith(
-                              color: Colors.white,
-                              fontSize: 20,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(name,
+                            textAlign: TextAlign.center,
+                            style: AppText.displayMedium),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(user?.email ?? '',
+                            textAlign: TextAlign.center,
+                            style: AppText.bodyMedium
+                                .copyWith(color: chateuTextMuted)),
+                        if (_residentType != null) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          Center(
+                            child: AppStatusBadge(
+                              label: _residentType![0].toUpperCase() +
+                                  _residentType!.substring(1),
+                              color: chateuPrimary,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            user?.email ?? '',
-                            style: AppText.caption.copyWith(
-                              color: Colors.white.withAlpha(180),
-                            ),
-                          ),
-                          if (_residentType != null) ...[
-                            const SizedBox(height: AppSpacing.sm),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.sm, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withAlpha(30),
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.xxl),
-                              ),
-                              child: Text(
-                                _residentType!.toUpperCase(),
-                                style: AppText.caption.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.5,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
-                      ),
-                    ),
-                  ),
 
-                  const SizedBox(height: AppSpacing.lg),
+                        const SizedBox(height: AppSpacing.xxl),
 
-                  // ── Personal Information ────────────────────────────
-                  AppFadeSlide(
-                    controller: _animController,
-                    delay: 0.1,
-                    child: _buildInfoCard(
-                      icon: Icons.person_rounded,
-                      title: "Personal Information",
-                      children: [
-                        Row(
+                        // ── Personal Information ─────────────────────────
+                        _buildInfoCard(
+                          title: "Personal Information",
                           children: [
-                            Expanded(
-                              flex: 3,
-                              child: _buildField(
-                                label: "First Name",
-                                controller: _firstNameCtrl,
-                                icon: Icons.badge_rounded,
-                                enabled: _isEditMode,
-                              ),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: _buildField(
+                                    label: "First Name",
+                                    controller: _firstNameCtrl,
+                                    icon: Icons.badge_rounded,
+                                    enabled: _isEditMode,
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  flex: 1,
+                                  child: _buildField(
+                                    label: "M.I.",
+                                    controller: _middleInitialCtrl,
+                                    enabled: _isEditMode,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Expanded(
-                              flex: 1,
-                              child: _buildField(
-                                label: "M.I.",
-                                controller: _middleInitialCtrl,
-                                icon: Icons.short_text_rounded,
-                                enabled: _isEditMode,
-                              ),
+                            const SizedBox(height: AppSpacing.lg),
+                            _buildField(
+                              label: "Last Name",
+                              controller: _lastNameCtrl,
+                              icon: Icons.badge_outlined,
+                              enabled: _isEditMode,
                             ),
+                            const SizedBox(height: AppSpacing.lg),
+                            _buildField(
+                              label: "Phone Number",
+                              controller: _phoneCtrl,
+                              icon: Icons.phone_rounded,
+                              enabled: _isEditMode,
+                              keyboardType: TextInputType.phone,
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                            _buildDateField(),
                           ],
                         ),
+
                         const SizedBox(height: AppSpacing.lg),
-                        _buildField(
-                          label: "Last Name",
-                          controller: _lastNameCtrl,
-                          icon: Icons.badge_outlined,
-                          enabled: _isEditMode,
+                        _buildFamilyCard(),
+
+                        if (_isEditMode) ...[
+                          const SizedBox(height: AppSpacing.xl),
+                          AppPrimaryButton(
+                            label: "Save Changes",
+                            isLoading: _isSaving,
+                            onPressed: _saveProfile,
+                          ),
+                        ],
+
+                        const SizedBox(height: AppSpacing.xxl),
+                        OutlinedButton.icon(
+                          onPressed: _signOut,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: chateuError,
+                            side: BorderSide(color: chateuError),
+                            minimumSize: const Size.fromHeight(52),
+                          ),
+                          icon: const Icon(Icons.logout_rounded, size: 18),
+                          label: const Text("Sign Out"),
                         ),
-                        const SizedBox(height: AppSpacing.lg),
-                        _buildField(
-                          label: "Phone Number",
-                          controller: _phoneCtrl,
-                          icon: Icons.phone_rounded,
-                          enabled: _isEditMode,
-                          keyboardType: TextInputType.phone,
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                        _buildDateField(),
                       ],
                     ),
                   ),
-
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // ── Family Members ───────────────────────────────────
-                  AppFadeSlide(
-                    controller: _animController,
-                    delay: 0.2,
-                    child: _buildFamilyCard(),
-                  ),
-
-                  // ── Save Button ─────────────────────────────────────
-                  if (_isEditMode) ...[
-                    const SizedBox(height: AppSpacing.xl),
-                    AppPrimaryButton(
-                      label: "Save Changes",
-                      icon: Icons.save_rounded,
-                      isLoading: _isSaving,
-                      onPressed: _saveProfile,
-                    ),
-                  ],
-
-                  const SizedBox(height: AppSpacing.xl),
-
-                  // ── Sign Out ────────────────────────────────────────
-                  AppFadeSlide(
-                    controller: _animController,
-                    delay: 0.3,
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: OutlinedButton(
-                        onPressed: _signOut,
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(
-                              color: chateuError, width: 1.5),
-                          shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.md)),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.logout_rounded,
-                                color: chateuError, size: 18),
-                            const SizedBox(width: AppSpacing.sm),
-                            Text(
-                              "Sign Out",
-                              style: AppText.labelLarge.copyWith(
-                                  color: chateuError),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.lg),
-                ],
+                ),
               ),
             ),
-              ),
     );
   }
 
   // ── Card wrapper ──────────────────────────────────────────────────────────
 
   Widget _buildInfoCard({
-    required IconData icon,
     required String title,
+    Widget? trailing,
     required List<Widget> children,
   }) {
     return Container(
       width: double.infinity,
       decoration: AppDecorations.card,
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
-            decoration: BoxDecoration(
-              color: chateuPrimary.withAlpha(15),
-              borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppRadius.md)),
-            ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: chateuPrimary.withAlpha(30),
-                    shape: BoxShape.circle,
+                Expanded(
+                  child: Semantics(
+                    header: true,
+                    child: Text(title, style: AppText.titleMedium),
                   ),
-                  child: Icon(icon, color: chateuPrimary, size: 18),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                Text(title, style: AppText.titleMedium),
+                if (trailing != null) trailing,
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(children: children),
-          ),
+          const SizedBox(height: AppSpacing.sm),
+          ...children,
         ],
       ),
     );
@@ -764,78 +609,32 @@ class _AccountPageState extends State<AccountPage>
   // ── Family members card ───────────────────────────────────────────────────
 
   Widget _buildFamilyCard() {
-    return Container(
-      width: double.infinity,
-      decoration: AppDecorations.card,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
-            decoration: BoxDecoration(
-              color: chateuPrimary.withAlpha(15),
-              borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppRadius.md)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: chateuPrimary.withAlpha(30),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.family_restroom_rounded,
-                      color: chateuPrimary, size: 18),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                    child: Text("Family Members", style: AppText.titleMedium)),
-                GestureDetector(
-                  onTap: () => _showFamilyMemberSheet(),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(
-                      color: chateuPrimary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.add_rounded,
-                        color: Colors.white, size: 16),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: _familyLoading
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                      child: CircularProgressIndicator(color: chateuPrimary),
-                    ),
-                  )
-                : _familyMembers.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding:
-                              const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                          child: Text(
-                            "No family members added yet.",
-                            style: AppText.bodyMedium
-                                .copyWith(color: chateuTextSubtle),
-                          ),
-                        ),
-                      )
-                    : Column(
-                        children: _familyMembers
-                            .map((m) => _familyMemberTile(m))
-                            .toList(),
-                      ),
-          ),
-        ],
+    return _buildInfoCard(
+      title: "Family Members",
+      trailing: IconButton.filledTonal(
+        tooltip: 'Add family member',
+        onPressed: () => _showFamilyMemberSheet(),
+        icon: const Icon(Icons.add_rounded),
       ),
+      children: [
+        if (_familyLoading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (_familyMembers.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            child: Text(
+              "No family members added yet.",
+              style: AppText.bodyMedium.copyWith(color: chateuTextMuted),
+            ),
+          )
+        else
+          for (final m in _familyMembers) _familyMemberTile(m),
+      ],
     );
   }
 
@@ -843,55 +642,35 @@ class _AccountPageState extends State<AccountPage>
     final name = member['full_name'] as String? ?? '';
     final relationship = member['relationship'] as String?;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: chateuBackground,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        radius: 18,
+        backgroundColor: chateuSurfaceMuted,
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: AppText.bodyMedium.copyWith(
+              color: chateuPrimary, fontWeight: FontWeight.w700),
+        ),
       ),
-      child: Row(
+      title: Text(name.isNotEmpty ? name : 'Unnamed',
+          style: AppText.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+      subtitle: (relationship != null && relationship.isNotEmpty)
+          ? Text(relationship, style: AppText.caption)
+          : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: chateuPrimary.withAlpha(30),
-            child: Text(
-              name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: AppText.bodyMedium.copyWith(
-                  color: chateuPrimary, fontWeight: FontWeight.w700),
-            ),
+          IconButton(
+            tooltip: 'Edit $name',
+            onPressed: () => _showFamilyMemberSheet(existing: member),
+            icon: Icon(Icons.edit_rounded, size: 20, color: chateuPrimary),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name.isNotEmpty ? name : 'Unnamed',
-                    style: AppText.bodyMedium
-                        .copyWith(fontWeight: FontWeight.w600)),
-                if (relationship != null && relationship.isNotEmpty)
-                  Text(relationship,
-                      style: AppText.caption
-                          .copyWith(color: chateuTextMuted)),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: () => _showFamilyMemberSheet(existing: member),
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: Icon(Icons.edit_rounded,
-                  size: 16, color: chateuPrimary.withAlpha(180)),
-            ),
-          ),
-          GestureDetector(
-            onTap: () => _deleteFamilyMember(member),
-            child: const Padding(
-              padding: EdgeInsets.all(6),
-              child: Icon(Icons.delete_outline_rounded,
-                  size: 16, color: chateuError),
-            ),
+          IconButton(
+            tooltip: 'Remove $name',
+            onPressed: () => _deleteFamilyMember(member),
+            icon: Icon(Icons.delete_outline_rounded,
+                size: 20, color: chateuError),
           ),
         ],
       ),
@@ -903,11 +682,14 @@ class _AccountPageState extends State<AccountPage>
   Widget _buildAvatarImage() {
     if (_hasNewAvatar) {
       return kIsWeb
-          ? Image.memory(_newAvatarBytes!, fit: BoxFit.cover)
-          : Image.file(_newAvatarFile!, fit: BoxFit.cover);
+          ? Image.memory(_newAvatarBytes!, fit: BoxFit.cover, cacheWidth: 264)
+          : Image.file(_newAvatarFile!, fit: BoxFit.cover, cacheWidth: 264);
     }
     if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
-      return Image.network(_avatarUrl!, fit: BoxFit.cover,
+      return Image.network(_avatarUrl!,
+          fit: BoxFit.cover,
+          cacheWidth: 264,
+          semanticLabel: 'Profile photo',
           errorBuilder: (_, __, ___) => _avatarPlaceholder());
     }
     return _avatarPlaceholder();
@@ -925,14 +707,11 @@ class _AccountPageState extends State<AccountPage>
             .join()
         : '?';
     return Container(
-      color: Colors.white.withAlpha(40),
+      color: chateuSurfaceMuted,
       child: Center(
         child: Text(
           initials,
-          style: AppText.displayLarge.copyWith(
-            fontSize: 32,
-            color: Colors.white,
-          ),
+          style: AppText.displayLarge.copyWith(color: chateuPrimary),
         ),
       ),
     );
@@ -943,51 +722,20 @@ class _AccountPageState extends State<AccountPage>
   Widget _buildField({
     required String label,
     required TextEditingController controller,
-    required IconData icon,
+    IconData? icon,
     required bool enabled,
     TextInputType? keyboardType,
-    int maxLines = 1,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: AppText.caption.copyWith(
-              color: chateuTextMuted,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
-            )),
-        const SizedBox(height: AppSpacing.xs),
-        TextField(
-          controller: controller,
-          enabled: enabled,
-          keyboardType: keyboardType,
-          maxLines: maxLines,
-          style: AppText.bodyMedium.copyWith(fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            prefixIcon: Icon(icon, size: 18,
-                color: chateuPrimary.withAlpha(180)),
-            fillColor: enabled ? chateuBackground : chateuSurfaceMuted,
-            filled: true,
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: AppSpacing.md),
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                borderSide: BorderSide.none),
-            enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                borderSide:
-                    BorderSide(color: chateuPrimary.withAlpha(60), width: 1)),
-            focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                borderSide:
-                    const BorderSide(color: chateuPrimary, width: 1.5)),
-            disabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                borderSide: BorderSide.none),
-          ),
-        ),
-      ],
+    return TextField(
+      controller: controller,
+      enabled: enabled,
+      keyboardType: keyboardType,
+      style: AppText.bodyMedium.copyWith(fontWeight: FontWeight.w500),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: icon == null ? null : Icon(icon, size: 18),
+        fillColor: enabled ? chateuSurface : chateuSurfaceMuted,
+      ),
     );
   }
 
@@ -998,54 +746,27 @@ class _AccountPageState extends State<AccountPage>
             "${_birthDate!.year}"
         : "Not set";
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("Birth Date",
-            style: AppText.caption.copyWith(
-              color: chateuTextMuted,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
-            )),
-        const SizedBox(height: AppSpacing.xs),
-        GestureDetector(
-          onTap: _isEditMode ? _pickBirthDate : null,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: 13),
-            decoration: BoxDecoration(
-              color: _isEditMode ? chateuBackground : chateuSurfaceMuted,
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-              border: Border.all(
-                color: _isEditMode
-                    ? chateuPrimary.withAlpha(60)
-                    : Colors.transparent,
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.cake_rounded,
-                    size: 18, color: chateuPrimary.withAlpha(180)),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  display,
-                  style: AppText.bodyMedium.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: _birthDate != null
-                        ? chateuText
-                        : chateuTextSubtle,
-                  ),
-                ),
-                const Spacer(),
-                if (_isEditMode)
-                  Icon(Icons.edit_calendar_rounded,
-                      size: 16, color: chateuPrimary.withAlpha(140)),
-              ],
-            ),
+    return InkWell(
+      onTap: _isEditMode ? _pickBirthDate : null,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: "Birth Date",
+          enabled: _isEditMode,
+          prefixIcon: const Icon(Icons.cake_rounded, size: 18),
+          suffixIcon: _isEditMode
+              ? const Icon(Icons.edit_calendar_rounded, size: 18)
+              : null,
+          fillColor: _isEditMode ? chateuSurface : chateuSurfaceMuted,
+        ),
+        child: Text(
+          display,
+          style: AppText.bodyMedium.copyWith(
+            fontWeight: FontWeight.w500,
+            color: _birthDate != null ? chateuText : chateuTextMuted,
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -1067,19 +788,11 @@ class _SheetTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? chateuPrimary;
     return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: c.withAlpha(18),
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-        ),
-        child: Icon(icon, color: c, size: 20),
-      ),
+      leading: Icon(icon, color: color ?? chateuPrimary),
       title: Text(label,
           style: AppText.bodyLarge.copyWith(
-            color: c,
+            color: color ?? chateuText,
             fontWeight: FontWeight.w500,
           )),
       shape: RoundedRectangleBorder(
@@ -1150,7 +863,9 @@ class _FamilyMemberSheetState extends State<_FamilyMemberSheet> {
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom +
+              MediaQuery.paddingOf(context).bottom),
       child: Container(
         decoration: AppDecorations.sheet,
         padding: const EdgeInsets.fromLTRB(
@@ -1164,59 +879,32 @@ class _FamilyMemberSheetState extends State<_FamilyMemberSheet> {
                 style: AppText.titleLarge),
             const SizedBox(height: AppSpacing.lg),
 
-            Text('Full Name *',
-                style: AppText.labelMedium.copyWith(color: chateuText)),
-            const SizedBox(height: AppSpacing.sm),
             TextField(
               controller: _nameCtrl,
-              style: const TextStyle(fontSize: 14),
-              decoration: InputDecoration(
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Full Name *',
                 hintText: 'e.g. Juan Dela Cruz',
-                hintStyle: TextStyle(color: chateuTextSubtle, fontSize: 13),
-                prefixIcon: const Icon(Icons.badge_rounded,
-                    size: 18, color: chateuPrimary),
-                filled: true,
-                fillColor: chateuBackground,
-                isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none),
+                prefixIcon: Icon(Icons.badge_rounded, size: 18),
               ),
             ),
 
             const SizedBox(height: AppSpacing.lg),
-            Text('Relationship',
-                style: AppText.labelMedium.copyWith(color: chateuText)),
-            const SizedBox(height: AppSpacing.sm),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              decoration: BoxDecoration(
-                color: chateuBackground,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _relationship,
-                  isExpanded: true,
-                  icon: const Icon(Icons.expand_more_rounded,
-                      color: chateuPrimary),
-                  style: AppText.bodyMedium.copyWith(color: chateuText),
-                  items: _kRelationshipOptions
-                      .map((r) => DropdownMenuItem(value: r, child: Text(r)))
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null) setState(() => _relationship = v);
-                  },
-                ),
-              ),
+            DropdownButtonFormField<String>(
+              initialValue: _relationship,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Relationship'),
+              items: _kRelationshipOptions
+                  .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) setState(() => _relationship = v);
+              },
             ),
 
             const SizedBox(height: AppSpacing.xl),
             AppPrimaryButton(
               label: isEdit ? 'Save Changes' : 'Add Family Member',
-              icon: Icons.check_circle_rounded,
               isLoading: _isSaving,
               onPressed: _isSaving ? null : _submit,
             ),

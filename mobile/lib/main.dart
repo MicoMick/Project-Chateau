@@ -1,6 +1,7 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:chateau_mobile_app/app_colors.dart';
 import 'package:chateau_mobile_app/app_theme.dart';
 import 'package:chateau_mobile_app/login_page.dart';
 import 'package:chateau_mobile_app/home_page.dart';
@@ -20,6 +21,10 @@ void main() async {
   );
 
   await PushNotifications.initialize();
+
+  try {
+    await loadThemeMode();
+  } catch (_) {} // unreadable prefs → stay on the Light default
 
   // Push notifications are Android-only — no Firebase Web config exists,
   // so none of this applies (or is safe to touch) on web.
@@ -45,8 +50,51 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    appDark = _wantDark;
+    WidgetsBinding.instance.addObserver(this);
+    appThemeMode.addListener(_syncAppearance);
+  }
+
+  @override
+  void dispose() {
+    appThemeMode.removeListener(_syncAppearance);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  bool get _wantDark => switch (appThemeMode.value) {
+        ThemeMode.dark => true,
+        ThemeMode.light => false,
+        ThemeMode.system =>
+          WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+              Brightness.dark,
+      };
+
+  @override
+  void didChangePlatformBrightness() => _syncAppearance();
+
+  void _syncAppearance() {
+    if (_wantDark == appDark) return;
+    setState(() => appDark = _wantDark);
+    // Color tokens aren't inherited widgets, so mark every element dirty to
+    // repaint open screens in the new appearance without losing their state.
+    void rebuild(Element e) {
+      e.markNeedsBuild();
+      e.visitChildren(rebuild);
+    }
+    (context as Element).visitChildren(rebuild);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +102,7 @@ class MyApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Chateau Real Estate App',
-      theme: AppTheme.light,
+      theme: AppTheme.current,
       home: const AuthGate(),
     );
   }
@@ -131,19 +179,10 @@ class LandingPage extends StatelessWidget {
             ),
           ),
 
-          // Scrim — lighter at the top so the photo reads, dark behind the text
+          // Flat scrim so white text reads anywhere on the photo
           Container(
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withAlpha(60),
-                  Colors.black.withAlpha(140),
-                  const Color(0xFF002814).withAlpha(230),
-                ],
-                stops: const [0, 0.5, 1],
-              ),
+              color: const Color(0xFF001A0D).withAlpha(170),
             ),
           ),
 
@@ -164,6 +203,7 @@ class LandingPage extends StatelessWidget {
                         Image.asset(
                           'assets/logo.png',
                           height: logoSize,
+                          semanticLabel: 'Chateau Real',
                           errorBuilder: (context, error, stackTrace) => Icon(
                               Icons.home,
                               size: logoSize,
@@ -212,7 +252,7 @@ class LandingPage extends StatelessWidget {
                               ),
                             ),
                             child: Text(
-                              'Join Now',
+                              'Sign in',
                               style: AppText.labelLarge
                                   .copyWith(fontSize: buttonTextSize),
                             ),
