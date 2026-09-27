@@ -6,7 +6,7 @@ Flutter client for the Chateau HOA platform — the mobile companion to [`chatea
 
 - Flutter (stable channel) / Dart
 - [Supabase](https://supabase.com) (`supabase_flutter`) for auth and data — same backend as the web app
-- [Mapbox](https://www.mapbox.com/) (`mapbox_maps_flutter`) on Android/iOS, `flutter_map` on web
+- `flutter_map` with [Mapbox](https://www.mapbox.com/) raster tiles + Directions API (token in `app_config.dart`)
 - Firebase Cloud Messaging (`firebase_messaging` + `flutter_local_notifications`) for push — Android only
 - `pdf` / `printing` for the downloadable Statement of Account
 - Targets: Android, iOS, Web, macOS
@@ -30,7 +30,7 @@ lib/
   report_page.dart             Maintenance & incident reports
   voting_page.dart             HOA elections
   tenant_management_page.dart
-  map_page.dart                 Community map (Mapbox)
+  map_page.dart                 Community map + navigation (flutter_map)
   notification_page.dart, aboutus_page.dart
 ```
 

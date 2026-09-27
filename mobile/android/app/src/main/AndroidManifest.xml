@@ -39,11 +39,6 @@
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme"/>
 
-            <!-- Mapbox token -->
-            <meta-data
-                android:name="com.mapbox.token"
-                android:value="pk.eyJ1Ijoia21hbmlwaXMiLCJhIjoiY21wN3piaGY0MDE3aTJxczYyZjhjc29zOSJ9.xPFcwtecfqJBjLenYDo6NA"/>
-
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

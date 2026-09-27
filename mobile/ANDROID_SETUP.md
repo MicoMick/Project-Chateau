@@ -74,7 +74,7 @@ cd .. && flutter clean && flutter pub get
 ```
 
 **Mapbox not loading:**
-- Verify token in `android/app/src/main/res/values/strings.xml`
+- Verify `mapboxToken` in `lib/app_config.dart`
 - Check internet permission is in AndroidManifest.xml
 
 **Location not working:**
