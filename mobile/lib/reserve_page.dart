@@ -1337,37 +1337,16 @@ class _BookSheetState extends State<_BookSheet> {
       if (mounted) {
         Navigator.of(context).pop();
         widget.onBooked();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Row(children: [
-            const Icon(Icons.check_circle_rounded,
-                color: Colors.white, size: 18),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-                child: Text(
-                    fee != null
-                        ? 'Reservation submitted! GCash payment of ₱${fee.toStringAsFixed(0)} is awaiting verification.'
-                        : 'Reservation submitted! Awaiting admin approval.',
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w600))),
-          ]),
-          backgroundColor: chateuPrimary,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.sm)),
-          margin: const EdgeInsets.all(AppSpacing.lg),
-        ));
+        showAppSnack(
+            context,
+            fee != null
+                ? 'Reservation submitted! GCash payment of ₱${fee.toStringAsFixed(0)} is awaiting verification.'
+                : 'Reservation submitted! Awaiting admin approval.',
+            type: SnackType.success);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Failed to submit: $e',
-              style: const TextStyle(color: Colors.white)),
-          backgroundColor: chateuError,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.sm)),
-          margin: const EdgeInsets.all(AppSpacing.lg),
-        ));
+        showAppSnack(context, 'Failed to submit: $e', type: SnackType.error);
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

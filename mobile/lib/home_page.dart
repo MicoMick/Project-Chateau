@@ -1741,14 +1741,7 @@ class _AttachmentPreview extends StatelessWidget {
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         } else if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Could not open PDF',
-                  style: AppText.bodyMedium.copyWith(color: Colors.white)),
-              backgroundColor: chateuError,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          showAppSnack(context, 'Could not open PDF', type: SnackType.error);
         }
       }
     }
@@ -1810,14 +1803,7 @@ class _AttachmentPreview extends StatelessWidget {
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         } else if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Could not open link',
-                  style: AppText.bodyMedium.copyWith(color: Colors.white)),
-              backgroundColor: chateuError,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          showAppSnack(context, 'Could not open link', type: SnackType.error);
         }
       }
     }

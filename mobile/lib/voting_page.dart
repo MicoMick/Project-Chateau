@@ -617,11 +617,8 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
       if (userId == null) {
         setState(() => _submitting = false);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Session expired. Please log in again.'),
-          backgroundColor: chateuError,
-          behavior: SnackBarBehavior.floating,
-        ));
+        showAppSnack(context, 'Session expired. Please log in again.',
+            type: SnackType.error);
         return;
       }
       final electionId = widget.election['id'] as String;
@@ -649,46 +646,14 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
           _submitting = false;
         });
         HapticFeedback.heavyImpact();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle_rounded,
-                    color: Colors.white, size: 18),
-                SizedBox(width: 10),
-                Text("Your vote has been submitted!"),
-              ],
-            ),
-            backgroundColor: chateuPrimary,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+        showAppSnack(context, 'Your vote has been submitted!',
+            type: SnackType.success);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _submitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.error_outline_rounded,
-                    color: Colors.white, size: 18),
-                SizedBox(width: 10),
-                Expanded(
-                    child:
-                        Text("Failed to submit vote. Please try again.")),
-              ],
-            ),
-            backgroundColor: chateuError,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+        showAppSnack(context, 'Failed to submit vote. Please try again.',
+            type: SnackType.error);
       }
     }
   }
