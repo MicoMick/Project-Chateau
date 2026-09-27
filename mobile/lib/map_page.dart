@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -1869,29 +1868,15 @@ class _MapPageState extends State<MapPage> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: kIsWeb
-                ? _WebMap(
-                    selectedStreet: _selectedStreet,
-                    userPosition: _userPosition,
-                    routePoints: _routePoints,
-                    filteredStreets: _filteredStreets,
-                    onStreetSelected: _selectStreet,
-                    onRegisterCenterSubdivision: (cb) =>
-                        _onCenterSubdivision = cb,
-                    onRegisterCenterUser: (cb) => _onCenterUser = cb,
-                  )
-                : _MobileMap(
-                    selectedStreet: _selectedStreet,
-                    userPosition: _userPosition,
-                    routePoints: _routePoints,
-                    filteredStreets: _filteredStreets,
-                    onLocationReady: (pos) =>
-                        setState(() => _userPosition = pos),
-                    onStreetSelected: _selectStreet,
-                    onRegisterCenterSubdivision: (cb) =>
-                        _onCenterSubdivision = cb,
-                    onRegisterCenterUser: (cb) => _onCenterUser = cb,
-                  ),
+            child: _CommunityMap(
+              selectedStreet: _selectedStreet,
+              userPosition: _userPosition,
+              routePoints: _routePoints,
+              filteredStreets: _filteredStreets,
+              onStreetSelected: _selectStreet,
+              onRegisterCenterSubdivision: (cb) => _onCenterSubdivision = cb,
+              onRegisterCenterUser: (cb) => _onCenterUser = cb,
+            ),
           ),
 
           // Street filter chips
@@ -2428,9 +2413,9 @@ class _NavigationPageState extends State<_NavigationPage> {
   }
 }
 
-// ── Web Map ───────────────────────────────────────────────────────────────────
+// ── Community Map ───────────────────────────────────────────────────────────
 
-class _WebMap extends StatefulWidget {
+class _CommunityMap extends StatefulWidget {
   final Map<String, dynamic>? selectedStreet;
   final Position? userPosition;
   final List<LatLng> routePoints;
@@ -2439,7 +2424,7 @@ class _WebMap extends StatefulWidget {
   final ValueChanged<VoidCallback> onRegisterCenterSubdivision;
   final ValueChanged<VoidCallback> onRegisterCenterUser;
 
-  const _WebMap({
+  const _CommunityMap({
     this.selectedStreet,
     this.userPosition,
     required this.routePoints,
@@ -2450,172 +2435,10 @@ class _WebMap extends StatefulWidget {
   });
 
   @override
-  State<_WebMap> createState() => _WebMapState();
+  State<_CommunityMap> createState() => _CommunityMapState();
 }
 
-class _WebMapState extends State<_WebMap> {
-  final MapController _mapController = MapController();
-
-  @override
-  void initState() {
-    super.initState();
-    widget.onRegisterCenterSubdivision(
-      () => _mapController.move(
-          const LatLng(_subdivisionLat, _subdivisionLng), 16),
-    );
-    widget.onRegisterCenterUser(() {
-      if (widget.userPosition != null) {
-        _mapController.move(
-            LatLng(
-                widget.userPosition!.latitude, widget.userPosition!.longitude),
-            17);
-      }
-    });
-  }
-
-  @override
-  void didUpdateWidget(_WebMap old) {
-    super.didUpdateWidget(old);
-    if (widget.selectedStreet != null &&
-        widget.selectedStreet != old.selectedStreet) {
-      _mapController.move(
-          LatLng(widget.selectedStreet!['lat'] as double,
-              widget.selectedStreet!['lng'] as double),
-          17);
-    }
-    if (widget.routePoints.isNotEmpty &&
-        widget.routePoints != old.routePoints) {
-      _fitRouteBounds();
-    }
-    // Re-register user-center callback so closure captures fresh userPosition
-    if (widget.userPosition != old.userPosition) {
-      widget.onRegisterCenterUser(() {
-        if (widget.userPosition != null) {
-          _mapController.move(
-              LatLng(widget.userPosition!.latitude,
-                  widget.userPosition!.longitude),
-              17);
-        }
-      });
-    }
-  }
-
-  void _fitRouteBounds() {
-    if (widget.routePoints.length < 2) return;
-    final bounds = LatLngBounds.fromPoints(widget.routePoints);
-    _mapController.fitCamera(
-        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(48)));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final hasRoute = widget.selectedStreet != null;
-    final destLat = widget.selectedStreet?['lat'] as double? ?? _subdivisionLat;
-    final destLng = widget.selectedStreet?['lng'] as double? ?? _subdivisionLng;
-
-    return FlutterMap(
-      mapController: _mapController,
-      options: const MapOptions(
-          initialCenter: LatLng(_subdivisionLat, _subdivisionLng),
-          initialZoom: 16),
-      children: [
-        TileLayer(
-          urlTemplate:
-              'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=${AppConfig.mapboxToken}',
-          userAgentPackageName: 'com.hoacheteau.app',
-        ),
-        if (widget.routePoints.length >= 2)
-          PolylineLayer(polylines: [
-            Polyline(
-                points: widget.routePoints,
-                color: chateuPrimary,
-                strokeWidth: 5,
-                borderColor: Colors.white,
-                borderStrokeWidth: 2),
-          ]),
-        MarkerLayer(markers: [
-          Marker(
-            point: const LatLng(_entranceLat, _entranceLng),
-            width: 120,
-            height: 52,
-            alignment: Alignment.topCenter,
-            child: const _LandmarkPin(emoji: '🏰', label: 'Entrance'),
-          ),
-          Marker(
-            point: const LatLng(_coveredCourtLat, _coveredCourtLng),
-            width: 150,
-            height: 52,
-            alignment: Alignment.topCenter,
-            child: const _LandmarkPin(emoji: '🏟', label: 'Covered Court'),
-          ),
-          Marker(
-            point: const LatLng(_hoaOfficeLat, _hoaOfficeLng),
-            width: 135,
-            height: 52,
-            alignment: Alignment.topCenter,
-            child: const _LandmarkPin(emoji: '🏢', label: 'HOA Office'),
-          ),
-          if (widget.userPosition != null)
-            Marker(
-              point: LatLng(widget.userPosition!.latitude,
-                  widget.userPosition!.longitude),
-              width: 28,
-              height: 28,
-              child: _UserDot(),
-            ),
-          ...widget.filteredStreets.map((s) => Marker(
-                point: LatLng(s['lat'] as double, s['lng'] as double),
-                width: 28,
-                height: 34,
-                alignment: Alignment.topCenter,
-                child: GestureDetector(
-                  onTap: () => widget.onStreetSelected(s),
-                  child: _LotPin(selected: widget.selectedStreet == s),
-                ),
-              )),
-          if (hasRoute)
-            Marker(
-              point: LatLng(destLat, destLng),
-              width: 160,
-              height: 56,
-              alignment: Alignment.topCenter,
-              child: _DestinationPin(
-                  label: widget.selectedStreet!['label'] as String),
-            ),
-        ]),
-      ],
-    );
-  }
-}
-
-// ── Mobile Map ────────────────────────────────────────────────────────────────
-
-class _MobileMap extends StatefulWidget {
-  final Map<String, dynamic>? selectedStreet;
-  final Position? userPosition;
-  final List<LatLng> routePoints;
-  final List<Map<String, dynamic>> filteredStreets;
-  final ValueChanged<Position> onLocationReady;
-  final ValueChanged<Map<String, dynamic>> onStreetSelected;
-  final ValueChanged<VoidCallback> onRegisterCenterSubdivision;
-  final ValueChanged<VoidCallback> onRegisterCenterUser;
-
-  const _MobileMap({
-    this.selectedStreet,
-    this.userPosition,
-    required this.routePoints,
-    required this.filteredStreets,
-    required this.onLocationReady,
-    required this.onStreetSelected,
-    required this.onRegisterCenterSubdivision,
-    required this.onRegisterCenterUser,
-  });
-
-  @override
-  State<_MobileMap> createState() => _MobileMapState();
-}
-
-class _MobileMapState extends State<_MobileMap> {
+class _CommunityMapState extends State<_CommunityMap> {
   final _mapController = MapController();
 
   @override
@@ -2636,7 +2459,7 @@ class _MobileMapState extends State<_MobileMap> {
   }
 
   @override
-  void didUpdateWidget(_MobileMap old) {
+  void didUpdateWidget(_CommunityMap old) {
     super.didUpdateWidget(old);
     if (widget.selectedStreet != null &&
         widget.selectedStreet != old.selectedStreet) {
@@ -2772,7 +2595,7 @@ class _MobileMapState extends State<_MobileMap> {
   }
 }
 
-// ── Flutter Map marker widgets (Web + NavigationPage) ────────────────────────
+// ── Flutter Map marker widgets ────────────────────────
 
 class _UserDot extends StatelessWidget {
   @override
