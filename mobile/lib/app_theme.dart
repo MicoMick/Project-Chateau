@@ -413,6 +413,37 @@ PreferredSizeWidget buildStandardAppBar({
     actions: actions,
   );
 }
+// ── Staggered entrance ─────────────────────────────────────────────────────────
+
+/// Fades + slides [child] in over a 0.4 slice of [controller] starting at [delay].
+class AppFadeSlide extends StatelessWidget {
+  final AnimationController controller;
+  final double delay;
+  final Widget child;
+
+  const AppFadeSlide({
+    super.key,
+    required this.controller,
+    required this.delay,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final curve = CurvedAnimation(
+      parent: controller,
+      curve: Interval(delay, (delay + 0.4).clamp(0.0, 1.0), curve: Curves.easeOut),
+    );
+    return FadeTransition(
+      opacity: curve,
+      child: SlideTransition(
+        position: Tween(begin: const Offset(0, 0.08), end: Offset.zero).animate(curve),
+        child: child,
+      ),
+    );
+  }
+}
+
 // ── ThemeData ──────────────────────────────────────────────────────────────────
 //
 // Component themes so stock Material widgets (TextField, buttons, Card, chips,

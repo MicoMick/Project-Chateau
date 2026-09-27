@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'app_theme.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
@@ -59,7 +60,7 @@ class _AboutPageState extends State<AboutPage>
         child: Column(
           children: [
             // ── Hero Banner ───────────────────────────────────────────
-            _FadeSlide(
+            AppFadeSlide(
               controller: _animController,
               delay: 0.0,
               child: Container(
@@ -194,7 +195,7 @@ class _AboutPageState extends State<AboutPage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── About Us Section ──────────────────────────────
-                  _FadeSlide(
+                  AppFadeSlide(
                     controller: _animController,
                     delay: 0.1,
                     child: Column(
@@ -258,7 +259,7 @@ class _AboutPageState extends State<AboutPage>
                   const SizedBox(height: 28),
 
                   // ── Features Section ──────────────────────────────
-                  _FadeSlide(
+                  AppFadeSlide(
                     controller: _animController,
                     delay: 0.18,
                     child: Row(
@@ -358,7 +359,7 @@ class _AboutPageState extends State<AboutPage>
                   const SizedBox(height: 28),
 
                   // ── Mission section ───────────────────────────────
-                  _FadeSlide(
+                  AppFadeSlide(
                     controller: _animController,
                     delay: 0.46,
                     child: Container(
@@ -418,7 +419,7 @@ class _AboutPageState extends State<AboutPage>
                   const SizedBox(height: 20),
 
                   // ── Version footer ─────────────────────────────────
-                  _FadeSlide(
+                  AppFadeSlide(
                     controller: _animController,
                     delay: 0.5,
                     child: Center(
@@ -515,7 +516,7 @@ class _FeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _FadeSlide(
+    return AppFadeSlide(
       controller: controller,
       delay: delay,
       child: Container(
@@ -566,42 +567,5 @@ class _FeatureCard extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// ── Animation Helper ───────────────────────────────────────────────────────────
-
-class _FadeSlide extends StatelessWidget {
-  final AnimationController controller;
-  final double delay;
-  final Widget child;
-
-  const _FadeSlide({
-    required this.controller,
-    required this.delay,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fade = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: Interval(delay, (delay + 0.4).clamp(0.0, 1.0),
-            curve: Curves.easeOut),
-      ),
-    );
-    final slide =
-        Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
-            .animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: Interval(delay, (delay + 0.4).clamp(0.0, 1.0),
-            curve: Curves.easeOut),
-      ),
-    );
-    return FadeTransition(
-        opacity: fade,
-        child: SlideTransition(position: slide, child: child));
   }
 }

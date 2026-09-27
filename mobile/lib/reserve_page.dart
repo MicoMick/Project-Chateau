@@ -405,7 +405,7 @@ class _ReservePageState extends State<ReservePage>
                         const SizedBox(height: AppSpacing.xl),
 
                         // ── Header ───────────────────────────────────────────
-                        _FadeSlide(
+                        AppFadeSlide(
                           controller: _animController,
                           delay: 0.0,
                           child: Row(
@@ -431,7 +431,7 @@ class _ReservePageState extends State<ReservePage>
                         const SizedBox(height: AppSpacing.xl),
 
                         // ── Calendar ─────────────────────────────────────────
-                        _FadeSlide(
+                        AppFadeSlide(
                           controller: _animController,
                           delay: 0.08,
                           child: Container(
@@ -505,7 +505,7 @@ class _ReservePageState extends State<ReservePage>
 
                         // ── Bookings on selected day ──────────────────────────
                         if (dayRes.isNotEmpty) ...[
-                          _FadeSlide(
+                          AppFadeSlide(
                             controller: _animController,
                             delay: 0.14,
                             child: AppSectionHeader(
@@ -534,7 +534,7 @@ class _ReservePageState extends State<ReservePage>
 
                         // ── My Borrowed Amenities ─────────────────────────────
                         if (_myBorrows.isNotEmpty) ...[
-                          _FadeSlide(
+                          AppFadeSlide(
                             controller: _animController,
                             delay: 0.16,
                             child: const AppSectionHeader(
@@ -550,7 +550,7 @@ class _ReservePageState extends State<ReservePage>
                         ],
 
                         // ── Available Facilities ──────────────────────────────
-                        _FadeSlide(
+                        AppFadeSlide(
                           controller: _animController,
                           delay: 0.18,
                           child: const AppSectionHeader(
@@ -581,7 +581,7 @@ class _ReservePageState extends State<ReservePage>
                                             'approved')
                                         .length >=
                                     3;
-                            return _FadeSlide(
+                            return AppFadeSlide(
                               controller: _animController,
                               delay: 0.22 + idx * 0.06,
                               child: _FacilityCard(
@@ -2285,31 +2285,4 @@ class _TimePicker extends StatelessWidget {
           ]),
         ),
       );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// FadeSlide animation helper
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _FadeSlide extends StatelessWidget {
-  final AnimationController controller;
-  final double delay;
-  final Widget child;
-  const _FadeSlide(
-      {required this.controller, required this.delay, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    final fade = Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(
-        parent: controller,
-        curve: Interval(delay, (delay + 0.4).clamp(0.0, 1.0),
-            curve: Curves.easeOut)));
-    final slide = Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
-        .animate(CurvedAnimation(
-            parent: controller,
-            curve: Interval(delay, (delay + 0.4).clamp(0.0, 1.0),
-                curve: Curves.easeOut)));
-    return FadeTransition(
-        opacity: fade, child: SlideTransition(position: slide, child: child));
-  }
 }

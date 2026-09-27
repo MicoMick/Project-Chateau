@@ -504,7 +504,7 @@ class _AccountPageState extends State<AccountPage>
                   const SizedBox(height: AppSpacing.lg),
 
                   // ── Avatar hero card ────────────────────────────────
-                  _FadeSlide(
+                  AppFadeSlide(
                     controller: _animController,
                     delay: 0.0,
                     child: Container(
@@ -602,7 +602,7 @@ class _AccountPageState extends State<AccountPage>
                   const SizedBox(height: AppSpacing.lg),
 
                   // ── Personal Information ────────────────────────────
-                  _FadeSlide(
+                  AppFadeSlide(
                     controller: _animController,
                     delay: 0.1,
                     child: _buildInfoCard(
@@ -656,7 +656,7 @@ class _AccountPageState extends State<AccountPage>
                   const SizedBox(height: AppSpacing.lg),
 
                   // ── Family Members ───────────────────────────────────
-                  _FadeSlide(
+                  AppFadeSlide(
                     controller: _animController,
                     delay: 0.2,
                     child: _buildFamilyCard(),
@@ -676,7 +676,7 @@ class _AccountPageState extends State<AccountPage>
                   const SizedBox(height: AppSpacing.xl),
 
                   // ── Sign Out ────────────────────────────────────────
-                  _FadeSlide(
+                  AppFadeSlide(
                     controller: _animController,
                     delay: 0.3,
                     child: SizedBox(
@@ -1089,42 +1089,6 @@ class _SheetTile extends StatelessWidget {
   }
 }
 
-// ── Animation helper ───────────────────────────────────────────────────────────
-
-class _FadeSlide extends StatelessWidget {
-  final AnimationController controller;
-  final double delay;
-  final Widget child;
-
-  const _FadeSlide({
-    required this.controller,
-    required this.delay,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fade = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: Interval(delay, (delay + 0.4).clamp(0.0, 1.0),
-            curve: Curves.easeOut),
-      ),
-    );
-    final slide =
-        Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
-            .animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: Interval(delay, (delay + 0.4).clamp(0.0, 1.0),
-            curve: Curves.easeOut),
-      ),
-    );
-    return FadeTransition(
-        opacity: fade,
-        child: SlideTransition(position: slide, child: child));
-  }
-}
 
 // ── Family Member Sheet — add / edit ─────────────────────────────────────────
 

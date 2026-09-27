@@ -310,7 +310,7 @@ class _ReportPageState extends State<ReportPage>
               SizedBox(height: isSmall ? 12 : AppSpacing.xl),
 
               // ── Header ────────────────────────────────────────────
-              _AnimatedItem(
+              AppFadeSlide(
                 controller: _entranceController,
                 delay: 0.0,
                 child: const AppSectionHeader(title: "Submit a Report"),
@@ -318,7 +318,7 @@ class _ReportPageState extends State<ReportPage>
 
               const SizedBox(height: AppSpacing.xs),
 
-              _AnimatedItem(
+              AppFadeSlide(
                 controller: _entranceController,
                 delay: 0.05,
                 child: Text(
@@ -332,7 +332,7 @@ class _ReportPageState extends State<ReportPage>
               SizedBox(height: isSmall ? 16 : AppSpacing.xl),
 
               // ── Category picker ───────────────────────────────────
-              _AnimatedItem(
+              AppFadeSlide(
                 controller: _entranceController,
                 delay: 0.1,
                 child: Text(
@@ -343,7 +343,7 @@ class _ReportPageState extends State<ReportPage>
 
               const SizedBox(height: AppSpacing.sm),
 
-              _AnimatedItem(
+              AppFadeSlide(
                 controller: _entranceController,
                 delay: 0.15,
                 child: GridView.builder(
@@ -420,7 +420,7 @@ class _ReportPageState extends State<ReportPage>
               SizedBox(height: isSmall ? 16 : AppSpacing.xl),
 
               // ── Form card ─────────────────────────────────────────
-              _AnimatedItem(
+              AppFadeSlide(
                 controller: _entranceController,
                 delay: 0.2,
                 child: Container(
@@ -1012,47 +1012,4 @@ class _DashedBorderPainter extends CustomPainter {
   @override
   bool shouldRepaint(_DashedBorderPainter oldDelegate) =>
       oldDelegate.color != color;
-}
-
-// ── Animation helper ───────────────────────────────────────────────────────────
-
-class _AnimatedItem extends StatelessWidget {
-  final AnimationController controller;
-  final double delay;
-  final Widget child;
-
-  const _AnimatedItem({
-    required this.controller,
-    required this.delay,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fade = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: Interval(
-          delay,
-          (delay + 0.4).clamp(0.0, 1.0),
-          curve: Curves.easeOut,
-        ),
-      ),
-    );
-    final slide =
-        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: Interval(
-          delay,
-          (delay + 0.4).clamp(0.0, 1.0),
-          curve: Curves.easeOut,
-        ),
-      ),
-    );
-    return FadeTransition(
-      opacity: fade,
-      child: SlideTransition(position: slide, child: child),
-    );
-  }
 }
