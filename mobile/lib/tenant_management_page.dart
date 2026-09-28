@@ -6,6 +6,7 @@ import 'app_colors.dart';
 import 'domain/format/format.dart';
 import 'app_services.dart';
 import 'domain/resident/current_resident.dart';
+import 'domain/uploads/uploads.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 
@@ -456,19 +457,12 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
     if (f != null && mounted) setState(() => _barangayClearance = f);
   }
 
-  // Uploads on behalf of the tenant using the OWNER's own session (the
-  // tenant has no session yet at this point), so the path's uid segment
-  // must be the owner's id to satisfy the move-in-docs storage RLS policy.
-  Future<String?> _uploadDoc(XFile? file, String folder, String ownerId) async {
+  // Uploads on behalf of the tenant under the OWNER's session (the tenant
+  // has no session yet), so the path carries the owner's uid.
+  Future<String?> _uploadDoc(XFile? file, String folder) async {
     if (file == null) return null;
     try {
-      final bytes = await file.readAsBytes();
-      final ext = file.name.contains('.') ? file.name.split('.').last : 'jpg';
-      final path = '$folder/$ownerId/${DateTime.now().millisecondsSinceEpoch}.$ext';
-      await Supabase.instance.client.storage
-          .from('move-in-docs')
-          .uploadBinary(path, bytes, fileOptions: const FileOptions(upsert: true));
-      return Supabase.instance.client.storage.from('move-in-docs').getPublicUrl(path);
+      return await uploads.store(Evidence.moveInDocument(folder), file);
     } catch (_) {
       return null;
     }
@@ -532,9 +526,9 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
     setState(() => _isSubmitting = true);
     HapticFeedback.lightImpact();
 
-    final contractUrl = await _uploadDoc(_contractCopy, 'contract-copy', ownerId);
+    final contractUrl = await _uploadDoc(_contractCopy, 'contract-copy');
     final clearanceUrl =
-        await _uploadDoc(_barangayClearance, 'barangay-clearance', ownerId);
+        await _uploadDoc(_barangayClearance, 'barangay-clearance');
     if (contractUrl == null || clearanceUrl == null) {
       if (mounted) {
         setState(() {

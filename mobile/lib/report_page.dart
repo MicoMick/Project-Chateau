@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 import 'app_colors.dart';
+import 'app_services.dart';
+import 'domain/uploads/uploads.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'audit_logger.dart';
@@ -190,44 +192,20 @@ class _ReportPageState extends State<ReportPage> {
       String? videoUrl; // added
 
       if (_hasImage) {
-        final fileExt = kIsWeb ? 'jpg' : _pickedImage!.path.split('.').last;
-        final fileName =
-            '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$fileExt';
-
-        if (kIsWeb) {
-          await _supabase.storage
-              .from('report-photos')
-              .uploadBinary(fileName, _pickedImageBytes!);
-        } else {
-          await _supabase.storage
-              .from('report-photos')
-              .upload(fileName, _pickedImage!);
-        }
-
-        photoUrl = _supabase.storage
-            .from('report-photos')
-            .getPublicUrl(fileName);
+        photoUrl = await uploads.store(
+            const Evidence.reportPhoto(),
+            kIsWeb
+                ? XFile.fromData(_pickedImageBytes!, name: 'photo.jpg')
+                : XFile(_pickedImage!.path));
       }
 
       // added: upload video if present
       if (_hasVideo) {
-        final fileExt = kIsWeb ? 'mp4' : _pickedVideo!.path.split('.').last;
-        final fileName =
-            '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$fileExt';
-
-        if (kIsWeb) {
-          await _supabase.storage.from('report-videos').uploadBinary(
-              fileName, _pickedVideoBytes!,
-              fileOptions: const FileOptions(contentType: 'video/mp4'));
-        } else {
-          await _supabase.storage.from('report-videos').upload(
-              fileName, _pickedVideo!,
-              fileOptions: const FileOptions(contentType: 'video/mp4'));
-        }
-
-        videoUrl = _supabase.storage
-            .from('report-videos')
-            .getPublicUrl(fileName);
+        videoUrl = await uploads.store(
+            const Evidence.reportVideo(),
+            kIsWeb
+                ? XFile.fromData(_pickedVideoBytes!, name: 'video.mp4')
+                : XFile(_pickedVideo!.path));
       }
 
       await _supabase.from('reports').insert({

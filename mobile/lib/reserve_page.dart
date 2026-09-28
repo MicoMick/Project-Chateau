@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,6 +10,7 @@ import 'app_dialogs.dart';
 import 'app_services.dart';
 import 'audit_logger.dart';
 import 'domain/reservations/reservations.dart';
+import 'domain/uploads/uploads.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 // ReservePage
 // ─────────────────────────────────────────────────────────────────────────────
@@ -778,10 +777,8 @@ class _BookSheetState extends State<_BookSheet> {
   late DateTime _returnDate;
 
   XFile? _proofFile;
-  Uint8List? _proofBytes;
 
   XFile? _conditionPhotoFile;
-  Uint8List? _conditionPhotoBytes;
 
   int get _maxQuantity => widget.facility.availableQuantity ?? 0;
 
@@ -800,31 +797,13 @@ class _BookSheetState extends State<_BookSheet> {
   Future<void> _pickProof() async {
     final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (file == null || !mounted) return;
-    if (kIsWeb) {
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
-      setState(() {
-        _proofFile = file;
-        _proofBytes = bytes;
-      });
-    } else {
-      setState(() => _proofFile = file);
-    }
+    setState(() => _proofFile = file);
   }
 
   Future<void> _pickConditionPhoto() async {
     final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (file == null || !mounted) return;
-    if (kIsWeb) {
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
-      setState(() {
-        _conditionPhotoFile = file;
-        _conditionPhotoBytes = bytes;
-      });
-    } else {
-      setState(() => _conditionPhotoFile = file);
-    }
+    setState(() => _conditionPhotoFile = file);
   }
 
   // The booking rules (clashes, pick-up/return times, quantity, court fee)
@@ -884,45 +863,14 @@ class _BookSheetState extends State<_BookSheet> {
 
       String? proofUrl;
       if (fee != null && _proofFile != null) {
-        final ext = kIsWeb
-            ? 'jpg'
-            : (_proofFile!.path.contains('.')
-                ? _proofFile!.path.split('.').last
-                : 'jpg');
-        final path =
-            '$userId/reservations/${DateTime.now().millisecondsSinceEpoch}.$ext';
-        if (kIsWeb) {
-          await _supabase.storage.from('payment-proofs').uploadBinary(
-              path, _proofBytes!,
-              fileOptions: const FileOptions(upsert: true));
-        } else {
-          await _supabase.storage.from('payment-proofs').upload(
-              path, File(_proofFile!.path),
-              fileOptions: const FileOptions(upsert: true));
-        }
-        proofUrl = _supabase.storage.from('payment-proofs').getPublicUrl(path);
+        proofUrl = await uploads.store(
+            const Evidence.reservationFeeProof(), _proofFile!);
       }
 
       String? conditionPhotoUrl;
       if (widget.facility.isQuantityBased && _conditionPhotoFile != null) {
-        final ext = kIsWeb
-            ? 'jpg'
-            : (_conditionPhotoFile!.path.contains('.')
-                ? _conditionPhotoFile!.path.split('.').last
-                : 'jpg');
-        final path =
-            '$userId/reservations/${DateTime.now().millisecondsSinceEpoch}.$ext';
-        if (kIsWeb) {
-          await _supabase.storage.from('borrow-condition-photos').uploadBinary(
-              path, _conditionPhotoBytes!,
-              fileOptions: const FileOptions(upsert: true));
-        } else {
-          await _supabase.storage.from('borrow-condition-photos').upload(
-              path, File(_conditionPhotoFile!.path),
-              fileOptions: const FileOptions(upsert: true));
-        }
-        conditionPhotoUrl =
-            _supabase.storage.from('borrow-condition-photos').getPublicUrl(path);
+        conditionPhotoUrl = await uploads.store(
+            const Evidence.conditionPhoto(), _conditionPhotoFile!);
       }
 
       await widget.reservations.book(
@@ -1395,7 +1343,6 @@ class _ReturnSheetState extends State<_ReturnSheet> {
   bool _isSubmitting = false;
 
   XFile? _photoFile;
-  Uint8List? _photoBytes;
 
   int get _borrowedQty => widget.reservation.quantity ?? 0;
 
@@ -1408,16 +1355,7 @@ class _ReturnSheetState extends State<_ReturnSheet> {
   Future<void> _pickPhoto() async {
     final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (file == null || !mounted) return;
-    if (kIsWeb) {
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
-      setState(() {
-        _photoFile = file;
-        _photoBytes = bytes;
-      });
-    } else {
-      setState(() => _photoFile = file);
-    }
+    setState(() => _photoFile = file);
   }
 
   Future<void> _submit() async {
@@ -1433,24 +1371,8 @@ class _ReturnSheetState extends State<_ReturnSheet> {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) throw Exception('Not authenticated');
 
-      final ext = kIsWeb
-          ? 'jpg'
-          : (_photoFile!.path.contains('.')
-              ? _photoFile!.path.split('.').last
-              : 'jpg');
-      final path =
-          '$userId/reservations/return-${DateTime.now().millisecondsSinceEpoch}.$ext';
-      if (kIsWeb) {
-        await _supabase.storage.from('borrow-condition-photos').uploadBinary(
-            path, _photoBytes!,
-            fileOptions: const FileOptions(upsert: true));
-      } else {
-        await _supabase.storage.from('borrow-condition-photos').upload(
-            path, File(_photoFile!.path),
-            fileOptions: const FileOptions(upsert: true));
-      }
       final photoUrl =
-          _supabase.storage.from('borrow-condition-photos').getPublicUrl(path);
+          await uploads.store(const Evidence.returnPhoto(), _photoFile!);
 
       // Not 'Completed' yet — an HOA admin still has to verify this return
       // (confirm condition, restock the item) before it's actually done.

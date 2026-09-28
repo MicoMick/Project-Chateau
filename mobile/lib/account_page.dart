@@ -11,6 +11,7 @@ import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'login_page.dart';
 import 'app_services.dart';
+import 'domain/uploads/uploads.dart';
 import 'audit_logger.dart';
 import 'domain/resident/current_resident.dart';
 import 'push_notifications.dart';
@@ -226,20 +227,11 @@ class _AccountPageState extends State<AccountPage> {
       String? newAvatarUrl = _avatarUrl;
 
       if (_hasNewAvatar) {
-        final ext      = kIsWeb ? 'jpg' : _newAvatarFile!.path.split('.').last;
-        final fileName =
-            '${user.id}/avatar_${DateTime.now().millisecondsSinceEpoch}.$ext';
-        if (kIsWeb) {
-          await _supabase.storage.from('avatars').uploadBinary(
-              fileName, _newAvatarBytes!,
-              fileOptions: const FileOptions(upsert: true));
-        } else {
-          await _supabase.storage.from('avatars').upload(
-              fileName, _newAvatarFile!,
-              fileOptions: const FileOptions(upsert: true));
-        }
-        newAvatarUrl =
-            _supabase.storage.from('avatars').getPublicUrl(fileName);
+        newAvatarUrl = await uploads.store(
+            const Evidence.avatar(),
+            kIsWeb
+                ? XFile.fromData(_newAvatarBytes!, name: 'avatar.jpg')
+                : XFile(_newAvatarFile!.path));
       }
 
       final mi       = _middleInitialCtrl.text.trim().toUpperCase();

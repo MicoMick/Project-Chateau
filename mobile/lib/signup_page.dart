@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
+import 'app_services.dart';
+import 'domain/uploads/uploads.dart';
 import 'domain/format/format.dart';
 import 'app_dialogs.dart';
 import 'app_theme.dart';
@@ -273,14 +275,7 @@ class _SignupPageState extends State<SignupPage> {
       Future<String?> uploadDoc(XFile? file, String folder) async {
         if (file == null) return null;
         try {
-          final bytes = await file.readAsBytes();
-          final ext   = file.name.contains('.') ? file.name.split('.').last : 'jpg';
-          final path  = '$folder/$userId/${DateTime.now().millisecondsSinceEpoch}.$ext';
-          await _supabase.storage
-              .from('move-in-docs')
-              .uploadBinary(path, bytes,
-                  fileOptions: const FileOptions(upsert: true));
-          return _supabase.storage.from('move-in-docs').getPublicUrl(path);
+          return await uploads.store(Evidence.moveInDocument(folder), file);
         } catch (_) { return null; }
       }
 

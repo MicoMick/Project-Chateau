@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,6 +10,7 @@ import 'app_services.dart';
 import 'audit_logger.dart';
 import 'domain/dues/dues.dart';
 import 'domain/resident/current_resident.dart';
+import 'domain/uploads/uploads.dart';
 import 'soa_page.dart';
 
 // ── Page ───────────────────────────────────────────────────────────────────────
@@ -567,7 +566,6 @@ class _PaySheetState extends State<_PaySheet> {
   final _referenceCtrl = TextEditingController();
 
   XFile? _newProofFile;
-  Uint8List? _newProofBytes;
   bool _isSubmitting = false;
 
   bool get _hasExistingProof =>
@@ -583,16 +581,7 @@ class _PaySheetState extends State<_PaySheet> {
   Future<void> _pickProof() async {
     final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (file == null || !mounted) return;
-    if (kIsWeb) {
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
-      setState(() {
-        _newProofFile = file;
-        _newProofBytes = bytes;
-      });
-    } else {
-      setState(() => _newProofFile = file);
-    }
+    setState(() => _newProofFile = file);
   }
 
   Future<void> _submit() async {
@@ -616,23 +605,8 @@ class _PaySheetState extends State<_PaySheet> {
       String? proofUrl = widget.payment.proofUrl;
 
       if (_hasNewProof) {
-        final ext = kIsWeb
-            ? 'jpg'
-            : (_newProofFile!.path.contains('.')
-                ? _newProofFile!.path.split('.').last
-                : 'jpg');
-        final path =
-            '$userId/${widget.payment.id}/${DateTime.now().millisecondsSinceEpoch}.$ext';
-        if (kIsWeb) {
-          await _supabase.storage.from('payment-proofs').uploadBinary(
-              path, _newProofBytes!,
-              fileOptions: const FileOptions(upsert: true));
-        } else {
-          await _supabase.storage.from('payment-proofs').upload(
-              path, File(_newProofFile!.path),
-              fileOptions: const FileOptions(upsert: true));
-        }
-        proofUrl = _supabase.storage.from('payment-proofs').getPublicUrl(path);
+        proofUrl = await uploads.store(
+            Evidence.paymentProof(widget.payment.id), _newProofFile!);
       }
 
       await _supabase.from('payments').update({
@@ -814,7 +788,6 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
   final _referenceCtrl = TextEditingController();
   int _months = 1;
   XFile? _proofFile;
-  Uint8List? _proofBytes;
   bool _isSubmitting = false;
 
   double get _total => _months * widget.monthlyDue;
@@ -836,16 +809,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
   Future<void> _pickProof() async {
     final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (file == null || !mounted) return;
-    if (kIsWeb) {
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
-      setState(() {
-        _proofFile = file;
-        _proofBytes = bytes;
-      });
-    } else {
-      setState(() => _proofFile = file);
-    }
+    setState(() => _proofFile = file);
   }
 
   Future<void> _submit() async {
@@ -866,23 +830,8 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
 
     setState(() => _isSubmitting = true);
     try {
-      final ext = kIsWeb
-          ? 'jpg'
-          : (_proofFile!.path.contains('.')
-              ? _proofFile!.path.split('.').last
-              : 'jpg');
-      final path =
-          '$userId/advance/${DateTime.now().millisecondsSinceEpoch}.$ext';
-      if (kIsWeb) {
-        await _supabase.storage.from('payment-proofs').uploadBinary(
-            path, _proofBytes!,
-            fileOptions: const FileOptions(upsert: true));
-      } else {
-        await _supabase.storage.from('payment-proofs').upload(
-            path, File(_proofFile!.path),
-            fileOptions: const FileOptions(upsert: true));
-      }
-      final proofUrl = _supabase.storage.from('payment-proofs').getPublicUrl(path);
+      final proofUrl =
+          await uploads.store(const Evidence.advanceProof(), _proofFile!);
 
       await _supabase.from('payments').insert({
         'user_id': userId,
