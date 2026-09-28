@@ -150,42 +150,46 @@ class _HomePageState extends State<HomePage> {
       ],
     );
 
-    return Scaffold(
-      drawer: _buildDrawer(user, _resident),
-      appBar: _buildAppBar(),
-      body: wide
-          ? Row(children: [
-              NavigationRail(
+    return SafeArea(
+      top: false,
+      bottom: false,
+      child: Scaffold(
+        drawer: _buildDrawer(user, _resident),
+        appBar: _buildAppBar(),
+        body: wide
+            ? Row(children: [
+                NavigationRail(
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: _selectTab,
+                  labelType: NavigationRailLabelType.all,
+                  destinations: [
+                    for (final d in _destinations)
+                      NavigationRailDestination(
+                        icon: Icon(d.icon),
+                        selectedIcon: Icon(d.selected),
+                        label: Text(d.label),
+                      ),
+                  ],
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: body),
+              ])
+            : body,
+        bottomNavigationBar: wide
+            ? null
+            : NavigationBar(
                 selectedIndex: _selectedIndex,
                 onDestinationSelected: _selectTab,
-                labelType: NavigationRailLabelType.all,
                 destinations: [
                   for (final d in _destinations)
-                    NavigationRailDestination(
+                    NavigationDestination(
                       icon: Icon(d.icon),
                       selectedIcon: Icon(d.selected),
-                      label: Text(d.label),
+                      label: d.label,
                     ),
                 ],
               ),
-              const VerticalDivider(width: 1),
-              Expanded(child: body),
-            ])
-          : body,
-      bottomNavigationBar: wide
-          ? null
-          : NavigationBar(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: _selectTab,
-              destinations: [
-                for (final d in _destinations)
-                  NavigationDestination(
-                    icon: Icon(d.icon),
-                    selectedIcon: Icon(d.selected),
-                    label: d.label,
-                  ),
-              ],
-            ),
+      ),
     );
   }
 
