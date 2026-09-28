@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
+import 'domain/format/format.dart';
+import 'app_services.dart';
+import 'domain/dues/dues.dart';
+import 'domain/resident/current_resident.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'main.dart';
@@ -22,7 +27,10 @@ import 'push_notifications.dart';
 // ── HomePage ───────────────────────────────────────────────────────────────────
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.resident});
+
+  /// Defaults to the app's [currentResident]; tests pass their own.
+  final CurrentResident? resident;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -34,7 +42,7 @@ class _HomePageState extends State<HomePage> {
 
   String? _avatarUrl;
   String _displayName = "Chateau Resident";
-  String? _residentType; // 'tenant' | 'homeowner' | null (loading)
+  Resident? _resident; // null while loading → treated as a Tenant
 
   @override
   void initState() {
@@ -44,20 +52,15 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadProfile() async {
-    final user = supabase.auth.currentUser;
-    if (user == null) return;
     try {
-      final data = await supabase
-          .from('profiles')
-          .select('full_name, avatar_url, resident_type')
-          .eq('id', user.id)
-          .maybeSingle();
-      if (mounted && data != null) {
+      final resident = await (widget.resident ?? currentResident).load();
+      if (mounted && resident != null) {
         setState(() {
-          _avatarUrl = data['avatar_url'] as String?;
-          final fullName = data['full_name'] as String? ?? '';
-          _displayName = fullName.isNotEmpty ? fullName : "Chateau Resident";
-          _residentType = data['resident_type'] as String?;
+          _resident = resident;
+          _avatarUrl = resident.avatarUrl;
+          _displayName = resident.fullName.isNotEmpty
+              ? resident.fullName
+              : "Chateau Resident";
         });
       }
     } catch (_) {}
@@ -122,7 +125,7 @@ class _HomePageState extends State<HomePage> {
         return const ReservePage();
       default:
         return HomeDashboard(
-          residentType: _residentType,
+          resident: _resident,
           displayName: _displayName,
           onOpenTab: _selectTab,
         );
@@ -148,7 +151,7 @@ class _HomePageState extends State<HomePage> {
     );
 
     return Scaffold(
-      drawer: _buildDrawer(user, _residentType),
+      drawer: _buildDrawer(user, _resident),
       appBar: _buildAppBar(),
       body: wide
           ? Row(children: [
@@ -188,15 +191,14 @@ class _HomePageState extends State<HomePage> {
 
   // ── Drawer ────────────────────────────────────────────────────────────────
 
-  Widget _buildDrawer(User? user, String? residentType) {
-    // residentType == null → profile still loading; treat same as tenant
-    // to avoid the Payments tile flashing then disappearing.
-    final isTenant = residentType == null || residentType == 'tenant';
-    final role = residentType == null
+  Widget _buildDrawer(User? user, Resident? resident) {
+    // resident == null → still loading; show no Homeowner-only tiles yet,
+    // so they never flash then disappear for a Tenant.
+    final role = resident == null
         ? null
-        : residentType == 'tenant'
-            ? 'Tenant'
-            : 'Homeowner';
+        : resident.isHomeowner
+            ? 'Homeowner'
+            : 'Tenant';
 
     void open(Widget page, {VoidCallback? then}) async {
       Navigator.pop(context);
@@ -272,18 +274,21 @@ class _HomePageState extends State<HomePage> {
               padding: const EdgeInsets.fromLTRB(
                   AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
               children: [
-                if (!isTenant) ...[
+                if (resident?.canPayDues ?? false) ...[
                   _drawerSection('Account'),
                   _drawerTile(
                     icon: Icons.receipt_long_outlined,
                     label: "Payments",
                     onTap: () => open(const PaymentPage()),
                   ),
+                ],
+                if (resident?.canManageTenants ?? false)
                   _drawerTile(
                     icon: Icons.people_alt_outlined,
                     label: "Tenant Management",
                     onTap: () => open(const TenantManagementPage()),
                   ),
+                if (resident?.canVote ?? false) ...[
                   _drawerSection('Community'),
                   _drawerTile(
                     icon: Icons.how_to_vote_outlined,
@@ -530,12 +535,16 @@ class _HeroAction extends StatelessWidget {
 // ── HomeDashboard ──────────────────────────────────────────────────────────────
 
 class HomeDashboard extends StatefulWidget {
-  final String? residentType;
+  final Resident? resident;
+
+  /// Defaults to the app's [dues]; tests pass their own.
+  final Dues? dues;
   final String displayName;
   final ValueChanged<int> onOpenTab;
   const HomeDashboard({
     super.key,
-    this.residentType,
+    this.resident,
+    this.dues,
     required this.displayName,
     required this.onOpenTab,
   });
@@ -553,13 +562,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
   // Each entry: {start: DateTime, end: DateTime, category: String}
   List<Map<String, dynamic>> _announcementRanges = [];
 
-  double _balance = 0.0; // sum of unpaid payments
-  double _pendingBalance = 0.0; // sum of pending_verification payments
-  double _overdueBalance = 0.0; // sum of overdue payments
-  // Back-filled past dues awaiting the Treasurer's manual confirmation (see
-  // AccountApproval.jsx's backfillPastDues) — status 'pending', distinct
-  // from a resident's own submitted 'pending_verification' payment.
-  double _awaitingConfirmationBalance = 0.0;
+  DuesLedger? _ledger;
   bool _balanceLoading = true;
 
   static const int _pageSize = 5;
@@ -574,8 +577,9 @@ class _HomeDashboardState extends State<HomeDashboard> {
     super.initState();
     _loadReservedDates();
     _loadAnnouncementRanges();
-    // Only load balance for non-tenants
-    if (widget.residentType != 'tenant') {
+    // Skip the balance only for a known Tenant: the Resident may still be
+    // loading here, and showBalance hides it until they're known.
+    if (widget.resident?.canPayDues ?? true) {
       _loadBalance();
     } else {
       _balanceLoading = false;
@@ -585,24 +589,13 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   Future<void> _loadReservedDates() async {
     try {
-      final data = await supabase
-          .from('reservations')
-          .select('date')
-          .eq('status', 'approved');
-      final dates = <String>{};
-      for (final row in (data as List)) {
-        if (row['date'] != null) {
-          dates.add(row['date'].toString().split('T').first);
-        }
-      }
+      final dates = await reservations.reservedDates();
       if (mounted) setState(() => _reservedDates = dates);
     } catch (_) {}
   }
 
   bool _isReserved(DateTime day) {
-    final key =
-        '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-    return _reservedDates.contains(key);
+    return _reservedDates.contains(dateKey(day));
   }
 
   Future<void> _loadAnnouncementRanges() async {
@@ -680,22 +673,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
       textColor = chateuText;
     }
 
-    const monthNames = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December'
-    ];
     final label = [
-      '${monthNames[day.month - 1]} ${day.day}',
+      DateFormat('MMMM d').format(day),
       if (isToday) 'today',
       if (hasRanges)
         '${ranges.length} announcement${ranges.length == 1 ? '' : 's'}',
@@ -772,22 +751,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   void _showDayAnnouncementsSheet(
       DateTime day, List<Map<String, dynamic>> ranges) {
-    const months = [
-      '',
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final dateLabel = '${months[day.month]} ${day.day}, ${day.year}';
+    final dateLabel = shortDate(day);
 
     showModalBottomSheet(
       context: context,
@@ -929,41 +893,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Future<void> _loadBalance() async {
-    final user = supabase.auth.currentUser;
-    if (user == null) {
-      setState(() => _balanceLoading = false);
-      return;
-    }
     try {
-      final data = await supabase
-          .from('payments')
-          .select('amount, status')
-          .eq('user_id', user.id)
-          .inFilter('status',
-              ['unpaid', 'overdue', 'pending_verification', 'pending']);
-
-      double unpaid = 0.0;
-      double pending = 0.0;
-      double overdue = 0.0;
-      double awaitingConfirmation = 0.0;
-      for (final row in (data as List)) {
-        final amount = (row['amount'] as num?)?.toDouble() ?? 0.0;
-        if (row['status'] == 'pending_verification') {
-          pending += amount;
-        } else if (row['status'] == 'pending') {
-          awaitingConfirmation += amount;
-        } else if (row['status'] == 'overdue') {
-          overdue += amount;
-        } else {
-          unpaid += amount;
-        }
-      }
+      final ledger = await (widget.dues ?? dues).load();
       if (mounted) {
         setState(() {
-          _balance = unpaid;
-          _pendingBalance = pending;
-          _overdueBalance = overdue;
-          _awaitingConfirmationBalance = awaitingConfirmation;
+          _ledger = ledger;
           _balanceLoading = false;
         });
       }
@@ -989,8 +923,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
       final to = from + _pageSize - 1;
 
       final today = DateTime.now();
-      final todayStr =
-          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final todayStr = dateKey(today);
 
       final data = await supabase
           .from('announcements')
@@ -1027,24 +960,24 @@ class _HomeDashboardState extends State<HomeDashboard> {
   Future<void> _refreshDashboard() => Future.wait([
         _loadReservedDates(),
         _loadAnnouncementRanges(),
-        if (widget.residentType != 'tenant') _loadBalance(),
+        if (widget.resident?.canPayDues ?? true) _loadBalance(),
         _loadAnnouncements(reset: true),
       ]);
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
   String get _balanceStatus {
-    final o = _overdueBalance, p = _pendingBalance, u = _balance;
-    String peso(double v) => '₱${v.toStringAsFixed(2)}';
-    if (o > 0 && p > 0) return '${peso(o)} overdue · ${peso(p)} pending';
-    if (o > 0) return '${peso(o)} overdue';
-    if (u > 0 && p > 0) return '${peso(u)} unpaid · ${peso(p)} pending';
-    if (u > 0) return '${peso(u)} unpaid dues';
-    if (p > 0) return '${peso(p)} pending verification';
-    if (_awaitingConfirmationBalance > 0) {
-      return '${peso(_awaitingConfirmationBalance)} awaiting confirmation';
-    }
-    return 'No dues pending';
+    final l = _ledger;
+    if (l == null) return 'No dues pending';
+    final parts = [
+      if (l.overdue > 0) '${peso(l.overdue)} overdue',
+      if (l.unpaid > 0) '${peso(l.unpaid)} unpaid',
+      if (l.unconfirmedDues > 0) '${peso(l.unconfirmedDues)} unconfirmed dues',
+      // Sent, not yet verified: beside the Balance, not inside it.
+      if (l.pendingVerification > 0)
+        '${peso(l.pendingVerification)} pending verification',
+    ];
+    return parts.isEmpty ? 'No dues pending' : parts.join(' · ');
   }
 
   String get _greeting {
@@ -1058,11 +991,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
     const on = chateuOnBrand;
     final soft = on.withAlpha(235);
     final firstName = widget.displayName.split(' ').first;
-    final total = _balance +
-        _pendingBalance +
-        _overdueBalance +
-        _awaitingConfirmationBalance;
-    final isTenant = widget.residentType == 'tenant';
+    final balance = _ledger?.balance ?? 0;
+    final overdue = (_ledger?.overdue ?? 0) > 0;
 
     void openPayments() => Navigator.push(
         context, MaterialPageRoute(builder: (_) => const PaymentPage()));
@@ -1126,7 +1056,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                   ),
                                 )
                               : Text(
-                                  "₱ ${total.toStringAsFixed(2)}",
+                                  peso(balance),
                                   style: AppText.displayMedium.copyWith(
                                     color: on,
                                     fontSize: 26,
@@ -1138,7 +1068,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                           if (!_balanceLoading)
                             Row(
                               children: [
-                                if (_overdueBalance > 0) ...[
+                                if (overdue) ...[
                                   const Icon(Icons.warning_amber_rounded,
                                       size: 14, color: Color(0xFFF4DD03)),
                                   const SizedBox(width: 4),
@@ -1147,8 +1077,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                   child: Text(
                                     _balanceStatus,
                                     style: AppText.caption.copyWith(
-                                      color: _overdueBalance > 0 ? on : soft,
-                                      fontWeight: _overdueBalance > 0
+                                      color: overdue ? on : soft,
+                                      fontWeight: overdue
                                           ? FontWeight.w700
                                           : null,
                                     ),
@@ -1166,7 +1096,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                         foregroundColor: const Color(0xFF1A7F4D),
                       ),
                       onPressed: openPayments,
-                      child: Text(total > 0 ? "Pay now" : "Payments"),
+                      child: Text(balance > 0 ? "Pay now" : "Payments"),
                     ),
                   ],
                 ),
@@ -1191,7 +1121,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                       icon: Icons.event_available_outlined,
                       label: 'Reserve',
                       onTap: () => widget.onOpenTab(3)),
-                  isTenant || widget.residentType == null
+                  !(widget.resident?.canPayDues ?? false)
                       ? _HeroAction(
                           icon: Icons.notifications_none_outlined,
                           label: 'Alerts',
@@ -1218,8 +1148,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
       ..._announcements.where((a) => a['is_emergency'] != true),
     ];
 
-    final showBalance =
-        widget.residentType != null && widget.residentType != 'tenant';
+    final showBalance = widget.resident?.canPayDues ?? false;
 
     return RefreshIndicator(
       onRefresh: _refreshDashboard,
@@ -1236,8 +1165,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
                   children: [
                     const SizedBox(height: AppSpacing.md),
 
-                    // showBalance guards on residentType != null so the
-                    // balance never flashes for tenants while loading.
+                    // showBalance is false while the Resident loads, so the
+                    // balance never flashes for Tenants.
                     _buildHero(showBalance),
                     const SizedBox(height: AppSpacing.xxl),
 
@@ -1409,30 +1338,7 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
   static Color _categoryColor(String? category) =>
       announcementCategoryColor(category);
 
-  static String _formatDate(String? raw) {
-    if (raw == null) return '';
-    try {
-      final d = DateTime.parse(raw);
-      const months = [
-        '',
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ];
-      return '${months[d.month]} ${d.day}, ${d.year}';
-    } catch (_) {
-      return '';
-    }
-  }
+  static String _formatDate(String? raw) => shortDateFromRaw(raw);
 
   @override
   Widget build(BuildContext context) {

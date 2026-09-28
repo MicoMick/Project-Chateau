@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
+import 'app_services.dart';
+import 'domain/uploads/uploads.dart';
+import 'domain/format/format.dart';
 import 'app_dialogs.dart';
 import 'app_theme.dart';
 import 'login_page.dart';
@@ -92,11 +95,6 @@ class _SignupPageState extends State<SignupPage> {
 
   // ── Phone validation ──────────────────────────────────────────────────────
 
-  bool _isValidPhone(String phone) {
-    final cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
-    return RegExp(r'^(09\d{9}|\+639\d{9})$').hasMatch(cleaned);
-  }
-
   // ── Step validators ───────────────────────────────────────────────────────
 
   Future<bool> _validateStep0() async {
@@ -134,7 +132,7 @@ class _SignupPageState extends State<SignupPage> {
     if (_phoneCtrl.text.trim().isEmpty) {
       _showError('Phone number is required.'); return false;
     }
-    if (!_isValidPhone(_phoneCtrl.text.trim())) {
+    if (!isValidPhPhone(_phoneCtrl.text.trim())) {
       _showError('Enter a valid PH phone number (e.g. 09123456789).'); return false;
     }
     final phoneInUse = await _checkPhoneInUse(_phoneCtrl.text.trim());
@@ -277,14 +275,7 @@ class _SignupPageState extends State<SignupPage> {
       Future<String?> uploadDoc(XFile? file, String folder) async {
         if (file == null) return null;
         try {
-          final bytes = await file.readAsBytes();
-          final ext   = file.name.contains('.') ? file.name.split('.').last : 'jpg';
-          final path  = '$folder/$userId/${DateTime.now().millisecondsSinceEpoch}.$ext';
-          await _supabase.storage
-              .from('move-in-docs')
-              .uploadBinary(path, bytes,
-                  fileOptions: const FileOptions(upsert: true));
-          return _supabase.storage.from('move-in-docs').getPublicUrl(path);
+          return await uploads.store(Evidence.moveInDocument(folder), file);
         } catch (_) { return null; }
       }
 
@@ -748,7 +739,7 @@ class _SignupPageState extends State<SignupPage> {
           builder: (_, val, __) {
             final phone = val.text.trim();
             if (phone.isEmpty) return const SizedBox.shrink();
-            final ok = _isValidPhone(phone);
+            final ok = isValidPhPhone(phone);
             final c = ok ? chateuPrimary : chateuError;
             return Padding(
               padding: const EdgeInsets.only(top: 6, left: 2),
@@ -944,7 +935,7 @@ class _SignupPageState extends State<SignupPage> {
             if (picked != null && mounted) {
               setState(() {
                 _moveInDateCtrl.text =
-                    '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                    dateKey(picked);
               });
             }
           },

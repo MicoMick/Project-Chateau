@@ -13,7 +13,7 @@ The single Resident who owns a Lot. They pay Dues, vote in Elections and manage 
 _Avoid_: Owner (use only as the stored value), lot owner
 
 **Tenant**:
-A Resident added by a Homeowner to their Lot. A Tenant gets the community features but no Dues, voting or Tenant management.
+A Resident added by a Homeowner to their Lot; the Tenant's Lot is always that Homeowner's Lot. A Tenant gets the community features but no Dues, voting or Tenant management.
 _Avoid_: Renter, family member
 
 **Admin**:
@@ -46,8 +46,16 @@ _Avoid_: Receipt
 **Reference Number**:
 The GCash transaction reference the Resident enters with a Payment.
 
+**Pending verification**:
+A Payment the Homeowner has submitted and an Admin has not yet verified. It is not part of the Balance.
+_Avoid_: Pending (on its own)
+
+**Unconfirmed dues**:
+Past Dues back-filled when an Admin approves a new Homeowner. They await the Treasurer's confirmation. They are owed.
+_Avoid_: Pending, awaiting confirmation
+
 **Balance**:
-The Dues a Homeowner still owes after verified Payments.
+What a Homeowner owes: Unpaid, Overdue and Unconfirmed dues. Payments pending verification are shown next to it, not inside it.
 
 **Statement of Account**:
 The downloadable document listing a Homeowner's Dues, Payments and Balance. It mirrors the web app's version.
@@ -59,9 +67,12 @@ _Avoid_: SOA (in UI copy), invoice
 A Resident's request to use a Facility for a time slot or to borrow Amenity items. It needs Admin approval.
 _Avoid_: Booking
 
+**Reservation status**:
+One of Pending, Approved, Approved and paid, Rejected, Cancelled, Return pending or Completed. Pending and Approved Reservations of a Facility block its time slot.
+
 **Facility**:
 A place reserved by time slot, such as the covered court (₱150 for the first hour, then ₱50 for each extra hour).
-_Avoid_: Venue
+_Avoid_: Venue, Amenity Facility (the stored category name)
 
 **Amenity**:
 A lendable item reserved by quantity (chairs, tents). Condition photos are taken at pick-up and at return, and an Admin verifies the return.
