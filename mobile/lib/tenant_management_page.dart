@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
 import 'domain/format/format.dart';
+import 'app_services.dart';
+import 'domain/resident/current_resident.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 
@@ -46,7 +48,10 @@ class _Tenant {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class TenantManagementPage extends StatefulWidget {
-  const TenantManagementPage({super.key});
+  const TenantManagementPage({super.key, this.resident});
+
+  /// Defaults to the app's [currentResident]; tests pass their own.
+  final CurrentResident? resident;
 
   @override
   State<TenantManagementPage> createState() => _TenantManagementPageState();
@@ -73,11 +78,7 @@ class _TenantManagementPageState extends State<TenantManagementPage> {
       return;
     }
     try {
-      final profile = await _supabase
-          .from('profiles')
-          .select('address')
-          .eq('id', ownerId)
-          .maybeSingle();
+      final owner = await (widget.resident ?? currentResident).load();
 
       final tenantsRaw = await _supabase
           .from('profiles')
@@ -87,7 +88,7 @@ class _TenantManagementPageState extends State<TenantManagementPage> {
 
       if (!mounted) return;
       setState(() {
-        _address = profile?['address'] as String?;
+        _address = owner?.lotAddress;
         _tenants = (tenantsRaw as List)
             .map((t) => _Tenant.fromMap(t as Map<String, dynamic>))
             .toList();
