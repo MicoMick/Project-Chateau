@@ -203,6 +203,9 @@ class _PaymentPageState extends State<PaymentPage> {
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
+    // The loading dialog closes before sharing starts, so a sharePdf failure
+    // must not pop again — that would close this page instead.
+    var dialogOpen = true;
     try {
       final bytes = await generateSoaPdf(
         residentId: userId,
@@ -214,11 +217,12 @@ class _PaymentPageState extends State<PaymentPage> {
         qrCodeUrl: _qrImageUrl,
       );
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      dialogOpen = false;
       await Printing.sharePdf(
           bytes: bytes, filename: 'Statement-of-Account.pdf');
     } catch (e) {
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+        if (dialogOpen) Navigator.of(context, rootNavigator: true).pop();
         showAppSnack(context, 'Could not generate Statement of Account: $e',
             type: SnackType.error);
       }

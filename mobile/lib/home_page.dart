@@ -588,7 +588,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
       final data = await supabase
           .from('reservations')
           .select('date')
-          .eq('status', 'approved');
+          // Exact spelling the web admin writes; the filter is case-sensitive.
+          .inFilter('status', ['Approved', 'Approved and Paid']);
       final dates = <String>{};
       for (final row in (data as List)) {
         if (row['date'] != null) {
