@@ -24,6 +24,7 @@ void main() async {
 
   try {
     await loadThemeMode();
+    await PushNotifications.loadEnabled();
   } catch (_) {} // unreadable prefs → stay on the Light default
 
   // Push notifications are Android-only — no Firebase Web config exists,

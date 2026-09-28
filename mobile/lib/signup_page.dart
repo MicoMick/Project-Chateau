@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
+import 'domain/account/password_rules.dart';
 import 'app_dialogs.dart';
 import 'app_theme.dart';
 import 'login_page.dart';
@@ -110,8 +111,9 @@ class _SignupPageState extends State<SignupPage> {
     if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email)) {
       _showError('Please enter a valid email address.'); return false;
     }
-    if (password.length < 8) {
-      _showError('Password must be at least 8 characters.'); return false;
+    final weak = newPasswordProblem(password);
+    if (weak != null) {
+      _showError(weak); return false;
     }
     if (password != confirm) {
       _showError('Passwords do not match.'); return false;
