@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:printing/printing.dart';
 import 'app_colors.dart';
+import 'domain/format/format.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'audit_logger.dart';
@@ -286,23 +287,8 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
-  String _formatDate(DateTime d) =>
-      '${_monthName(d.month)} ${d.day}, ${d.year}';
-
-  String _formatDateTime(DateTime d) {
-    final h = d.hour > 12 ? d.hour - 12 : (d.hour == 0 ? 12 : d.hour);
-    final m = d.minute.toString().padLeft(2, '0');
-    final period = d.hour >= 12 ? 'PM' : 'AM';
-    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')} $h:$m $period';
-  }
-
-  String _monthName(int m) {
-    const months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    return months[m];
-  }
+  String _formatDateTime(DateTime d) =>
+      '${dateKey(d)} ${time12(TimeOfDay.fromDateTime(d))}';
 
   Color _statusColor(String status) {
     switch (status) {
@@ -374,7 +360,7 @@ class _PaymentPageState extends State<PaymentPage> {
                   AppNoticeBanner(
                     icon: Icons.event_available_rounded,
                     text:
-                        'You have ₱${_advanceAmountRemaining.toStringAsFixed(2)} paid in advance '
+                        'You have ${peso(_advanceAmountRemaining)} paid in advance '
                         '($_advanceMonthsRemaining month${_advanceMonthsRemaining > 1 ? 's' : ''} ahead).',
                   ),
                 ],
@@ -414,7 +400,7 @@ class _PaymentPageState extends State<PaymentPage> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          "Due: ${_formatDate(p.dueDate)}",
+                                          "Due: ${shortDate(p.dueDate)}",
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: AppText.bodyMedium.copyWith(
@@ -438,7 +424,7 @@ class _PaymentPageState extends State<PaymentPage> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        "₱${p.amount.toStringAsFixed(2)}",
+                                        peso(p.amount),
                                         style: AppText.titleMedium,
                                       ),
                                       const SizedBox(height: 4),
@@ -488,7 +474,7 @@ class _PaymentPageState extends State<PaymentPage> {
               if (unpaid != null)
                 _LabeledValue(
                   label: "Payment Due",
-                  value: _formatDate(unpaid.dueDate),
+                  value: shortDate(unpaid.dueDate),
                   end: true,
                 ),
             ],
@@ -497,13 +483,13 @@ class _PaymentPageState extends State<PaymentPage> {
           _BillRow(
             label: "Monthly Fee",
             value: unpaid != null
-                ? "₱ ${unpaid.amount.toStringAsFixed(2)}"
+                ? peso(unpaid.amount)
                 : "₱ 0.00",
           ),
           divider,
           _BillRow(
             label: "Total Amount Due",
-            value: "₱ ${_outstandingBalance.toStringAsFixed(2)}",
+            value: peso(_outstandingBalance),
             labelStyle: AppText.titleMedium,
             valueStyle: AppText.displayMedium.copyWith(
                 fontFeatures: const [FontFeature.tabularFigures()]),
@@ -512,7 +498,7 @@ class _PaymentPageState extends State<PaymentPage> {
             divider,
             _BillRow(
               label: "Advance Paid ($_advanceMonthsRemaining mo. ahead)",
-              value: "₱ ${_advanceAmountRemaining.toStringAsFixed(2)}",
+              value: peso(_advanceAmountRemaining),
               valueColor: chateuSuccess,
             ),
           ],
@@ -587,7 +573,7 @@ class _PaymentPageState extends State<PaymentPage> {
                 Text(
                   p.isPaid && p.paidAt != null
                       ? _formatDateTime(p.paidAt!)
-                      : "Due: ${_formatDate(p.dueDate)}",
+                      : "Due: ${shortDate(p.dueDate)}",
                   style: AppText.caption,
                 ),
               ],
@@ -597,7 +583,7 @@ class _PaymentPageState extends State<PaymentPage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text("₱${p.amount.toStringAsFixed(2)}",
+              Text(peso(p.amount),
                   style: AppText.titleMedium),
               const SizedBox(height: AppSpacing.xs),
               AppStatusBadge(label: _statusLabel(p.status), color: color),
@@ -826,7 +812,7 @@ class _PaySheetState extends State<_PaySheet> {
 
       await logAudit(
         'SUBMIT_PAYMENT_PROOF',
-        'Submitted proof of payment for ₱${widget.payment.amount.toStringAsFixed(2)} — reference #$reference.',
+        'Submitted proof of payment for ${peso(widget.payment.amount)} — reference #$reference.',
       );
 
       if (!mounted) return;
@@ -868,7 +854,7 @@ class _PaySheetState extends State<_PaySheet> {
               buildSheetHandle(),
               Text('Pay via GCash', style: AppText.titleLarge),
               const SizedBox(height: AppSpacing.xs),
-              Text('Amount Due: ₱${widget.payment.amount.toStringAsFixed(2)}',
+              Text('Amount Due: ${peso(widget.payment.amount)}',
                   style: AppText.bodyMedium.copyWith(
                       color: chateuPrimary, fontWeight: FontWeight.w700)),
               const SizedBox(height: AppSpacing.lg),
@@ -1081,7 +1067,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
 
       await logAudit(
         'SUBMIT_ADVANCE_PAYMENT',
-        'Submitted advance payment for ₱${_total.toStringAsFixed(2)} — covers $_months month(s), reference #$reference.',
+        'Submitted advance payment for ${peso(_total)} — covers $_months month(s), reference #$reference.',
       );
 
       if (!mounted) return;
@@ -1177,7 +1163,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
                   Text('Total Amount',
                       style: AppText.labelMedium.copyWith(color: chateuPrimary)),
                   const Spacer(),
-                  Text('₱${_total.toStringAsFixed(2)}',
+                  Text(peso(_total),
                       style: AppText.titleMedium.copyWith(color: chateuPrimary)),
                 ]),
               ),
@@ -1208,7 +1194,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
               ),
               const SizedBox(height: AppSpacing.sm),
               Center(
-                child: Text('Scan with your GCash app to pay ₱${_total.toStringAsFixed(2)}',
+                child: Text('Scan with your GCash app to pay ${peso(_total)}',
                     style:
                         AppText.caption.copyWith(color: chateuTextMuted)),
               ),

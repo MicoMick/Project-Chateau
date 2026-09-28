@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:panorama_viewer/panorama_viewer.dart';
 import 'app_colors.dart';
+import 'domain/format/format.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'audit_logger.dart';
@@ -301,14 +302,6 @@ class _ReservePageState extends State<ReservePage> {
     }
   }
 
-  String _formatTime(TimeOfDay t) {
-    final h = t.hour;
-    final m = t.minute.toString().padLeft(2, '0');
-    final period = h >= 12 ? 'PM' : 'AM';
-    final dh = h > 12 ? h - 12 : (h == 0 ? 12 : h);
-    return '$dh:$m $period';
-  }
-
   String? _facilityName(String id) {
     try {
       return _facilities.firstWhere((f) => f.id == id).name;
@@ -463,7 +456,7 @@ class _ReservePageState extends State<ReservePage> {
                       color: _statusColor(r.status),
                       isOwn: r.userId == currentId,
                       statusLabel: _statusLabel(r.status),
-                      formatTime: _formatTime,
+                      formatTime: time12,
                       onCancel: r.userId == currentId && r.canCancel
                           ? () => _cancelReservation(r)
                           : null,
@@ -1054,14 +1047,6 @@ class _BookSheetState extends State<_BookSheet> {
     return 150 + (hours - 1) * 50;
   }
 
-  String _fmt(TimeOfDay t) {
-    final h = t.hour;
-    final m = t.minute.toString().padLeft(2, '0');
-    final p = h >= 12 ? 'PM' : 'AM';
-    final d = h > 12 ? h - 12 : (h == 0 ? 12 : h);
-    return '$d:$m $p';
-  }
-
   Future<void> _submit() async {
     final fee = _courtFee;
     final reference = _referenceCtrl.text.trim();
@@ -1149,11 +1134,9 @@ class _BookSheetState extends State<_BookSheet> {
       await _supabase.from('reservations').insert({
         'facility_id': widget.facility.id,
         'user_id': userId,
-        'date': widget.selectedDate.toIso8601String().split('T').first,
-        'start_time':
-            '${_startTime.hour.toString().padLeft(2, '0')}:${_startTime.minute.toString().padLeft(2, '0')}',
-        'end_time':
-            '${_endTime.hour.toString().padLeft(2, '0')}:${_endTime.minute.toString().padLeft(2, '0')}',
+        'date': dateKey(widget.selectedDate),
+        'start_time': dbTime(_startTime),
+        'end_time': dbTime(_endTime),
         'status': 'Pending',
         if (fee != null) 'fee': fee,
         if (fee != null) 'payment_status': 'pending_verification',
@@ -1177,7 +1160,7 @@ class _BookSheetState extends State<_BookSheet> {
         showAppSnack(
             context,
             fee != null
-                ? 'Reservation submitted! GCash payment of ₱${fee.toStringAsFixed(0)} is awaiting verification.'
+                ? 'Reservation submitted! GCash payment of ${peso(fee)} is awaiting verification.'
                 : 'Reservation submitted! Awaiting admin approval.',
             type: SnackType.success);
       }
@@ -1454,7 +1437,7 @@ class _BookSheetState extends State<_BookSheet> {
                       Icon(Icons.lock_clock_rounded,
                           size: 14, color: chateuPrimary),
                       const SizedBox(width: AppSpacing.sm),
-                      Text('${_fmt(r.startTime)} – ${_fmt(r.endTime)}',
+                      Text('${time12(r.startTime)} – ${time12(r.endTime)}',
                           style: AppText.caption
                               .copyWith(color: chateuTextMuted)),
                       const Spacer(),
@@ -1484,7 +1467,7 @@ class _BookSheetState extends State<_BookSheet> {
                     Text('Court Fee',
                         style: AppText.labelMedium.copyWith(color: chateuPrimary)),
                     const Spacer(),
-                    Text('₱${_courtFee!.toStringAsFixed(0)}',
+                    Text(peso(_courtFee!),
                         style: AppText.titleMedium.copyWith(color: chateuPrimary)),
                   ]),
                   const SizedBox(height: 4),
@@ -1528,7 +1511,7 @@ class _BookSheetState extends State<_BookSheet> {
               ),
               const SizedBox(height: AppSpacing.sm),
               Center(
-                child: Text('Scan with your GCash app to pay ₱${_courtFee!.toStringAsFixed(0)}',
+                child: Text('Scan with your GCash app to pay ${peso(_courtFee!)}',
                     style:
                         AppText.caption.copyWith(color: chateuTextMuted)),
               ),
@@ -1903,13 +1886,6 @@ class _TimePicker extends StatelessWidget {
   const _TimePicker(
       {required this.label, required this.time, required this.onTap});
 
-  String get _fmt {
-    final h = time.hour;
-    final m = time.minute.toString().padLeft(2, '0');
-    final p = h >= 12 ? 'PM' : 'AM';
-    final d = h > 12 ? h - 12 : (h == 0 ? 12 : h);
-    return '$d:$m $p';
-  }
 
   @override
   Widget build(BuildContext context) => InkWell(
@@ -1920,7 +1896,7 @@ class _TimePicker extends StatelessWidget {
             labelText: label,
             prefixIcon: const Icon(Icons.access_time_rounded, size: 18),
           ),
-          child: Text(_fmt, style: AppText.titleMedium),
+          child: Text(time12(time), style: AppText.titleMedium),
         ),
       );
 }

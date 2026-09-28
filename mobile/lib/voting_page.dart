@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
+import 'domain/format/format.dart';
 import 'app_dialogs.dart';
 import 'app_theme.dart';
 import 'audit_logger.dart';
@@ -70,19 +71,7 @@ class _VotingPageState extends State<VotingPage> {
     }
   }
 
-  String _formatDate(String? raw) {
-    if (raw == null) return '—';
-    try {
-      final d = DateTime.parse(raw);
-      const months = [
-        '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-      ];
-      return '${months[d.month]} ${d.day}, ${d.year}';
-    } catch (_) {
-      return raw;
-    }
-  }
+  String _formatDate(String? raw) => raw == null ? '—' : shortDateFromRaw(raw);
 
   @override
   Widget build(BuildContext context) {
@@ -461,19 +450,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
     }
   }
 
-  String _formatDate(String? raw) {
-    if (raw == null) return '—';
-    try {
-      final d = DateTime.parse(raw);
-      const months = [
-        '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-      ];
-      return '${months[d.month]} ${d.day}, ${d.year}';
-    } catch (_) {
-      return raw;
-    }
-  }
+  String _formatDate(String? raw) => raw == null ? '—' : shortDateFromRaw(raw);
 
   @override
   Widget build(BuildContext context) {
