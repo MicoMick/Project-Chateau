@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
+import 'domain/format/format.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'main.dart';
@@ -600,9 +602,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   bool _isReserved(DateTime day) {
-    final key =
-        '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-    return _reservedDates.contains(key);
+    return _reservedDates.contains(dateKey(day));
   }
 
   Future<void> _loadAnnouncementRanges() async {
@@ -680,22 +680,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
       textColor = chateuText;
     }
 
-    const monthNames = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December'
-    ];
     final label = [
-      '${monthNames[day.month - 1]} ${day.day}',
+      DateFormat('MMMM d').format(day),
       if (isToday) 'today',
       if (hasRanges)
         '${ranges.length} announcement${ranges.length == 1 ? '' : 's'}',
@@ -772,22 +758,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   void _showDayAnnouncementsSheet(
       DateTime day, List<Map<String, dynamic>> ranges) {
-    const months = [
-      '',
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final dateLabel = '${months[day.month]} ${day.day}, ${day.year}';
+    final dateLabel = shortDate(day);
 
     showModalBottomSheet(
       context: context,
@@ -989,8 +960,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
       final to = from + _pageSize - 1;
 
       final today = DateTime.now();
-      final todayStr =
-          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final todayStr = dateKey(today);
 
       final data = await supabase
           .from('announcements')
@@ -1035,7 +1005,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   String get _balanceStatus {
     final o = _overdueBalance, p = _pendingBalance, u = _balance;
-    String peso(double v) => '₱${v.toStringAsFixed(2)}';
     if (o > 0 && p > 0) return '${peso(o)} overdue · ${peso(p)} pending';
     if (o > 0) return '${peso(o)} overdue';
     if (u > 0 && p > 0) return '${peso(u)} unpaid · ${peso(p)} pending';
@@ -1126,7 +1095,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                   ),
                                 )
                               : Text(
-                                  "₱ ${total.toStringAsFixed(2)}",
+                                  peso(total),
                                   style: AppText.displayMedium.copyWith(
                                     color: on,
                                     fontSize: 26,
@@ -1409,30 +1378,7 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
   static Color _categoryColor(String? category) =>
       announcementCategoryColor(category);
 
-  static String _formatDate(String? raw) {
-    if (raw == null) return '';
-    try {
-      final d = DateTime.parse(raw);
-      const months = [
-        '',
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ];
-      return '${months[d.month]} ${d.day}, ${d.year}';
-    } catch (_) {
-      return '';
-    }
-  }
+  static String _formatDate(String? raw) => shortDateFromRaw(raw);
 
   @override
   Widget build(BuildContext context) {

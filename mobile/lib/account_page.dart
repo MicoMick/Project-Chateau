@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
+import 'domain/format/format.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'login_page.dart';
@@ -190,11 +192,6 @@ class _AccountPageState extends State<AccountPage> {
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
-  bool _isValidPhone(String phone) {
-    final cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
-    return RegExp(r'^(09\d{9}|\+639\d{9})$').hasMatch(cleaned);
-  }
-
   bool _validateProfile() {
     final firstName = _firstNameCtrl.text.trim();
     final lastName  = _lastNameCtrl.text.trim();
@@ -205,7 +202,7 @@ class _AccountPageState extends State<AccountPage> {
     if (lastName.isEmpty) {
       _showSnack('Last name is required.', isError: true); return false;
     }
-    if (phone.isNotEmpty && !_isValidPhone(phone)) {
+    if (phone.isNotEmpty && !isValidPhPhone(phone)) {
       _showSnack('Enter a valid PH phone number (e.g. 09123456789).', isError: true);
       return false;
     }
@@ -741,9 +738,7 @@ class _AccountPageState extends State<AccountPage> {
 
   Widget _buildDateField() {
     final display = _birthDate != null
-        ? "${_birthDate!.month.toString().padLeft(2, '0')}/"
-            "${_birthDate!.day.toString().padLeft(2, '0')}/"
-            "${_birthDate!.year}"
+        ? DateFormat('MM/dd/yyyy').format(_birthDate!)
         : "Not set";
 
     return InkWell(

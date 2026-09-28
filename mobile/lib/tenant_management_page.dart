@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
+import 'domain/format/format.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 
@@ -429,11 +430,6 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
     super.dispose();
   }
 
-  bool _isValidPhone(String phone) {
-    final cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
-    return cleaned.isEmpty || RegExp(r'^(09\d{9}|\+639\d{9})$').hasMatch(cleaned);
-  }
-
   Future<void> _pickMoveInDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -444,7 +440,7 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
     if (picked != null && mounted) {
       setState(() {
         _moveInDateCtrl.text =
-            '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+            dateKey(picked);
       });
     }
   }
@@ -486,7 +482,7 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
       setState(() => _errorText = 'First and last name are required.');
       return;
     }
-    if (!_isValidPhone(_phoneCtrl.text.trim())) {
+    if (!isValidPhPhone(_phoneCtrl.text.trim())) {
       setState(() => _errorText =
           'Enter a valid PH phone number (e.g. 09123456789).');
       return;
