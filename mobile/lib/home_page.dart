@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
+import 'app_services.dart';
+import 'domain/resident/current_resident.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'main.dart';
@@ -22,7 +24,10 @@ import 'push_notifications.dart';
 // ── HomePage ───────────────────────────────────────────────────────────────────
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.resident});
+
+  /// Defaults to the app's [currentResident]; tests pass their own.
+  final CurrentResident? resident;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -34,7 +39,7 @@ class _HomePageState extends State<HomePage> {
 
   String? _avatarUrl;
   String _displayName = "Chateau Resident";
-  String? _residentType; // 'tenant' | 'homeowner' | null (loading)
+  Resident? _resident; // null while loading → treated as a Tenant
 
   @override
   void initState() {
@@ -44,20 +49,15 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadProfile() async {
-    final user = supabase.auth.currentUser;
-    if (user == null) return;
     try {
-      final data = await supabase
-          .from('profiles')
-          .select('full_name, avatar_url, resident_type')
-          .eq('id', user.id)
-          .maybeSingle();
-      if (mounted && data != null) {
+      final resident = await (widget.resident ?? currentResident).load();
+      if (mounted && resident != null) {
         setState(() {
-          _avatarUrl = data['avatar_url'] as String?;
-          final fullName = data['full_name'] as String? ?? '';
-          _displayName = fullName.isNotEmpty ? fullName : "Chateau Resident";
-          _residentType = data['resident_type'] as String?;
+          _resident = resident;
+          _avatarUrl = resident.avatarUrl;
+          _displayName = resident.fullName.isNotEmpty
+              ? resident.fullName
+              : "Chateau Resident";
         });
       }
     } catch (_) {}
@@ -122,7 +122,7 @@ class _HomePageState extends State<HomePage> {
         return const ReservePage();
       default:
         return HomeDashboard(
-          residentType: _residentType,
+          resident: _resident,
           displayName: _displayName,
           onOpenTab: _selectTab,
         );
@@ -148,7 +148,7 @@ class _HomePageState extends State<HomePage> {
     );
 
     return Scaffold(
-      drawer: _buildDrawer(user, _residentType),
+      drawer: _buildDrawer(user, _resident),
       appBar: _buildAppBar(),
       body: wide
           ? Row(children: [
@@ -188,15 +188,14 @@ class _HomePageState extends State<HomePage> {
 
   // ── Drawer ────────────────────────────────────────────────────────────────
 
-  Widget _buildDrawer(User? user, String? residentType) {
-    // residentType == null → profile still loading; treat same as tenant
-    // to avoid the Payments tile flashing then disappearing.
-    final isTenant = residentType == null || residentType == 'tenant';
-    final role = residentType == null
+  Widget _buildDrawer(User? user, Resident? resident) {
+    // resident == null → still loading; show no Homeowner-only tiles yet,
+    // so they never flash then disappear for a Tenant.
+    final role = resident == null
         ? null
-        : residentType == 'tenant'
-            ? 'Tenant'
-            : 'Homeowner';
+        : resident.isHomeowner
+            ? 'Homeowner'
+            : 'Tenant';
 
     void open(Widget page, {VoidCallback? then}) async {
       Navigator.pop(context);
@@ -272,18 +271,21 @@ class _HomePageState extends State<HomePage> {
               padding: const EdgeInsets.fromLTRB(
                   AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
               children: [
-                if (!isTenant) ...[
+                if (resident?.canPayDues ?? false) ...[
                   _drawerSection('Account'),
                   _drawerTile(
                     icon: Icons.receipt_long_outlined,
                     label: "Payments",
                     onTap: () => open(const PaymentPage()),
                   ),
+                ],
+                if (resident?.canManageTenants ?? false)
                   _drawerTile(
                     icon: Icons.people_alt_outlined,
                     label: "Tenant Management",
                     onTap: () => open(const TenantManagementPage()),
                   ),
+                if (resident?.canVote ?? false) ...[
                   _drawerSection('Community'),
                   _drawerTile(
                     icon: Icons.how_to_vote_outlined,
@@ -530,12 +532,12 @@ class _HeroAction extends StatelessWidget {
 // ── HomeDashboard ──────────────────────────────────────────────────────────────
 
 class HomeDashboard extends StatefulWidget {
-  final String? residentType;
+  final Resident? resident;
   final String displayName;
   final ValueChanged<int> onOpenTab;
   const HomeDashboard({
     super.key,
-    this.residentType,
+    this.resident,
     required this.displayName,
     required this.onOpenTab,
   });
@@ -574,8 +576,9 @@ class _HomeDashboardState extends State<HomeDashboard> {
     super.initState();
     _loadReservedDates();
     _loadAnnouncementRanges();
-    // Only load balance for non-tenants
-    if (widget.residentType != 'tenant') {
+    // Skip the balance only for a known Tenant: the Resident may still be
+    // loading here, and showBalance hides it until they're known.
+    if (widget.resident?.canPayDues ?? true) {
       _loadBalance();
     } else {
       _balanceLoading = false;
@@ -1027,7 +1030,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
   Future<void> _refreshDashboard() => Future.wait([
         _loadReservedDates(),
         _loadAnnouncementRanges(),
-        if (widget.residentType != 'tenant') _loadBalance(),
+        if (widget.resident?.canPayDues ?? true) _loadBalance(),
         _loadAnnouncements(reset: true),
       ]);
 
@@ -1062,7 +1065,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
         _pendingBalance +
         _overdueBalance +
         _awaitingConfirmationBalance;
-    final isTenant = widget.residentType == 'tenant';
 
     void openPayments() => Navigator.push(
         context, MaterialPageRoute(builder: (_) => const PaymentPage()));
@@ -1191,7 +1193,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                       icon: Icons.event_available_outlined,
                       label: 'Reserve',
                       onTap: () => widget.onOpenTab(3)),
-                  isTenant || widget.residentType == null
+                  !(widget.resident?.canPayDues ?? false)
                       ? _HeroAction(
                           icon: Icons.notifications_none_outlined,
                           label: 'Alerts',
@@ -1218,8 +1220,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
       ..._announcements.where((a) => a['is_emergency'] != true),
     ];
 
-    final showBalance =
-        widget.residentType != null && widget.residentType != 'tenant';
+    final showBalance = widget.resident?.canPayDues ?? false;
 
     return RefreshIndicator(
       onRefresh: _refreshDashboard,
@@ -1236,8 +1237,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
                   children: [
                     const SizedBox(height: AppSpacing.md),
 
-                    // showBalance guards on residentType != null so the
-                    // balance never flashes for tenants while loading.
+                    // showBalance is false while the Resident loads, so the
+                    // balance never flashes for Tenants.
                     _buildHero(showBalance),
                     const SizedBox(height: AppSpacing.xxl),
 

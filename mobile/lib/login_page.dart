@@ -6,16 +6,23 @@ import 'app_dialogs.dart';
 import 'app_theme.dart';
 import 'signup_page.dart';
 import 'home_page.dart';
+import 'app_services.dart';
 import 'audit_logger.dart';
+import 'domain/resident/current_resident.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key, this.resident});
+
+  /// Defaults to the app's [currentResident]; tests pass their own.
+  final CurrentResident? resident;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
+  CurrentResident get _resident => widget.resident ?? currentResident;
+
   // Form handling
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
@@ -47,14 +54,10 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text,
       );
 
-      // Check account status in profiles table. If not active, sign out.
-      final profile = await _supabase
-          .from('profiles')
-          .select('account_status')
-          .eq('id', _supabase.auth.currentUser!.id)
-          .single();
+      // Only active (approved, not disabled) Residents may use the app.
+      final resident = await _resident.refresh();
 
-      if (profile['account_status'] != 'active') {
+      if (!(resident?.isActive ?? false)) {
         await _supabase.auth.signOut();
         if (!mounted) return;
         _showError("Your account is disabled/pending admin approval.");

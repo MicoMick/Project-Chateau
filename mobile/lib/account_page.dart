@@ -8,11 +8,16 @@ import 'app_colors.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'login_page.dart';
+import 'app_services.dart';
 import 'audit_logger.dart';
+import 'domain/resident/current_resident.dart';
 import 'push_notifications.dart';
 
 class AccountPage extends StatefulWidget {
-  const AccountPage({super.key});
+  const AccountPage({super.key, this.resident});
+
+  /// Defaults to the app's [currentResident]; tests pass their own.
+  final CurrentResident? resident;
 
   @override
   State<AccountPage> createState() => _AccountPageState();
@@ -257,6 +262,8 @@ class _AccountPageState extends State<AccountPage> {
         'avatar_url':     newAvatarUrl,
       });
 
+      // The name and avatar shown elsewhere come from the Current Resident.
+      await (widget.resident ?? currentResident).refresh();
       await logAudit('UPDATE_PROFILE', 'Updated profile details.');
       if (!mounted) return;
 
