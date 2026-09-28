@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart' show TimeOfDay;
 import 'package:intl/intl.dart';
 
-final _peso = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+final _peso =
+    NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
 
 /// Peso amount for on-screen UI, e.g. `₱1,500.00`. The Statement of Account
 /// PDF keeps its own `PHP` formatter: the PDF font has no ₱ glyph.

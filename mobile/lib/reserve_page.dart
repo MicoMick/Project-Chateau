@@ -9,103 +9,26 @@ import 'app_colors.dart';
 import 'domain/format/format.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
+import 'app_services.dart';
 import 'audit_logger.dart';
-// ─────────────────────────────────────────────────────────────────────────────
-// Models
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _Facility {
-  final String id, name, description, category, status, capacity, rate, hours;
-  final String? image360Url;
-  final bool is360;
-  // Total owned (`total_quantity`) vs. currently available (`amount` — the
-  // admin app's own approval flow decrements this directly, so this app
-  // only reads it, never mutates it). Only meaningful for quantity-based
-  // items (Chairs, Tents); null for time-slot facilities like the court.
-  final int? totalQuantity;
-  final int? availableQuantity;
-
-  const _Facility({
-    required this.id,
-    required this.name,
-    required this.description,
-    required this.category,
-    required this.status,
-    required this.capacity,
-    required this.rate,
-    required this.hours,
-    this.image360Url,
-    this.is360 = false,
-    this.totalQuantity,
-    this.availableQuantity,
-  });
-
-  bool get isQuantityBased => category.toLowerCase() == 'amenity item';
-
-  factory _Facility.fromMap(Map<String, dynamic> f) => _Facility(
-        id: (f['id'] ?? '').toString(),
-        name: f['name'] ?? '',
-        description: f['description'] ?? '',
-        category: f['category'] ?? '',
-        status: f['status'] ?? '',
-        capacity: (f['capacity'] ?? '').toString(),
-        rate: (f['rate'] ?? '').toString(),
-        hours: (f['hours'] ?? '').toString(),
-        image360Url: f['image_360_url'] as String?,
-        is360: f['is_360'] == true,
-        totalQuantity: f['total_quantity'] as int?,
-        availableQuantity: f['amount'] as int?,
-      );
-}
-
-class _Reservation {
-  final String id, facilityId, userId, status;
-  final DateTime date;
-  final TimeOfDay startTime, endTime;
-  final int? quantity;
-  final DateTime? returnedAt;
-  // Expected return date for borrowed (quantity-based) items — lets a
-  // resident borrow on one day and return on a later one. Null means
-  // same-day as `date`.
-  final DateTime? returnDate;
-
-  const _Reservation({
-    required this.id,
-    required this.facilityId,
-    required this.userId,
-    required this.date,
-    required this.startTime,
-    required this.endTime,
-    required this.status,
-    this.quantity,
-    this.returnedAt,
-    this.returnDate,
-  });
-
-  // Only pending or approved reservations can be cancelled by the resident
-  bool get canCancel {
-    final s = status.toLowerCase();
-    return s == 'pending' || s == 'approved';
-  }
-
-  // Borrowed amenities (quantity-based) awaiting the resident to report a
-  // return, so an admin can verify condition/missing count.
-  bool get canReturn =>
-      quantity != null && status.toLowerCase() == 'approved' && returnedAt == null;
-}
-
+import 'domain/reservations/reservations.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 // ReservePage
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ReservePage extends StatefulWidget {
-  const ReservePage({super.key});
+  const ReservePage({super.key, this.reservations});
+
+  /// Defaults to the app's [reservations]; tests pass their own.
+  final Reservations? reservations;
+
   @override
   State<ReservePage> createState() => _ReservePageState();
 }
 
 class _ReservePageState extends State<ReservePage> {
   final _supabase = Supabase.instance.client;
+  Reservations get _module => widget.reservations ?? reservations;
 
   final DateTime _today = DateTime(
     DateTime.now().year,
@@ -116,13 +39,13 @@ class _ReservePageState extends State<ReservePage> {
   late DateTime _focusedDay;
   late DateTime _selectedDay;
 
-  List<_Facility> _facilities = [];
-  List<_Reservation> _reservations = [];
+  List<Facility> _facilities = [];
+  List<Reservation> _reservations = [];
   bool _isLoading = true;
   String? _error;
   String? _qrImageUrl;
 
-  List<_Reservation> _myReservations = [];
+  List<Reservation> _myReservations = [];
 
   @override
   void initState() {
@@ -140,42 +63,13 @@ class _ReservePageState extends State<ReservePage> {
       _error = null;
     });
     try {
-      final currentUserId = _supabase.auth.currentUser?.id;
-
-      final facilitiesRaw =
-          await _supabase.from('facilities').select().order('name');
-
-      // All upcoming reservations (for availability check)
-      final reservationsRaw = await _supabase
-          .from('reservations')
-          .select()
-          .gte('date', _today.toIso8601String().split('T').first);
-
-      // Current user's ALL reservations (for notification panel)
-      List myRaw = [];
-      if (currentUserId != null) {
-        myRaw = await _supabase
-            .from('reservations')
-            .select()
-            .eq('user_id', currentUserId)
-            .order('created_at', ascending: false)
-            .limit(10);
-      }
-
-      final hoaSettings = await _supabase
-          .from('hoa_settings')
-          .select('photo_url')
-          .eq('id', 1)
-          .maybeSingle();
-
+      final snapshot = await _module.load();
       if (!mounted) return;
       setState(() {
-        _facilities =
-            (facilitiesRaw as List).map((f) => _Facility.fromMap(f)).toList();
-
-        _reservations = _parseReservations(reservationsRaw as List);
-        _myReservations = _parseReservations(myRaw);
-        _qrImageUrl = hoaSettings?['photo_url'] as String?;
+        _facilities = snapshot.facilities;
+        _reservations = snapshot.upcoming;
+        _myReservations = snapshot.mine;
+        _qrImageUrl = snapshot.qrCodeUrl;
         _isLoading = false;
       });
     } catch (e) {
@@ -187,32 +81,9 @@ class _ReservePageState extends State<ReservePage> {
     }
   }
 
-  List<_Reservation> _parseReservations(List raw) => raw.map((r) {
-        final sp = (r['start_time'] as String? ?? '00:00').split(':');
-        final ep = (r['end_time'] as String? ?? '00:00').split(':');
-        return _Reservation(
-          id: (r['id'] ?? '').toString(),
-          facilityId: (r['facility_id'] ?? '').toString(),
-          userId: (r['user_id'] ?? '').toString(),
-          date: DateTime.parse(r['date']),
-          startTime: TimeOfDay(
-              hour: int.tryParse(sp[0]) ?? 0, minute: int.tryParse(sp[1]) ?? 0),
-          endTime: TimeOfDay(
-              hour: int.tryParse(ep[0]) ?? 0, minute: int.tryParse(ep[1]) ?? 0),
-          status: r['status'] ?? 'Pending',
-          quantity: r['quantity'] as int?,
-          returnedAt: r['returned_at'] != null
-              ? DateTime.parse(r['returned_at'])
-              : null,
-          returnDate: r['return_date'] != null
-              ? DateTime.parse(r['return_date'])
-              : null,
-        );
-      }).toList();
-
   // ── Cancel ────────────────────────────────────────────────────────────────
 
-  Future<void> _cancelReservation(_Reservation r) async {
+  Future<void> _cancelReservation(Reservation r) async {
     final confirmed = await showConfirmDialog(
       context,
       title: 'Cancel Reservation',
@@ -226,9 +97,7 @@ class _ReservePageState extends State<ReservePage> {
     if (!confirmed) return;
 
     try {
-      await _supabase
-          .from('reservations')
-          .update({'status': 'Cancelled'}).eq('id', r.id);
+      await _module.cancel(r);
       await logAudit('CANCEL_RESERVATION', 'Cancelled reservation for ${_facilityName(r.facilityId) ?? 'an amenity'}.');
       if (!mounted) return;
       await _loadData();
@@ -245,62 +114,37 @@ class _ReservePageState extends State<ReservePage> {
         type: isError ? SnackType.error : SnackType.success);
   }
 
-  List<_Reservation> _reservationsForDay(DateTime day) => _reservations
+  List<Reservation> _reservationsForDay(DateTime day) => _reservations
       .where((r) =>
           r.date.year == day.year &&
           r.date.month == day.month &&
           r.date.day == day.day &&
-          r.status.toLowerCase() != 'rejected' &&
-          r.status.toLowerCase() != 'cancelled' &&
-          r.status.toLowerCase() != 'canceled')
+          r.status != ReservationStatus.rejected &&
+          r.status != ReservationStatus.cancelled)
       .toList();
 
   bool _hasReservation(DateTime day) => _reservationsForDay(day).isNotEmpty;
 
-  List<_Reservation> get _myBorrows =>
+  List<Reservation> get _myBorrows =>
       _myReservations.where((r) => r.canReturn).toList();
 
-  Color _statusColor(String s) {
-    switch (s.toLowerCase()) {
-      case 'pending':
-        return chateuWarning;
-      case 'approved':
-        return chateuPrimary; // #006837
-      case 'approved and paid':
-        return chateuSecondary; // #007D42
-      case 'return pending':
-        return chateuInfo; // blue — reported, awaiting admin verification
-      case 'completed':
-        return chateuPrimary; // #006837 (with yellow accent label)
-      case 'rejected':
-        return chateuError; // red
-      case 'cancelled':
-      case 'canceled':
-        return chateuTextMuted;
-      default:
-        return chateuWarning;
-    }
-  }
+  Color _statusColor(ReservationStatus s) => switch (s) {
+        ReservationStatus.pending => chateuWarning,
+        ReservationStatus.approved => chateuPrimary,
+        ReservationStatus.approvedAndPaid => chateuSecondary,
+        // Reported, awaiting an Admin's verification.
+        ReservationStatus.returnPending => chateuInfo,
+        ReservationStatus.completed => chateuPrimary,
+        ReservationStatus.rejected => chateuError,
+        ReservationStatus.cancelled => chateuTextMuted,
+      };
 
-  String _statusLabel(String s) {
-    switch (s.toLowerCase()) {
-      case 'approved':
-        return 'Approved';
-      case 'approved and paid':
-        return 'Approved & Paid';
-      case 'return pending':
-        return 'Return Pending — Awaiting Verification';
-      case 'completed':
-        return 'Completed';
-      case 'rejected':
-        return 'Rejected';
-      case 'cancelled':
-      case 'canceled':
-        return 'Cancelled';
-      default:
-        return 'Pending';
-    }
-  }
+  String _statusLabel(ReservationStatus s) => switch (s) {
+        ReservationStatus.approvedAndPaid => 'Approved & Paid',
+        ReservationStatus.returnPending =>
+          'Return Pending — Awaiting Verification',
+        _ => s.stored,
+      };
 
   String? _facilityName(String id) {
     try {
@@ -310,7 +154,7 @@ class _ReservePageState extends State<ReservePage> {
     }
   }
 
-  void _showImage(_Facility facility) {
+  void _showImage(Facility facility) {
     final url = facility.image360Url;
     if (url == null || url.isEmpty) {
       _showSnack('No image available for this facility.');
@@ -324,7 +168,7 @@ class _ReservePageState extends State<ReservePage> {
     ));
   }
 
-  void _showBookSheet(_Facility facility) {
+  void _showBookSheet(Facility facility) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -336,6 +180,7 @@ class _ReservePageState extends State<ReservePage> {
             .where((r) => r.facilityId == facility.id)
             .toList(),
         qrImageUrl: _qrImageUrl,
+        reservations: _module,
         onBooked: _loadData,
       ),
     );
@@ -343,7 +188,7 @@ class _ReservePageState extends State<ReservePage> {
 
   // ── Return borrowed amenities ─────────────────────────────────────────────
 
-  void _showReturnSheet(_Reservation r) {
+  void _showReturnSheet(Reservation r) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -351,6 +196,7 @@ class _ReservePageState extends State<ReservePage> {
       builder: (_) => _ReturnSheet(
         reservation: r,
         facilityName: _facilityName(r.facilityId) ?? 'Amenity',
+        reservations: _module,
         onReturned: _loadData,
       ),
     );
@@ -498,8 +344,7 @@ class _ReservePageState extends State<ReservePage> {
                       final isFull = facility.isQuantityBased
                           ? (facility.availableQuantity ?? 0) <= 0
                           : booked
-                                  .where((r) =>
-                                      r.status.toLowerCase() == 'approved')
+                                  .where((r) => r.status.blocksSlot)
                                   .length >=
                               3;
                       return _FacilityCard(
@@ -546,7 +391,7 @@ class _ReservePageState extends State<ReservePage> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ReservationTile extends StatelessWidget {
-  final _Reservation r;
+  final Reservation r;
   final String? facilityName;
   final Color color;
   final bool isOwn;
@@ -619,7 +464,7 @@ class _ReservationTile extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _BorrowTile extends StatelessWidget {
-  final _Reservation r;
+  final Reservation r;
   final String? facilityName;
   final VoidCallback onReturn;
 
@@ -752,7 +597,7 @@ class _ImageError extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _FacilityCard extends StatelessWidget {
-  final _Facility facility;
+  final Facility facility;
   final int bookedCount;
   final bool isFullyBooked;
   final VoidCallback? onTap, onImageTap;
@@ -899,10 +744,11 @@ class _Chip extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _BookSheet extends StatefulWidget {
-  final _Facility facility;
+  final Facility facility;
   final DateTime selectedDate;
-  final List<_Reservation> existingReservations;
+  final List<Reservation> existingReservations;
   final String? qrImageUrl;
+  final Reservations reservations;
   final VoidCallback onBooked;
 
   const _BookSheet({
@@ -910,6 +756,7 @@ class _BookSheet extends StatefulWidget {
     required this.selectedDate,
     required this.existingReservations,
     this.qrImageUrl,
+    required this.reservations,
     required this.onBooked,
   });
 
@@ -980,71 +827,28 @@ class _BookSheetState extends State<_BookSheet> {
     }
   }
 
-  // ── Conflict — only APPROVED slots block new bookings ────────────────────
-  //
-  // Quantity-based items (chairs, tents, etc.) don't have exclusive time
-  // slots — availability there is governed by the quantity stepper against
-  // `_maxQuantity`, not by time overlap. Their start/end times are just
-  // informational pick-up/return times, so once the return date is pushed
-  // to a later day, the return time can legitimately read "earlier" than
-  // the pick-up time (e.g. picked up 11 AM, returned 6 AM the next day) —
-  // same-day ordering and the approved-slot overlap check only make sense
-  // for single-occupancy, time-slot facilities like the court.
-  String? get conflictReason {
-    final s = _startTime.hour * 60 + _startTime.minute;
-    final e = _endTime.hour * 60 + _endTime.minute;
+  // The booking rules (clashes, pick-up/return times, quantity, court fee)
+  // live in the Reservations module; the sheet only shows the result.
+  BookingRequest get _request => BookingRequest(
+        facility: widget.facility,
+        date: widget.selectedDate,
+        start: _startTime,
+        end: _endTime,
+        quantity: _quantity,
+        returnDate: _returnDate,
+      );
 
-    final now = DateTime.now();
-    final isToday = widget.selectedDate.year == now.year &&
-        widget.selectedDate.month == now.month &&
-        widget.selectedDate.day == now.day;
+  BookingCheck get _check =>
+      widget.reservations.check(_request, existing: widget.existingReservations);
 
-    if (widget.facility.isQuantityBased) {
-      final sameDayReturn = isSameDay(_returnDate, widget.selectedDate);
-      if (sameDayReturn && e <= s) {
-        return 'Return time must be after pick-up time.';
-      }
-      if (isToday && s <= now.hour * 60 + now.minute) {
-        return 'Pick-up time has already passed for today.';
-      }
-      return null;
-    }
-
-    if (e <= s) return 'End time must be after start time.';
-
-    if (isToday && s <= now.hour * 60 + now.minute) {
-      return 'Start time has already passed for today.';
-    }
-
-    for (final r in widget.existingReservations) {
-      // Only APPROVED slots block new bookings
-      if (r.status.toLowerCase() != 'approved') continue;
-      final rs = r.startTime.hour * 60 + r.startTime.minute;
-      final re = r.endTime.hour * 60 + r.endTime.minute;
-      if (s < re && e > rs) {
-        return 'This slot overlaps with an already-approved booking.';
-      }
-    }
-    return null;
-  }
-
+  String? get conflictReason => _check.problem;
   bool get _hasConflict => conflictReason != null;
-
-  // ── Court pricing: ₱150 for the first hour, +₱50 per additional hour
-  // (partial hours round up to the next full hour) ─────────────────────────
-  bool get _isCourtFacility => widget.facility.name.toLowerCase().contains('court');
+  double? get _courtFee => _check.fee;
 
   int get _durationMinutes {
     final s = _startTime.hour * 60 + _startTime.minute;
     final e = _endTime.hour * 60 + _endTime.minute;
     return e > s ? e - s : 0;
-  }
-
-  double? get _courtFee {
-    if (!_isCourtFacility || _durationMinutes <= 0) return null;
-    final hours = (_durationMinutes / 60).ceil();
-    if (hours <= 1) return 150;
-    return 150 + (hours - 1) * 50;
   }
 
   Future<void> _submit() async {
@@ -1065,16 +869,6 @@ class _BookSheetState extends State<_BookSheet> {
     }
 
     if (widget.facility.isQuantityBased) {
-      if (_maxQuantity <= 0) {
-        showAppSnack(context, 'None of ${widget.facility.name} are currently available.',
-            type: SnackType.error);
-        return;
-      }
-      if (_quantity < 1 || _quantity > _maxQuantity) {
-        showAppSnack(context, 'Only $_maxQuantity available — adjust the quantity.',
-            type: SnackType.error);
-        return;
-      }
       if (_conditionPhotoFile == null) {
         showAppSnack(context,
             'Please attach a photo showing the item\'s current condition.',
@@ -1131,22 +925,13 @@ class _BookSheetState extends State<_BookSheet> {
             _supabase.storage.from('borrow-condition-photos').getPublicUrl(path);
       }
 
-      await _supabase.from('reservations').insert({
-        'facility_id': widget.facility.id,
-        'user_id': userId,
-        'date': dateKey(widget.selectedDate),
-        'start_time': dbTime(_startTime),
-        'end_time': dbTime(_endTime),
-        'status': 'Pending',
-        if (fee != null) 'fee': fee,
-        if (fee != null) 'payment_status': 'pending_verification',
-        if (fee != null) 'reference_no': reference,
-        if (proofUrl != null) 'proof_url': proofUrl,
-        if (widget.facility.isQuantityBased) 'quantity': _quantity,
-        if (widget.facility.isQuantityBased)
-          'return_date': _returnDate.toIso8601String().split('T').first,
-        if (conditionPhotoUrl != null) 'borrow_condition_photo_url': conditionPhotoUrl,
-      });
+      await widget.reservations.book(
+        _request,
+        fee: fee,
+        reference: fee != null ? reference : null,
+        proofUrl: proofUrl,
+        conditionPhotoUrl: conditionPhotoUrl,
+      );
 
       await logAudit(
         'NEW_RESERVATION',
@@ -1176,7 +961,7 @@ class _BookSheetState extends State<_BookSheet> {
   @override
   Widget build(BuildContext context) {
     final approvedSlots = widget.existingReservations
-        .where((r) => r.status.toLowerCase() == 'approved')
+        .where((r) => r.status.blocksSlot)
         .toList();
 
     return DraggableScrollableSheet(
@@ -1422,7 +1207,7 @@ class _BookSheetState extends State<_BookSheet> {
             // Approved taken slots
             if (approvedSlots.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.lg),
-              Text("Already approved on this day",
+              Text("Already booked on this day",
                   style: AppText.labelMedium
                       .copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.sm),
@@ -1452,7 +1237,7 @@ class _BookSheetState extends State<_BookSheet> {
             const SizedBox(height: AppSpacing.xl),
 
             // Court fee breakdown
-            if (_isCourtFacility && _courtFee != null) ...[
+            if (_courtFee != null) ...[
               Container(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
@@ -1482,7 +1267,7 @@ class _BookSheetState extends State<_BookSheet> {
             ],
 
             // ── GCash QR payment (facilities with a fee, e.g. the court) ──────
-            if (_isCourtFacility && _courtFee != null) ...[
+            if (_courtFee != null) ...[
               Text('Pay via GCash',
                   style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.sm),
@@ -1585,13 +1370,15 @@ class _BookSheetState extends State<_BookSheet> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ReturnSheet extends StatefulWidget {
-  final _Reservation reservation;
+  final Reservation reservation;
   final String facilityName;
+  final Reservations reservations;
   final VoidCallback onReturned;
 
   const _ReturnSheet({
     required this.reservation,
     required this.facilityName,
+    required this.reservations,
     required this.onReturned,
   });
 
@@ -1667,8 +1454,7 @@ class _ReturnSheetState extends State<_ReturnSheet> {
 
       // Not 'Completed' yet — an HOA admin still has to verify this return
       // (confirm condition, restock the item) before it's actually done.
-      await _supabase.from('reservations').update({
-        'status': 'Return Pending',
+      await widget.reservations.reportReturn(widget.reservation.id, {
         'returned_at': DateTime.now().toIso8601String(),
         'return_condition': _condition,
         'return_missing_qty': _missingQty,
@@ -1676,7 +1462,7 @@ class _ReturnSheetState extends State<_ReturnSheet> {
             ? null
             : _notesCtrl.text.trim(),
         'return_condition_photo_url': photoUrl,
-      }).eq('id', widget.reservation.id);
+      });
 
       await logAudit(
         'RETURN_BORROWED_ITEM',

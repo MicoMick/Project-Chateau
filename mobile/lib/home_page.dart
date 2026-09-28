@@ -589,17 +589,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   Future<void> _loadReservedDates() async {
     try {
-      final data = await supabase
-          .from('reservations')
-          .select('date')
-          // Exact spelling the web admin writes; the filter is case-sensitive.
-          .inFilter('status', ['Approved', 'Approved and Paid']);
-      final dates = <String>{};
-      for (final row in (data as List)) {
-        if (row['date'] != null) {
-          dates.add(row['date'].toString().split('T').first);
-        }
-      }
+      final dates = await reservations.reservedDates();
       if (mounted) setState(() => _reservedDates = dates);
     } catch (_) {}
   }
