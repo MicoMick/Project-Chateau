@@ -10,66 +10,20 @@ import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'app_services.dart';
 import 'audit_logger.dart';
+import 'domain/dues/dues.dart';
 import 'domain/resident/current_resident.dart';
 import 'soa_page.dart';
-
-// ── Models ─────────────────────────────────────────────────────────────────────
-
-class _Payment {
-  final String id;
-  final double amount;
-  final DateTime dueDate;
-  final String status;
-  // The payer's own GCash transaction reference — distinct from
-  // `reference_no`, which is the HOA's internal reference for the bill and
-  // must not be overwritten by what the resident submits.
-  final String? payerReferenceNo;
-  final String? proofUrl;
-  final DateTime? paidAt;
-  final DateTime createdAt;
-  // Tagged via line_items rather than a dedicated column, so this needs no
-  // schema change — an advance payment is just a payments row a resident
-  // creates themselves ahead of any bill existing for it yet.
-  final bool isAdvance;
-  // Statement of Account fields — the HOA's own reference number, the
-  // statement date, and the per-category breakdown for this bill.
-  final String? referenceNo;
-  final DateTime? statementDate;
-  final List<dynamic>? lineItems;
-
-  const _Payment({
-    required this.id,
-    required this.amount,
-    required this.dueDate,
-    required this.status,
-    this.payerReferenceNo,
-    this.proofUrl,
-    this.paidAt,
-    required this.createdAt,
-    this.isAdvance = false,
-    this.referenceNo,
-    this.statementDate,
-    this.lineItems,
-  });
-
-  bool get isPaid => status == 'paid';
-  bool get isPending => status == 'pending_verification';
-  // Back-filled past dues created when the admin approves a new resident
-  // (see AccountApproval.jsx's backfillPastDues) — real dues awaiting the
-  // Treasurer's manual confirmation, not yet a resident-submitted payment.
-  bool get isAwaitingConfirmation => status == 'pending';
-  bool get isUnpaid => status == 'unpaid';
-  bool get isOverdue => status == 'overdue';
-  bool get canSubmitPayment => isUnpaid || isOverdue;
-}
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 class PaymentPage extends StatefulWidget {
-  const PaymentPage({super.key, this.resident});
+  const PaymentPage({super.key, this.resident, this.dues});
 
   /// Defaults to the app's [currentResident]; tests pass their own.
   final CurrentResident? resident;
+
+  /// Defaults to the app's [dues]; tests pass their own.
+  final Dues? dues;
 
   @override
   State<PaymentPage> createState() => _PaymentPageState();
@@ -78,12 +32,14 @@ class PaymentPage extends StatefulWidget {
 class _PaymentPageState extends State<PaymentPage> {
   final _supabase = Supabase.instance.client;
 
-  List<_Payment> _payments = [];
+  DuesLedger? _ledger;
   bool _isLoading = true;
   String _userName = '';
   String _fullAddress = '';
-  String? _qrImageUrl;
-  double _monthlyDue = 150;
+
+  List<Payment> get _payments => _ledger?.payments ?? const [];
+  String? get _qrImageUrl => _ledger?.qrCodeUrl;
+  double get _monthlyDue => _ledger?.monthlyDue ?? 150;
 
   @override
   void initState() {
@@ -100,48 +56,13 @@ class _PaymentPageState extends State<PaymentPage> {
     try {
       final resident = await (widget.resident ?? currentResident).load();
 
-      final paymentsRaw = await _supabase
-          .from('payments')
-          .select()
-          .eq('user_id', user.id)
-          .order('due_date', ascending: false);
-
-      final hoaSettings = await _supabase
-          .from('hoa_settings')
-          .select('photo_url, monthly_due_amount')
-          .eq('id', 1)
-          .maybeSingle();
+      final ledger = await (widget.dues ?? dues).load();
 
       if (mounted) {
         setState(() {
           _userName = resident?.fullName ?? '';
           _fullAddress = resident?.lotAddress ?? '';
-          _qrImageUrl = hoaSettings?['photo_url'] as String?;
-          _monthlyDue =
-              (hoaSettings?['monthly_due_amount'] as num?)?.toDouble() ?? 150;
-
-          _payments = (paymentsRaw as List).map((p) {
-            final lineItems = p['line_items'];
-            return _Payment(
-              id: p['id'],
-              amount: (p['amount'] as num?)?.toDouble() ?? 0.0,
-              dueDate: DateTime.parse(p['due_date']),
-              status: p['status'] ?? 'unpaid',
-              payerReferenceNo: p['payer_reference_no'],
-              proofUrl: p['proof_url'],
-              paidAt: p['paid_at'] != null
-                  ? DateTime.parse(p['paid_at'])
-                  : null,
-              createdAt: DateTime.parse(p['created_at']),
-              isAdvance: lineItems is List &&
-                  lineItems.any((li) => li is Map && li['label'] == 'Advance Payment'),
-              referenceNo: p['reference_no'] as String?,
-              statementDate: p['statement_date'] != null
-                  ? DateTime.parse(p['statement_date'])
-                  : null,
-              lineItems: lineItems is List ? lineItems : null,
-            );
-          }).toList();
+          _ledger = ledger;
 
           _isLoading = false;
         });
@@ -153,25 +74,10 @@ class _PaymentPageState extends State<PaymentPage> {
 
   // ── Statement of Account ─────────────────────────────────────────────────
 
-  SoaPaymentEntry _toSoaEntry(_Payment p) => SoaPaymentEntry(
-        amount: p.amount,
-        dueDate: p.dueDate,
-        statementDate: p.statementDate,
-        paidAt: p.paidAt,
-        referenceNo: p.referenceNo,
-        payerReferenceNo: p.payerReferenceNo,
-        status: p.status,
-        lineItems: p.lineItems,
-      );
-
   Future<void> _downloadStatementOfAccount() async {
     final userId = _supabase.auth.currentUser?.id ?? '';
-    final unpaidList = _payments
-        .where((p) =>
-            p.isUnpaid || p.isOverdue || p.isPending || p.isAwaitingConfirmation)
-        .map(_toSoaEntry)
-        .toList();
-    final paidHistory = _payments.where((p) => p.isPaid).map(_toSoaEntry).toList();
+    final unpaidList = _ledger?.outstanding ?? const <Payment>[];
+    final paidHistory = _ledger?.paidHistory ?? const <Payment>[];
 
     showDialog(
       context: context,
@@ -207,46 +113,9 @@ class _PaymentPageState extends State<PaymentPage> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  _Payment? get _latestUnpaid {
-    try {
-      return _payments.firstWhere((p) =>
-          p.isUnpaid || p.isOverdue || p.isPending || p.isAwaitingConfirmation);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // Outstanding balance = all unpaid + overdue + pending (submitted or
-  // awaiting-confirmation) amounts
-  double get _outstandingBalance => _payments
-      .where((p) =>
-          p.isUnpaid || p.isOverdue || p.isPending || p.isAwaitingConfirmation)
-      .fold(0, (sum, p) => sum + p.amount);
-
-  // ── Advance payment ─────────────────────────────────────────────────────
-  // Derived purely from date math against confirmed advance payments — no
-  // dependency on how/when the admin side generates each month's actual
-  // bill, so it just counts down on its own as time passes.
-
-  // Furthest date any *verified* advance payment currently covers through.
-  DateTime? get _advanceCoversUntil {
-    final advancePaid = _payments.where((p) => p.isPaid && p.isAdvance);
-    if (advancePaid.isEmpty) return null;
-    return advancePaid.map((p) => p.dueDate).reduce((a, b) => a.isAfter(b) ? a : b);
-  }
-
-  int get _advanceMonthsRemaining {
-    final until = _advanceCoversUntil;
-    if (until == null) return 0;
-    final now = DateTime.now();
-    if (!until.isAfter(now)) return 0;
-    final months = (until.year - now.year) * 12 +
-        (until.month - now.month) -
-        (until.day < now.day ? 1 : 0);
-    return months < 0 ? 0 : months;
-  }
-
-  double get _advanceAmountRemaining => _advanceMonthsRemaining * _monthlyDue;
+  DateTime? get _advanceCoversUntil => _ledger?.advanceCoversUntil;
+  int get _advanceMonthsRemaining => _ledger?.advanceMonthsRemaining ?? 0;
+  double get _advanceAmountRemaining => _ledger?.advanceAmountRemaining ?? 0;
 
   void _showAdvancePaySheet() {
     showModalBottomSheet(
@@ -265,39 +134,17 @@ class _PaymentPageState extends State<PaymentPage> {
   String _formatDateTime(DateTime d) =>
       '${dateKey(d)} ${time12(TimeOfDay.fromDateTime(d))}';
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'paid':
-        return chateuPrimary;
-      case 'pending_verification':
-        return chateuInfo;
-      case 'pending':
-        return chateuTextMuted; // awaiting Treasurer confirmation
-      case 'overdue':
-        return chateuWarning; // amber-700
-      default:
-        return chateuError;
-    }
-  }
-
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'paid':
-        return 'Paid';
-      case 'pending_verification':
-        return 'Pending';
-      case 'pending':
-        return 'Awaiting Confirmation';
-      case 'overdue':
-        return 'Overdue';
-      default:
-        return 'Unpaid';
-    }
-  }
+  Color _statusColor(PaymentState state) => switch (state) {
+        PaymentState.paid => chateuPrimary,
+        PaymentState.pendingVerification => chateuInfo,
+        PaymentState.unconfirmedDues => chateuTextMuted,
+        PaymentState.overdue => chateuWarning,
+        PaymentState.unpaid => chateuError,
+      };
 
   // ── GCash payment sheet ───────────────────────────────────────────────────
 
-  void _showPaySheet(_Payment payment) {
+  void _showPaySheet(Payment payment) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -354,7 +201,7 @@ class _PaymentPageState extends State<PaymentPage> {
                           itemCount: _payments.length,
                           itemBuilder: (context, index) {
                             final p = _payments[index];
-                            final color = _statusColor(p.status);
+                            final color = _statusColor(p.state);
                             return Container(
                               margin:
                                   const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -404,7 +251,7 @@ class _PaymentPageState extends State<PaymentPage> {
                                       ),
                                       const SizedBox(height: 4),
                                       AppStatusBadge(
-                                        label: _statusLabel(p.status),
+                                        label: p.state.label,
                                         color: color,
                                       ),
                                     ],
@@ -425,7 +272,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
-  Widget _buildSummary(_Payment? unpaid) {
+  Widget _buildSummary(Payment? unpaid) {
     final divider = const Padding(
       padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
       child: Divider(),
@@ -459,16 +306,26 @@ class _PaymentPageState extends State<PaymentPage> {
             label: "Monthly Fee",
             value: unpaid != null
                 ? peso(unpaid.amount)
-                : "₱ 0.00",
+                : peso(0),
           ),
           divider,
           _BillRow(
             label: "Total Amount Due",
-            value: peso(_outstandingBalance),
+            value: peso(_ledger?.balance ?? 0),
             labelStyle: AppText.titleMedium,
             valueStyle: AppText.displayMedium.copyWith(
                 fontFeatures: const [FontFeature.tabularFigures()]),
           ),
+          // Sent but not yet verified by an Admin: shown beside the
+          // Balance, not inside it (CONTEXT.md).
+          if ((_ledger?.pendingVerification ?? 0) > 0) ...[
+            divider,
+            _BillRow(
+              label: "Pending verification",
+              value: peso(_ledger!.pendingVerification),
+              valueColor: chateuInfo,
+            ),
+          ],
           if (_advanceMonthsRemaining > 0) ...[
             divider,
             _BillRow(
@@ -479,7 +336,7 @@ class _PaymentPageState extends State<PaymentPage> {
           ],
           const SizedBox(height: AppSpacing.xl),
           Row(children: [
-            if (unpaid != null && unpaid.canSubmitPayment) ...[
+            if (unpaid != null && unpaid.canSubmitProof) ...[
               Expanded(
                 child: FilledButton.icon(
                   onPressed: () => _showPaySheet(unpaid),
@@ -509,8 +366,8 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
-  Widget _buildPaymentRow(_Payment p) {
-    final color = _statusColor(p.status);
+  Widget _buildPaymentRow(Payment p) {
+    final color = _statusColor(p.state);
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -518,11 +375,13 @@ class _PaymentPageState extends State<PaymentPage> {
       child: Row(
         children: [
           Icon(
-            p.isPaid
-                ? Icons.check_circle_rounded
-                : (p.isPending || p.isAwaitingConfirmation)
-                    ? Icons.hourglass_top_rounded
-                    : Icons.receipt_rounded,
+            switch (p.state) {
+              PaymentState.paid => Icons.check_circle_rounded,
+              PaymentState.pendingVerification ||
+              PaymentState.unconfirmedDues =>
+                Icons.hourglass_top_rounded,
+              _ => Icons.receipt_rounded,
+            },
             color: color,
             size: 22,
           ),
@@ -532,21 +391,19 @@ class _PaymentPageState extends State<PaymentPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  p.isPaid
-                      ? "Payment Success"
-                      : p.isPending
-                          ? "Payment Pending"
-                          : p.isAwaitingConfirmation
-                              ? "Awaiting Confirmation"
-                              : p.isOverdue
-                                  ? "Overdue Bill"
-                                  : "Monthly Due",
+                  switch (p.state) {
+                    PaymentState.paid => "Payment Success",
+                    PaymentState.pendingVerification => "Pending verification",
+                    PaymentState.unconfirmedDues => "Unconfirmed dues",
+                    PaymentState.overdue => "Overdue Bill",
+                    PaymentState.unpaid => "Monthly Due",
+                  },
                   style: AppText.bodyMedium
                       .copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  p.isPaid && p.paidAt != null
+                  p.state == PaymentState.paid && p.paidAt != null
                       ? _formatDateTime(p.paidAt!)
                       : "Due: ${shortDate(p.dueDate)}",
                   style: AppText.caption,
@@ -561,7 +418,7 @@ class _PaymentPageState extends State<PaymentPage> {
               Text(peso(p.amount),
                   style: AppText.titleMedium),
               const SizedBox(height: AppSpacing.xs),
-              AppStatusBadge(label: _statusLabel(p.status), color: color),
+              AppStatusBadge(label: p.state.label, color: color),
             ],
           ),
         ],
@@ -571,7 +428,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
   @override
   Widget build(BuildContext context) {
-    final unpaid = _latestUnpaid;
+    final unpaid = _ledger?.nextDue;
     // Summary, spacing, header, then one row per payment (or the empty state).
     const headerCount = 3;
 
@@ -693,7 +550,7 @@ class _BillRow extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PaySheet extends StatefulWidget {
-  final _Payment payment;
+  final Payment payment;
   final String? qrImageUrl;
   final VoidCallback onSubmitted;
 

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' show DateFormat;
+import 'domain/dues/dues.dart';
 import 'domain/format/format.dart' show shortDate;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -17,28 +18,6 @@ import 'package:pdf/widgets.dart' as pw;
 // "PHP 1,234.56" instead of "₱1,234.56" (the website keeps the ₱ symbol,
 // since web fonts render it fine).
 // ─────────────────────────────────────────────────────────────────────────────
-
-class SoaPaymentEntry {
-  final double amount;
-  final DateTime dueDate;
-  final DateTime? statementDate;
-  final DateTime? paidAt;
-  final String? referenceNo; // HOA's own reference
-  final String? payerReferenceNo; // resident's submitted GCash reference
-  final String status;
-  final List<dynamic>? lineItems;
-
-  const SoaPaymentEntry({
-    required this.amount,
-    required this.dueDate,
-    this.statementDate,
-    this.paidAt,
-    this.referenceNo,
-    this.payerReferenceNo,
-    required this.status,
-    this.lineItems,
-  });
-}
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 
@@ -121,7 +100,7 @@ String _fmtMonth(DateTime? d) =>
     d == null ? '-' : DateFormat('MMMM y').format(d);
 String _fmtMonthAbbr(DateTime? d) => d == null ? '-' : DateFormat('MMM').format(d);
 
-String _fmtPaidPeriod(SoaPaymentEntry p, double monthlyDueAmount) {
+String _fmtPaidPeriod(Payment p, double monthlyDueAmount) {
   final months = monthlyDueAmount > 0
       ? (p.amount / monthlyDueAmount).round().clamp(1, 999999)
       : 1;
@@ -348,7 +327,7 @@ pw.Widget _breakdownTable(List<_SoaLineItem> items, int months, double totalDue)
   ]);
 }
 
-pw.Widget _outstandingTable(List<SoaPaymentEntry> unpaidDesc, double totalDue) {
+pw.Widget _outstandingTable(List<Payment> unpaidDesc, double totalDue) {
   final headers = ['Period', 'Description', 'Stmt. Date', 'Due Date', 'Ref #', 'Status', 'Amount'];
   final data = unpaidDesc
       .map((p) => [
@@ -357,7 +336,7 @@ pw.Widget _outstandingTable(List<SoaPaymentEntry> unpaidDesc, double totalDue) {
             _fmtDate(p.statementDate),
             _fmtDate(p.dueDate),
             p.referenceNo ?? '-',
-            p.status.isEmpty ? 'Unpaid' : p.status,
+            p.state.label,
             _fmtCurrency(p.amount),
           ])
       .toList();
@@ -379,7 +358,7 @@ pw.Widget _outstandingTable(List<SoaPaymentEntry> unpaidDesc, double totalDue) {
   ]);
 }
 
-pw.Widget _historyTable(List<SoaPaymentEntry> paidChrono, double monthlyDueAmount) {
+pw.Widget _historyTable(List<Payment> paidChrono, double monthlyDueAmount) {
   if (paidChrono.isEmpty) {
     return pw.Text('No payment history on record yet.',
         style: pw.TextStyle(fontSize: 9, color: _gray400, fontStyle: pw.FontStyle.italic));
@@ -485,8 +464,8 @@ Future<Uint8List> generateSoaPdf({
   required String residentId,
   required String residentName,
   required String fullAddress,
-  required List<SoaPaymentEntry> unpaidList,
-  required List<SoaPaymentEntry> paidHistory,
+  required List<Payment> unpaidList,
+  required List<Payment> paidHistory,
   required double monthlyDueAmount,
   String? qrCodeUrl,
   bool showOutstanding = true,

@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
 import 'domain/format/format.dart';
 import 'app_services.dart';
+import 'domain/dues/dues.dart';
 import 'domain/resident/current_resident.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
@@ -535,11 +536,15 @@ class _HeroAction extends StatelessWidget {
 
 class HomeDashboard extends StatefulWidget {
   final Resident? resident;
+
+  /// Defaults to the app's [dues]; tests pass their own.
+  final Dues? dues;
   final String displayName;
   final ValueChanged<int> onOpenTab;
   const HomeDashboard({
     super.key,
     this.resident,
+    this.dues,
     required this.displayName,
     required this.onOpenTab,
   });
@@ -557,13 +562,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
   // Each entry: {start: DateTime, end: DateTime, category: String}
   List<Map<String, dynamic>> _announcementRanges = [];
 
-  double _balance = 0.0; // sum of unpaid payments
-  double _pendingBalance = 0.0; // sum of pending_verification payments
-  double _overdueBalance = 0.0; // sum of overdue payments
-  // Back-filled past dues awaiting the Treasurer's manual confirmation (see
-  // AccountApproval.jsx's backfillPastDues) — status 'pending', distinct
-  // from a resident's own submitted 'pending_verification' payment.
-  double _awaitingConfirmationBalance = 0.0;
+  DuesLedger? _ledger;
   bool _balanceLoading = true;
 
   static const int _pageSize = 5;
@@ -904,41 +903,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Future<void> _loadBalance() async {
-    final user = supabase.auth.currentUser;
-    if (user == null) {
-      setState(() => _balanceLoading = false);
-      return;
-    }
     try {
-      final data = await supabase
-          .from('payments')
-          .select('amount, status')
-          .eq('user_id', user.id)
-          .inFilter('status',
-              ['unpaid', 'overdue', 'pending_verification', 'pending']);
-
-      double unpaid = 0.0;
-      double pending = 0.0;
-      double overdue = 0.0;
-      double awaitingConfirmation = 0.0;
-      for (final row in (data as List)) {
-        final amount = (row['amount'] as num?)?.toDouble() ?? 0.0;
-        if (row['status'] == 'pending_verification') {
-          pending += amount;
-        } else if (row['status'] == 'pending') {
-          awaitingConfirmation += amount;
-        } else if (row['status'] == 'overdue') {
-          overdue += amount;
-        } else {
-          unpaid += amount;
-        }
-      }
+      final ledger = await (widget.dues ?? dues).load();
       if (mounted) {
         setState(() {
-          _balance = unpaid;
-          _pendingBalance = pending;
-          _overdueBalance = overdue;
-          _awaitingConfirmationBalance = awaitingConfirmation;
+          _ledger = ledger;
           _balanceLoading = false;
         });
       }
@@ -1008,16 +977,17 @@ class _HomeDashboardState extends State<HomeDashboard> {
   // ── Build ─────────────────────────────────────────────────────────────────
 
   String get _balanceStatus {
-    final o = _overdueBalance, p = _pendingBalance, u = _balance;
-    if (o > 0 && p > 0) return '${peso(o)} overdue · ${peso(p)} pending';
-    if (o > 0) return '${peso(o)} overdue';
-    if (u > 0 && p > 0) return '${peso(u)} unpaid · ${peso(p)} pending';
-    if (u > 0) return '${peso(u)} unpaid dues';
-    if (p > 0) return '${peso(p)} pending verification';
-    if (_awaitingConfirmationBalance > 0) {
-      return '${peso(_awaitingConfirmationBalance)} awaiting confirmation';
-    }
-    return 'No dues pending';
+    final l = _ledger;
+    if (l == null) return 'No dues pending';
+    final parts = [
+      if (l.overdue > 0) '${peso(l.overdue)} overdue',
+      if (l.unpaid > 0) '${peso(l.unpaid)} unpaid',
+      if (l.unconfirmedDues > 0) '${peso(l.unconfirmedDues)} unconfirmed dues',
+      // Sent, not yet verified: beside the Balance, not inside it.
+      if (l.pendingVerification > 0)
+        '${peso(l.pendingVerification)} pending verification',
+    ];
+    return parts.isEmpty ? 'No dues pending' : parts.join(' · ');
   }
 
   String get _greeting {
@@ -1031,10 +1001,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
     const on = chateuOnBrand;
     final soft = on.withAlpha(235);
     final firstName = widget.displayName.split(' ').first;
-    final total = _balance +
-        _pendingBalance +
-        _overdueBalance +
-        _awaitingConfirmationBalance;
+    final balance = _ledger?.balance ?? 0;
+    final overdue = (_ledger?.overdue ?? 0) > 0;
 
     void openPayments() => Navigator.push(
         context, MaterialPageRoute(builder: (_) => const PaymentPage()));
@@ -1098,7 +1066,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                   ),
                                 )
                               : Text(
-                                  peso(total),
+                                  peso(balance),
                                   style: AppText.displayMedium.copyWith(
                                     color: on,
                                     fontSize: 26,
@@ -1110,7 +1078,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                           if (!_balanceLoading)
                             Row(
                               children: [
-                                if (_overdueBalance > 0) ...[
+                                if (overdue) ...[
                                   const Icon(Icons.warning_amber_rounded,
                                       size: 14, color: Color(0xFFF4DD03)),
                                   const SizedBox(width: 4),
@@ -1119,8 +1087,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                   child: Text(
                                     _balanceStatus,
                                     style: AppText.caption.copyWith(
-                                      color: _overdueBalance > 0 ? on : soft,
-                                      fontWeight: _overdueBalance > 0
+                                      color: overdue ? on : soft,
+                                      fontWeight: overdue
                                           ? FontWeight.w700
                                           : null,
                                     ),
@@ -1138,7 +1106,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                         foregroundColor: const Color(0xFF1A7F4D),
                       ),
                       onPressed: openPayments,
-                      child: Text(total > 0 ? "Pay now" : "Payments"),
+                      child: Text(balance > 0 ? "Pay now" : "Payments"),
                     ),
                   ],
                 ),

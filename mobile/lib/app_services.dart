@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'domain/dues/dues.dart';
+import 'domain/dues/supabase_dues_source.dart';
 import 'domain/resident/current_resident.dart';
 import 'domain/resident/supabase_profile_source.dart';
 
@@ -8,5 +10,10 @@ import 'domain/resident/supabase_profile_source.dart';
 
 final currentResident = CurrentResident(
   SupabaseProfileSource(Supabase.instance.client),
+  currentUserId: () => Supabase.instance.client.auth.currentUser?.id,
+);
+
+final dues = Dues(
+  SupabaseDuesSource(Supabase.instance.client),
   currentUserId: () => Supabase.instance.client.auth.currentUser?.id,
 );
