@@ -28,7 +28,8 @@ class _Tenant {
   });
 
   String get fullName =>
-      '$firstName${middleInitial.isNotEmpty ? ' $middleInitial.' : ''} $lastName'.trim();
+      '$firstName${middleInitial.isNotEmpty ? ' $middleInitial.' : ''} $lastName'
+          .trim();
 
   bool get isActive => status == 'active';
   bool get isPending => status == 'pending';
@@ -98,7 +99,8 @@ class _TenantManagementPageState extends State<TenantManagementPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      showAppSnack(context, 'Failed to load tenants: $e', type: SnackType.error);
+      showAppSnack(context, 'Failed to load tenants: $e',
+          type: SnackType.error);
     }
   }
 
@@ -111,8 +113,7 @@ class _TenantManagementPageState extends State<TenantManagementPage> {
   Future<({Map<String, dynamic>? data, String? error})> _callManageTenant(
       Map<String, dynamic> body) async {
     try {
-      final res =
-          await _supabase.functions.invoke('manage-tenant', body: body);
+      final res = await _supabase.functions.invoke('manage-tenant', body: body);
       final data = res.data;
       if (data is Map && data['error'] != null) {
         return (data: null, error: data['error'].toString());
@@ -161,7 +162,8 @@ class _TenantManagementPageState extends State<TenantManagementPage> {
           : '${tenant.fullName} will no longer be able to log in.',
       confirmLabel: activating ? 'Reactivate' : 'Deactivate',
       isDanger: !activating,
-      icon: activating ? Icons.check_circle_outline_rounded : Icons.block_rounded,
+      icon:
+          activating ? Icons.check_circle_outline_rounded : Icons.block_rounded,
     );
     if (!confirmed) return;
 
@@ -174,8 +176,7 @@ class _TenantManagementPageState extends State<TenantManagementPage> {
     setState(() => _busyTenantId = null);
     if (result.data != null) {
       showAppSnack(
-          context,
-          activating ? 'Tenant reactivated.' : 'Tenant deactivated.',
+          context, activating ? 'Tenant reactivated.' : 'Tenant deactivated.',
           type: SnackType.success);
       _loadData();
     } else {
@@ -243,7 +244,8 @@ class _TenantManagementPageState extends State<TenantManagementPage> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: appListPadding(context,
                     top: AppSpacing.xl, bottom: AppSpacing.xxxl + 72),
-                itemCount: lead.length + (_tenants.isEmpty ? 1 : _tenants.length),
+                itemCount:
+                    lead.length + (_tenants.isEmpty ? 1 : _tenants.length),
                 itemBuilder: (context, i) {
                   if (i < lead.length) return lead[i];
                   if (_tenants.isEmpty) {
@@ -294,8 +296,8 @@ class _TenantCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = tenant.isPending
-        ? chateuWarning
-        : (tenant.isActive ? chateuPrimary : chateuTextMuted);
+        ? chateuSuccess
+        : (tenant.isActive ? chateuSuccess : chateuTextMuted);
     Widget spinner(Color c) => SizedBox(
           width: 16,
           height: 16,
@@ -348,7 +350,7 @@ class _TenantCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             AppNoticeBanner(
               icon: Icons.pending_actions_rounded,
-              color: chateuWarning,
+              color: chateuSuccess,
               text: 'Awaiting HOA admin approval of the move-in clearance.',
             ),
           ],
@@ -441,19 +443,20 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
     );
     if (picked != null && mounted) {
       setState(() {
-        _moveInDateCtrl.text =
-            dateKey(picked);
+        _moveInDateCtrl.text = dateKey(picked);
       });
     }
   }
 
   Future<void> _pickContractCopy() async {
-    final f = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final f =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (f != null && mounted) setState(() => _contractCopy = f);
   }
 
   Future<void> _pickBarangayClearance() async {
-    final f = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final f =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (f != null && mounted) setState(() => _barangayClearance = f);
   }
 
@@ -478,8 +481,8 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
       return;
     }
     if (!isValidPhPhone(_phoneCtrl.text.trim())) {
-      setState(() => _errorText =
-          'Enter a valid PH phone number (e.g. 09123456789).');
+      setState(() =>
+          _errorText = 'Enter a valid PH phone number (e.g. 09123456789).');
       return;
     }
 
@@ -508,7 +511,8 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
       return;
     }
     if (_contractCopy == null) {
-      setState(() => _errorText = 'Please upload a copy of the lease/contract.');
+      setState(
+          () => _errorText = 'Please upload a copy of the lease/contract.');
       return;
     }
     if (_barangayClearance == null) {
@@ -632,7 +636,8 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
                 icon: Icons.lock_rounded,
                 obscureText: _isPasswordHidden,
                 suffixIcon: IconButton(
-                  tooltip: _isPasswordHidden ? 'Show password' : 'Hide password',
+                  tooltip:
+                      _isPasswordHidden ? 'Show password' : 'Hide password',
                   icon: Icon(
                       _isPasswordHidden
                           ? Icons.visibility_off_rounded
@@ -648,7 +653,6 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
                 text:
                     'Share this email and temporary password with your tenant so they can log in. They can change their password later from their account.',
               ),
-
               const SizedBox(height: AppSpacing.xl),
               Text('Move-In Clearance', style: AppText.titleMedium),
               const SizedBox(height: AppSpacing.xs),
@@ -657,7 +661,6 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
                   'approve this before your tenant can log in.',
                   style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.md),
-
               InkWell(
                 onTap: _pickMoveInDate,
                 borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -678,7 +681,6 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
                   ),
                 ),
               ),
-
               const SizedBox(height: AppSpacing.md),
               Text('Contract Copy *',
                   style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
@@ -689,7 +691,6 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
                 onTap: _pickContractCopy,
                 onRemove: () => setState(() => _contractCopy = null),
               ),
-
               const SizedBox(height: AppSpacing.md),
               Text('Barangay / HOA Move-Out Clearance *',
                   style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
@@ -700,7 +701,6 @@ class _TenantFormSheetState extends State<_TenantFormSheet> {
                 onTap: _pickBarangayClearance,
                 onRemove: () => setState(() => _barangayClearance = null),
               ),
-
               const SizedBox(height: AppSpacing.xl),
               AppPrimaryButton(
                 label: 'Create Tenant Account',

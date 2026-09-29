@@ -217,7 +217,8 @@ class _ReportPageState extends State<ReportPage> {
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      await logAudit('SUBMIT_REPORT', 'Filed a report — category: ${_categories[_selectedIndex].label}.');
+      await logAudit('SUBMIT_REPORT',
+          'Filed a report — category: ${_categories[_selectedIndex].label}.');
 
       if (mounted) {
         _videoController?.dispose(); // added
@@ -276,45 +277,81 @@ class _ReportPageState extends State<ReportPage> {
                 "Help us keep Chateau safe and comfortable.",
                 style: AppText.bodyMedium.copyWith(color: chateuTextMuted),
               ),
-
               const SizedBox(height: AppSpacing.xl),
               Text("Category",
                   style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
+              Text(
+                'Choose the issue that best fits.',
+                style: AppText.caption.copyWith(color: chateuTextMuted),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              GridView.count(
+                crossAxisCount: 2,
+                crossAxisSpacing: AppSpacing.sm,
+                mainAxisSpacing: AppSpacing.sm,
+                childAspectRatio: 2.3,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
                 children: [
                   for (var i = 0; i < _categories.length; i++)
-                    ChoiceChip(
-                      avatar: Icon(_categories[i].icon, size: 18),
-                      label: Text(_categories[i].label),
-                      selected: _selectedIndex == i,
-                      showCheckmark: false,
-                      onSelected: (_) => _selectCategory(i),
+                    Builder(
+                      builder: (context) {
+                        final category = _categories[i];
+                        final selected = _selectedIndex == i;
+                        final foreground =
+                            selected ? chateuOnBrand : chateuText;
+
+                        return Semantics(
+                          button: true,
+                          selected: selected,
+                          label: category.label,
+                          child: Material(
+                            color: selected ? chateuBrand : chateuSurface,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                              side: BorderSide(
+                                color: selected ? chateuBrand : chateuBorder,
+                                width: selected ? 2 : 1,
+                              ),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: InkWell(
+                              onTap: () => _selectCategory(i),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.md,
+                                  vertical: AppSpacing.sm,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(category.icon,
+                                        size: 20, color: foreground),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Expanded(
+                                      child: Text(
+                                        category.label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppText.labelMedium
+                                            .copyWith(color: foreground),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                 ],
               ),
-
               const SizedBox(height: AppSpacing.xl),
-              TextField(
-                controller: _descController,
-                minLines: 4,
-                maxLines: 8,
-                maxLength: 500,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: "Description",
-                  hintText: "Describe the issue in detail…",
-                  alignLabelWithHint: true,
-                ),
-              ),
-
-              const SizedBox(height: AppSpacing.lg),
               Row(
                 children: [
                   Expanded(
-                    child: Text("Photo / Video (optional)",
+                    child: Text("Add photo or video (optional)",
                         style: AppText.labelMedium
                             .copyWith(color: chateuTextMuted)),
                   ),
@@ -337,8 +374,7 @@ class _ReportPageState extends State<ReportPage> {
                             color: Colors.transparent,
                             child: InkWell(
                               onTap: () => _showMediaPicker(context),
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.sm),
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
                               child: CustomPaint(
                                 painter: _DashedBorderPainter(
                                   color: chateuTextSubtle,
@@ -370,7 +406,19 @@ class _ReportPageState extends State<ReportPage> {
                             ),
                           ),
               ),
-
+              const SizedBox(height: AppSpacing.xl),
+              TextField(
+                controller: _descController,
+                minLines: 4,
+                maxLines: 8,
+                maxLength: 500,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: "Description",
+                  hintText: "Describe the issue in detail…",
+                  alignLabelWithHint: true,
+                ),
+              ),
               const SizedBox(height: AppSpacing.xxl),
               AppPrimaryButton(
                 label: "Submit Report",

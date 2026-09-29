@@ -1893,8 +1893,7 @@ class _MapPageState extends State<MapPage> {
                           : Icons.location_searching_rounded,
                       onPressed: () => _requestLocation(userInitiated: true),
                     ),
-                    const SizedBox(
-                        width: AppSpacing.sm, height: AppSpacing.sm),
+                    const SizedBox(width: AppSpacing.sm, height: AppSpacing.sm),
                     _MapButton(
                       tooltip: 'Center on the subdivision',
                       icon: Icons.center_focus_strong_rounded,
@@ -1937,7 +1936,7 @@ class _MapPageState extends State<MapPage> {
                           Text(
                             hasRoute
                                 ? _selectedStreet!['label'] as String
-                                : 'Tap a pin on the map',
+                                : 'Tap a pin or search for a lot',
                             style: AppText.titleMedium,
                             overflow: TextOverflow.ellipsis,
                           ),

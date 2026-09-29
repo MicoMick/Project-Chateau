@@ -1082,9 +1082,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                     _balanceStatus,
                                     style: AppText.caption.copyWith(
                                       color: overdue ? on : soft,
-                                      fontWeight: overdue
-                                          ? FontWeight.w700
-                                          : null,
+                                      fontWeight:
+                                          overdue ? FontWeight.w700 : null,
                                     ),
                                   ),
                                 ),
@@ -1110,8 +1109,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
               const SizedBox(height: AppSpacing.lg),
               Divider(color: on.withAlpha(40), height: 1),
               const SizedBox(height: AppSpacing.md),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                alignment: WrapAlignment.spaceAround,
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
                 children: [
                   _HeroAction(
                       icon: Icons.chat_bubble_outline,

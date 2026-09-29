@@ -569,8 +569,8 @@ class _SignupPageState extends State<SignupPage> {
     return Semantics(
       label: 'Step ${_currentStep + 1} of 4: ${_stepLabels[_currentStep]}',
       child: ExcludeSemantics(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Wrap(
+          alignment: WrapAlignment.center,
           children: List.generate(4, (i) {
             final isDone = i < _currentStep;
             final isActive = i == _currentStep;

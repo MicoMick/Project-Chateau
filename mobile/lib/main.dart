@@ -27,16 +27,21 @@ void main() async {
     if (state.event == AuthChangeEvent.signedOut) currentResident.clear();
   });
 
-  await PushNotifications.initialize();
-
   try {
     await loadThemeMode();
     await PushNotifications.loadEnabled();
   } catch (_) {} // unreadable prefs → stay on the Light default
 
-  // Push notifications are Android-only — no Firebase Web config exists,
-  // so none of this applies (or is safe to touch) on web.
+  runApp(const MyApp());
+
+  // Push setup can finish after the first screen appears.
   if (!kIsWeb) {
+    try {
+      await PushNotifications.initialize();
+    } catch (_) {
+      return; // The app still works if Firebase is unavailable.
+    }
+
     void openNotifications() {
       navigatorKey.currentState?.push(
         MaterialPageRoute(builder: (_) => const NotificationPage()),
@@ -47,15 +52,12 @@ void main() async {
     FirebaseMessaging.onMessageOpenedApp.listen((_) => openNotifications());
 
     // App was launched by tapping a push (was fully terminated).
-    final initialMessage =
-        await FirebaseMessaging.instance.getInitialMessage();
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => openNotifications());
+      await WidgetsBinding.instance.endOfFrame;
+      openNotifications();
     }
   }
-
-  runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
@@ -101,6 +103,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       e.markNeedsBuild();
       e.visitChildren(rebuild);
     }
+
     (context as Element).visitChildren(rebuild);
   }
 

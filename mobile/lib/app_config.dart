@@ -24,7 +24,7 @@ class AppConfig {
 
   /// Shown in Settings. Keep in step with `version:` in pubspec.yaml —
   /// test/app_version_test.dart fails if they drift.
-  static const String appVersion = '0.3.0';
+  static const String appVersion = '3.0.2';
 
   // ── Supabase ──────────────────────────────────────────────────────────────
   static const String supabaseUrl =

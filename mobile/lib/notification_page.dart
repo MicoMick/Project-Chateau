@@ -23,8 +23,8 @@ String _announcementTitleFor(String notifTitle) {
 
 class _NotificationEntry {
   final Map<String, dynamic> raw;
-  final String? category; 
-  final DateTime? endDate; 
+  final String? category;
+  final DateTime? endDate;
   final bool isEmergency;
   final DateTime createdAt;
 
@@ -39,7 +39,8 @@ class _NotificationEntry {
   bool get isExpired {
     if (endDate == null) return false;
     final today = DateTime.now();
-    final endOfDay = DateTime(endDate!.year, endDate!.month, endDate!.day, 23, 59, 59);
+    final endOfDay =
+        DateTime(endDate!.year, endDate!.month, endDate!.day, 23, 59, 59);
     return today.isAfter(endOfDay);
   }
 
@@ -178,7 +179,8 @@ class _NotificationPageState extends State<NotificationPage> {
           if (match == null) {
             match = a;
           } else {
-            final matchCreated = DateTime.tryParse(match['created_at'] as String? ?? '');
+            final matchCreated =
+                DateTime.tryParse(match['created_at'] as String? ?? '');
             if (aCreated != null &&
                 (matchCreated == null || aCreated.isAfter(matchCreated))) {
               match = a;
@@ -242,7 +244,8 @@ class _NotificationPageState extends State<NotificationPage> {
                   ? LayoutBuilder(
                       builder: (context, c) => SingleChildScrollView(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        child: SizedBox(height: c.maxHeight, child: _buildEmpty()),
+                        child:
+                            SizedBox(height: c.maxHeight, child: _buildEmpty()),
                       ),
                     )
                   : ListView.builder(
@@ -350,8 +353,6 @@ class _NotificationCard extends StatelessWidget {
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   message,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
                   style: AppText.bodyMedium.copyWith(color: chateuTextMuted),
                 ),
                 const SizedBox(height: AppSpacing.sm),

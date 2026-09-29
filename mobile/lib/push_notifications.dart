@@ -28,6 +28,7 @@ class PushNotifications {
   static final _supabase = Supabase.instance.client;
   static const _enabledKey = 'push_enabled';
   static bool _listeningForRefresh = false;
+  static Future<void>? _initialization;
 
   /// The Resident's on/off choice in Settings; on by default. Remembered
   /// on this device.
@@ -48,6 +49,15 @@ class PushNotifications {
   }
 
   static Future<void> initialize() async {
+    try {
+      await (_initialization ??= _initialize());
+    } catch (_) {
+      _initialization = null;
+      rethrow;
+    }
+  }
+
+  static Future<void> _initialize() async {
     // Only Android has a Firebase config wired up (google-services.json) —
     // web has no equivalent, so Firebase.initializeApp() would crash there.
     if (kIsWeb) return;
@@ -105,6 +115,11 @@ class PushNotifications {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
     try {
+      await initialize();
+    } catch (_) {
+      return;
+    }
+    try {
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) await _saveToken(userId, token);
     } catch (_) {}
@@ -133,6 +148,7 @@ class PushNotifications {
   static Future<void> unregisterToken() async {
     if (kIsWeb) return;
     try {
+      await initialize();
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
         await _supabase.from('device_tokens').delete().eq('token', token);

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'app_config.dart';
 import 'app_theme.dart';
 
 class AboutPage extends StatelessWidget {
@@ -141,7 +142,7 @@ class AboutPage extends StatelessWidget {
                 Text("Chateau Real HOA Management Software",
                     style: AppText.labelMedium.copyWith(color: chateuText)),
                 const SizedBox(height: AppSpacing.xs),
-                Text("Version 1.0.0  •  © 2026 All Rights Reserved",
+                Text("Version ${AppConfig.appVersion}  •  © 2026 All Rights Reserved",
                     style: AppText.caption),
               ],
             ),
