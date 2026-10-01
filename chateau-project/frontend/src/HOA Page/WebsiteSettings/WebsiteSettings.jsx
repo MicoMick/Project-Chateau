@@ -123,34 +123,77 @@ const PhotoCard = ({ label, sublabel, imgUrl, isOverridden, uploading, onUpload,
 );
 
 // ─── APK Card — the file the public "Download Now" button serves ─────────────
-const ApkCard = ({ filename, uploading, onUpload, onRemove }) => (
-  <div className="bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md hover:border-[#006837]/20 transition-all overflow-hidden p-5">
-    <div className="flex items-center gap-3 mb-4">
-      <div className="w-11 h-11 rounded-xl bg-[#006837]/10 flex items-center justify-center shrink-0">
-        {uploading ? <Loader2 size={18} className="animate-spin text-[#006837]" /> : <FileArchive size={18} className="text-[#006837]" />}
+// Two ways to point "Download Now" at a file:
+//  1. "Upload APK" — goes through Supabase Storage (the `app-releases` bucket),
+//     subject to its project-level file-size cap on the Free plan.
+//  2. "Use a direct link instead" — skips Supabase Storage entirely. app_apk_url
+//     is just a plain URL column, so any direct-download link works (e.g. a
+//     GitHub Release asset, which has no practical size limit). Use this for
+//     APKs too large for the Storage free-tier cap.
+const ApkCard = ({ filename, url, uploading, savingUrl, onUpload, onRemove, onSaveUrl }) => {
+  const [showUrlForm, setShowUrlForm] = useState(false);
+  const [draftUrl,    setDraftUrl]    = useState(url || '');
+
+  useEffect(() => { setDraftUrl(url || ''); }, [url]);
+
+  return (
+    <div className="bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md hover:border-[#006837]/20 transition-all overflow-hidden p-5">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-11 h-11 rounded-xl bg-[#006837]/10 flex items-center justify-center shrink-0">
+          {(uploading || savingUrl) ? <Loader2 size={18} className="animate-spin text-[#006837]" /> : <FileArchive size={18} className="text-[#006837]" />}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-black text-slate-900">Android App (.apk)</p>
+          {filename
+            ? <p className="text-xs text-slate-400 truncate" title={filename}>{filename}</p>
+            : <p className="text-xs text-slate-400">No APK set yet — "Download Now" is disabled on the site.</p>}
+        </div>
       </div>
-      <div className="min-w-0">
-        <p className="text-sm font-black text-slate-900">Android App (.apk)</p>
-        {filename
-          ? <p className="text-xs text-slate-400 truncate" title={filename}>{filename}</p>
-          : <p className="text-xs text-slate-400">No APK uploaded yet — "Download Now" is disabled on the site.</p>}
+
+      <div className="flex gap-2">
+        <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-[#006837]/10 hover:bg-[#006837]/20 text-[#006837] rounded-xl text-xs font-bold cursor-pointer transition-all">
+          <UploadCloud size={13} /> {uploading ? 'Uploading…' : filename ? 'Replace APK' : 'Upload APK'}
+          <input type="file" accept=".apk" className="hidden" disabled={uploading || savingUrl}
+            onChange={e => { const file = e.target.files[0]; e.target.value = ''; if (file) onUpload(file); }} />
+        </label>
+        {filename && (
+          <button type="button" onClick={onRemove} disabled={uploading || savingUrl} title="Remove APK"
+            className="px-3 py-2.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-all cursor-pointer disabled:opacity-50">
+            <Trash2 size={13} />
+          </button>
+        )}
       </div>
-    </div>
-    <div className="flex gap-2">
-      <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-[#006837]/10 hover:bg-[#006837]/20 text-[#006837] rounded-xl text-xs font-bold cursor-pointer transition-all">
-        <UploadCloud size={13} /> {uploading ? 'Uploading…' : filename ? 'Replace APK' : 'Upload APK'}
-        <input type="file" accept=".apk" className="hidden" disabled={uploading}
-          onChange={e => { const file = e.target.files[0]; e.target.value = ''; if (file) onUpload(file); }} />
-      </label>
-      {filename && (
-        <button type="button" onClick={onRemove} disabled={uploading} title="Remove APK"
-          className="px-3 py-2.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-all cursor-pointer disabled:opacity-50">
-          <Trash2 size={13} />
+
+      {!showUrlForm ? (
+        <button type="button" onClick={() => setShowUrlForm(true)}
+          className="mt-2 text-[11px] font-bold text-slate-400 hover:text-[#006837] cursor-pointer transition-colors">
+          APK too big to upload? Use a direct link instead →
         </button>
+      ) : (
+        <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            Paste a direct-download link — e.g. a <strong>GitHub Release</strong> asset URL
+            (free, no size limit). This skips Supabase Storage's upload cap entirely.
+          </p>
+          <input type="url" value={draftUrl} onChange={e => setDraftUrl(e.target.value)}
+            placeholder="https://github.com/org/repo/releases/download/v1.0/app.apk"
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#006837]/20 focus:border-[#006837]" />
+          <div className="flex gap-2">
+            <button type="button" disabled={savingUrl || !draftUrl.trim()}
+              onClick={() => { onSaveUrl(draftUrl.trim()); setShowUrlForm(false); }}
+              className="flex-1 px-3 py-2 bg-[#006837] hover:bg-[#004d29] text-white rounded-lg text-xs font-bold cursor-pointer transition-all disabled:opacity-50">
+              {savingUrl ? 'Saving…' : 'Save Link'}
+            </button>
+            <button type="button" onClick={() => { setShowUrlForm(false); setDraftUrl(url || ''); }}
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold cursor-pointer transition-all">
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
-  </div>
-);
+  );
+};
 
 // ─── Team Member Card — photo + editable Name/Position ────────────────────────
 const TeamMemberCard = ({
@@ -240,6 +283,7 @@ const WebsiteSettings = () => {
   const [uploadingKey, setUploadingKey] = useState(null); // `${section}:${key}`
   const [savingRosterKey, setSavingRosterKey] = useState(null); // defaultName
   const [uploadingApk, setUploadingApk] = useState(false);
+  const [savingApkUrl, setSavingApkUrl] = useState(false);
   const [notification, setNotification] = useState({ show: false, title: '', message: '', type: 'success' });
 
   const notify = (title, message, type = 'success') =>
@@ -440,6 +484,36 @@ const WebsiteSettings = () => {
     }
   };
 
+  // Point "Download Now" at a direct-download URL instead of a Supabase
+  // Storage upload — app_apk_url is just a plain text column, so any host
+  // works (GitHub Releases, etc.), bypassing Storage's free-tier size cap.
+  const handleSaveApkUrl = async (url) => {
+    if (!url) return;
+    setSavingApkUrl(true);
+    try {
+      const filename = decodeURIComponent(url.split('/').pop().split('?')[0]) || 'app.apk';
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error: saveErr } = await supabase.from('website_settings').upsert({
+        id: 1,
+        app_apk_url: url,
+        app_apk_filename: filename,
+        updated_at: new Date().toISOString(),
+        updated_by: user?.id || null,
+      });
+      if (saveErr) throw saveErr;
+
+      setApkUrl(url);
+      setApkFilename(filename);
+      logger.info('App APK URL set (external link)', { url });
+      notify('APK Link Saved', '"Download Now" on the landing page will now serve this file.');
+    } catch (err) {
+      notify('Save Error', err.message, 'error');
+    } finally {
+      setSavingApkUrl(false);
+    }
+  };
+
   const handleRemoveApk = async () => {
     try {
       const { error } = await supabase.from('website_settings').upsert({
@@ -590,9 +664,12 @@ const WebsiteSettings = () => {
               />
               <ApkCard
                 filename={apkFilename}
+                url={apkUrl}
                 uploading={uploadingApk}
+                savingUrl={savingApkUrl}
                 onUpload={handleUploadApk}
                 onRemove={handleRemoveApk}
+                onSaveUrl={handleSaveApkUrl}
               />
             </div>
           </div>
