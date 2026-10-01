@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
+import 'domain/format/format.dart';
 import 'app_dialogs.dart';
 import 'app_theme.dart';
 import 'audit_logger.dart';
@@ -64,25 +65,13 @@ class _VotingPageState extends State<VotingPage> {
       case 'active':
         return chateuSuccess;
       case 'closed':
-        return chateuError;
-      default:
         return chateuTextMuted;
+      default:
+        return chateuInfo;
     }
   }
 
-  String _formatDate(String? raw) {
-    if (raw == null) return '—';
-    try {
-      final d = DateTime.parse(raw);
-      const months = [
-        '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-      ];
-      return '${months[d.month]} ${d.day}, ${d.year}';
-    } catch (_) {
-      return raw;
-    }
-  }
+  String _formatDate(String? raw) => raw == null ? '—' : shortDateFromRaw(raw);
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +163,9 @@ class _VotingPageState extends State<VotingPage> {
                 status.toLowerCase() == 'closed'
                     ? 'This election has ended.'
                     : 'This election is not yet active.',
-                type: SnackType.info,
+                type: status.toLowerCase() == 'closed'
+                    ? SnackType.neutral
+                    : SnackType.info,
               );
               return;
             }
@@ -345,10 +336,10 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
         // Sort: known positions first (by their index), then unknowns alphabetically
         final sortedPositions = positionSet.toList()
           ..sort((a, b) {
-            final aIndex = positionOrder.indexWhere(
-                (p) => p.toLowerCase() == a.toLowerCase());
-            final bIndex = positionOrder.indexWhere(
-                (p) => p.toLowerCase() == b.toLowerCase());
+            final aIndex = positionOrder
+                .indexWhere((p) => p.toLowerCase() == a.toLowerCase());
+            final bIndex = positionOrder
+                .indexWhere((p) => p.toLowerCase() == b.toLowerCase());
             if (aIndex != -1 && bIndex != -1) return aIndex.compareTo(bIndex);
             if (aIndex != -1) return -1;
             if (bIndex != -1) return 1;
@@ -377,28 +368,26 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
   }
 
   List<Map<String, dynamic>> _candidatesForPosition(String position) {
-    return _candidates
-        .where((c) => c['position'] == position)
-        .toList();
+    return _candidates.where((c) => c['position'] == position).toList();
   }
 
   bool get _allPositionsSelected {
     if (_positions.isEmpty) return false;
-    return _positions.every(
-        (pos) => _selectedCandidates[pos] != null);
+    return _positions.every((pos) => _selectedCandidates[pos] != null);
   }
 
   Future<void> _submitVote() async {
     if (!_allPositionsSelected) {
-      showAppSnack(context, 'Please select a candidate for each position.', type: SnackType.warning);
+      showAppSnack(context, 'Please select a candidate for each position.',
+          type: SnackType.warning);
       return;
     }
 
     // Confirm dialog
     final selectionSummary = _positions.map((pos) {
       final candidateId = _selectedCandidates[pos];
-      final candidate = _candidates.firstWhere(
-          (c) => c['id'] == candidateId, orElse: () => {});
+      final candidate = _candidates.firstWhere((c) => c['id'] == candidateId,
+          orElse: () => {});
       return '$pos: ${candidate['full_name'] as String? ?? '—'}';
     }).join('\n');
 
@@ -461,19 +450,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
     }
   }
 
-  String _formatDate(String? raw) {
-    if (raw == null) return '—';
-    try {
-      final d = DateTime.parse(raw);
-      const months = [
-        '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-      ];
-      return '${months[d.month]} ${d.day}, ${d.year}';
-    } catch (_) {
-      return raw;
-    }
-  }
+  String _formatDate(String? raw) => raw == null ? '—' : shortDateFromRaw(raw);
 
   @override
   Widget build(BuildContext context) {
@@ -559,8 +536,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
             children: [
               if (description?.isNotEmpty == true) ...[
                 Text(description!,
-                    style:
-                        AppText.bodyLarge.copyWith(color: chateuTextMuted)),
+                    style: AppText.bodyLarge.copyWith(color: chateuTextMuted)),
                 const SizedBox(height: AppSpacing.sm),
               ],
               Row(
@@ -616,8 +592,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> {
     );
   }
 
-  Widget _buildCandidateCard(
-      Map<String, dynamic> candidate, String position) {
+  Widget _buildCandidateCard(Map<String, dynamic> candidate, String position) {
     final isSelected = _selectedCandidates[position] == candidate['id'];
     final photoUrl = candidate['photo_url'] as String?;
     final name = candidate['full_name'] as String? ?? "Candidate";

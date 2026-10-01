@@ -9,6 +9,8 @@ import 'package:chateau_mobile_app/notification_page.dart';
 import 'package:chateau_mobile_app/push_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:chateau_mobile_app/app_config.dart';
+import 'package:chateau_mobile_app/app_services.dart';
+import 'package:chateau_mobile_app/domain/resident/current_resident.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -20,15 +22,26 @@ void main() async {
     publishableKey: AppConfig.supabaseAnonKey,
   );
 
-  await PushNotifications.initialize();
+  // A role or status change by an Admin shows at the next sign-in.
+  Supabase.instance.client.auth.onAuthStateChange.listen((state) {
+    if (state.event == AuthChangeEvent.signedOut) currentResident.clear();
+  });
 
   try {
     await loadThemeMode();
+    await PushNotifications.loadEnabled();
   } catch (_) {} // unreadable prefs → stay on the Light default
 
-  // Push notifications are Android-only — no Firebase Web config exists,
-  // so none of this applies (or is safe to touch) on web.
+  runApp(const MyApp());
+
+  // Push setup can finish after the first screen appears.
   if (!kIsWeb) {
+    try {
+      await PushNotifications.initialize();
+    } catch (_) {
+      return; // The app still works if Firebase is unavailable.
+    }
+
     void openNotifications() {
       navigatorKey.currentState?.push(
         MaterialPageRoute(builder: (_) => const NotificationPage()),
@@ -39,15 +52,12 @@ void main() async {
     FirebaseMessaging.onMessageOpenedApp.listen((_) => openNotifications());
 
     // App was launched by tapping a push (was fully terminated).
-    final initialMessage =
-        await FirebaseMessaging.instance.getInitialMessage();
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => openNotifications());
+      await WidgetsBinding.instance.endOfFrame;
+      openNotifications();
     }
   }
-
-  runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
@@ -93,6 +103,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       e.markNeedsBuild();
       e.visitChildren(rebuild);
     }
+
     (context as Element).visitChildren(rebuild);
   }
 
@@ -124,11 +135,33 @@ class AuthGate extends StatelessWidget {
 
         final session = snapshot.data?.session;
 
-        if (session != null) {
-          return const HomePage();
-        } else {
-          return const LandingPage();
+        if (session == null) return const LandingPage();
+
+        // A session restored at app start skipped the login page's
+        // account-status check, so check it here. Only for the initial
+        // session: signup holds a live session for a pending Homeowner
+        // until it signs out itself.
+        if (snapshot.data?.event == AuthChangeEvent.initialSession) {
+          return FutureBuilder<Resident?>(
+            future: currentResident.load(),
+            builder: (context, resident) {
+              if (resident.connectionState != ConnectionState.done) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              // Offline at start: don't sign out on a failed fetch; RLS
+              // still guards the data.
+              if (resident.hasError) return const HomePage();
+              if (!(resident.data?.isActive ?? false)) {
+                Supabase.instance.client.auth.signOut();
+                return const LandingPage();
+              }
+              return const HomePage();
+            },
+          );
         }
+        return const HomePage();
       },
     );
   }

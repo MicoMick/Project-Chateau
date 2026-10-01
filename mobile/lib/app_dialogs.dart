@@ -6,7 +6,7 @@ import 'app_theme.dart';
 
 // ── Snackbar ──────────────────────────────────────────────────────────────────
 
-enum SnackType { success, error, warning, info }
+enum SnackType { success, error, warning, info, neutral }
 
 void showAppSnack(
   BuildContext context,
@@ -19,24 +19,32 @@ void showAppSnack(
   final IconData icon;
   switch (type) {
     case SnackType.success:
-      bg   = chateuBrand;
+      bg = chateuBrand;
       icon = Icons.check_circle_rounded;
       break;
     case SnackType.error:
-      bg   = chateuError;
+      bg = chateuError;
       icon = Icons.error_rounded;
       break;
     case SnackType.warning:
-      bg   = chateuWarning;
+      bg = chateuWarning;
       icon = Icons.warning_rounded;
       break;
     case SnackType.info:
-      bg   = chateuInfo;
+      bg = chateuInfo;
       icon = Icons.info_rounded;
+      break;
+    case SnackType.neutral:
+      bg = chateuSurfaceMuted;
+      icon = Icons.info_outline_rounded;
       break;
   }
 
-  final fg = type == SnackType.success ? chateuOnBrand : chateuOnColor;
+  final fg = switch (type) {
+    SnackType.success => chateuOnBrand,
+    SnackType.neutral => chateuText,
+    _ => chateuOnColor,
+  };
 
   ScaffoldMessenger.of(context)
     ..clearSnackBars()
@@ -44,8 +52,9 @@ void showAppSnack(
       content: Row(children: [
         Icon(icon, color: fg, size: 18),
         const SizedBox(width: 10),
-        Expanded(child: Text(message,
-            style: AppText.bodyMedium.copyWith(color: fg))),
+        Expanded(
+            child:
+                Text(message, style: AppText.bodyMedium.copyWith(color: fg))),
       ]),
       backgroundColor: bg,
       margin: const EdgeInsets.all(AppSpacing.lg),
@@ -61,9 +70,9 @@ Future<bool> showConfirmDialog(
   BuildContext context, {
   required String title,
   required String message,
-  String confirmLabel  = 'Confirm',
-  String cancelLabel   = 'Cancel',
-  bool   isDanger      = false,
+  String confirmLabel = 'Confirm',
+  String cancelLabel = 'Cancel',
+  bool isDanger = false,
   IconData? icon,
 }) async {
   final result = await showDialog<bool>(
@@ -83,8 +92,7 @@ Future<bool> showConfirmDialog(
           onPressed: () => Navigator.pop(ctx, true),
           style: isDanger
               ? FilledButton.styleFrom(
-                  backgroundColor: chateuError,
-                  foregroundColor: chateuOnColor)
+                  backgroundColor: chateuError, foregroundColor: chateuOnColor)
               : null,
           child: Text(confirmLabel),
         ),
@@ -98,11 +106,11 @@ Future<bool> showConfirmDialog(
 
 Future<void> showInfoDialog(
   BuildContext context, {
-  required String  title,
-  required String  message,
-  IconData?        icon,
-  Color?           iconColor,
-  String           buttonLabel = 'Got it',
+  required String title,
+  required String message,
+  IconData? icon,
+  Color? iconColor,
+  String buttonLabel = 'Got it',
 }) async {
   await showDialog(
     context: context,
@@ -125,12 +133,13 @@ Future<void> showInfoDialog(
 /// Material 3 drag handle (32×4, on-surface-variant at 40%) for sheets that
 /// draw their own surface.
 Widget buildSheetHandle() => Center(
-  child: Container(
-    width: 32, height: 4,
-    margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-    decoration: BoxDecoration(
-      color: chateuTextMuted.withAlpha(102),
-      borderRadius: BorderRadius.circular(2),
-    ),
-  ),
-);
+      child: Container(
+        width: 32,
+        height: 4,
+        margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: chateuTextMuted.withAlpha(102),
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    );

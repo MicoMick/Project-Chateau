@@ -1,88 +1,28 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:printing/printing.dart';
 import 'app_colors.dart';
+import 'domain/format/format.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
+import 'app_services.dart';
 import 'audit_logger.dart';
+import 'domain/dues/dues.dart';
+import 'domain/resident/current_resident.dart';
+import 'domain/uploads/uploads.dart';
 import 'soa_page.dart';
-
-// ── Address helper — mirrors paymentUtils.js's buildFullAddress/stripLabel ──
-// Block/Lot values in the DB sometimes already include the word "Blk"/"Lot"
-// and sometimes don't, so any existing label is stripped before re-prefixing.
-
-String _stripLabel(String? val, RegExp label) {
-  if (val == null || val.isEmpty) return '';
-  return val.replaceFirst(label, '').trim();
-}
-
-String _buildFullAddress(String? block, String? lot, String? street) {
-  final parts = <String>[];
-  final b = _stripLabel(block, RegExp(r'^(blk|block)\.?\s*', caseSensitive: false));
-  final l = _stripLabel(lot, RegExp(r'^lot\.?\s*', caseSensitive: false));
-  if (b.isNotEmpty) parts.add('Blk $b');
-  if (l.isNotEmpty) parts.add('Lot $l');
-  if (street != null && street.isNotEmpty) parts.add(street);
-  return parts.isEmpty ? 'N/A' : parts.join(', ');
-}
-
-// ── Models ─────────────────────────────────────────────────────────────────────
-
-class _Payment {
-  final String id;
-  final double amount;
-  final DateTime dueDate;
-  final String status;
-  // The payer's own GCash transaction reference — distinct from
-  // `reference_no`, which is the HOA's internal reference for the bill and
-  // must not be overwritten by what the resident submits.
-  final String? payerReferenceNo;
-  final String? proofUrl;
-  final DateTime? paidAt;
-  final DateTime createdAt;
-  // Tagged via line_items rather than a dedicated column, so this needs no
-  // schema change — an advance payment is just a payments row a resident
-  // creates themselves ahead of any bill existing for it yet.
-  final bool isAdvance;
-  // Statement of Account fields — the HOA's own reference number, the
-  // statement date, and the per-category breakdown for this bill.
-  final String? referenceNo;
-  final DateTime? statementDate;
-  final List<dynamic>? lineItems;
-
-  const _Payment({
-    required this.id,
-    required this.amount,
-    required this.dueDate,
-    required this.status,
-    this.payerReferenceNo,
-    this.proofUrl,
-    this.paidAt,
-    required this.createdAt,
-    this.isAdvance = false,
-    this.referenceNo,
-    this.statementDate,
-    this.lineItems,
-  });
-
-  bool get isPaid => status == 'paid';
-  bool get isPending => status == 'pending_verification';
-  // Back-filled past dues created when the admin approves a new resident
-  // (see AccountApproval.jsx's backfillPastDues) — real dues awaiting the
-  // Treasurer's manual confirmation, not yet a resident-submitted payment.
-  bool get isAwaitingConfirmation => status == 'pending';
-  bool get isUnpaid => status == 'unpaid';
-  bool get isOverdue => status == 'overdue';
-  bool get canSubmitPayment => isUnpaid || isOverdue;
-}
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 class PaymentPage extends StatefulWidget {
-  const PaymentPage({super.key});
+  const PaymentPage({super.key, this.resident, this.dues});
+
+  /// Defaults to the app's [currentResident]; tests pass their own.
+  final CurrentResident? resident;
+
+  /// Defaults to the app's [dues]; tests pass their own.
+  final Dues? dues;
 
   @override
   State<PaymentPage> createState() => _PaymentPageState();
@@ -91,12 +31,14 @@ class PaymentPage extends StatefulWidget {
 class _PaymentPageState extends State<PaymentPage> {
   final _supabase = Supabase.instance.client;
 
-  List<_Payment> _payments = [];
+  DuesLedger? _ledger;
   bool _isLoading = true;
   String _userName = '';
   String _fullAddress = '';
-  String? _qrImageUrl;
-  double _monthlyDue = 150;
+
+  List<Payment> get _payments => _ledger?.payments ?? const [];
+  String? get _qrImageUrl => _ledger?.qrCodeUrl;
+  double get _monthlyDue => _ledger?.monthlyDue ?? 150;
 
   @override
   void initState() {
@@ -111,61 +53,15 @@ class _PaymentPageState extends State<PaymentPage> {
     if (user == null) return;
 
     try {
-      final profile = await _supabase
-          .from('profiles')
-          .select('full_name, block, lot, street, address')
-          .eq('id', user.id)
-          .maybeSingle();
+      final resident = await (widget.resident ?? currentResident).load();
 
-      final paymentsRaw = await _supabase
-          .from('payments')
-          .select()
-          .eq('user_id', user.id)
-          .order('due_date', ascending: false);
-
-      final hoaSettings = await _supabase
-          .from('hoa_settings')
-          .select('photo_url, monthly_due_amount')
-          .eq('id', 1)
-          .maybeSingle();
+      final ledger = await (widget.dues ?? dues).load();
 
       if (mounted) {
         setState(() {
-          _userName = profile?['full_name'] as String? ?? '';
-          final blockLotStreet = _buildFullAddress(
-            profile?['block'] as String?,
-            profile?['lot'] as String?,
-            profile?['street'] as String?,
-          );
-          _fullAddress = blockLotStreet != 'N/A'
-              ? blockLotStreet
-              : (profile?['address'] as String? ?? '');
-          _qrImageUrl = hoaSettings?['photo_url'] as String?;
-          _monthlyDue =
-              (hoaSettings?['monthly_due_amount'] as num?)?.toDouble() ?? 150;
-
-          _payments = (paymentsRaw as List).map((p) {
-            final lineItems = p['line_items'];
-            return _Payment(
-              id: p['id'],
-              amount: (p['amount'] as num?)?.toDouble() ?? 0.0,
-              dueDate: DateTime.parse(p['due_date']),
-              status: p['status'] ?? 'unpaid',
-              payerReferenceNo: p['payer_reference_no'],
-              proofUrl: p['proof_url'],
-              paidAt: p['paid_at'] != null
-                  ? DateTime.parse(p['paid_at'])
-                  : null,
-              createdAt: DateTime.parse(p['created_at']),
-              isAdvance: lineItems is List &&
-                  lineItems.any((li) => li is Map && li['label'] == 'Advance Payment'),
-              referenceNo: p['reference_no'] as String?,
-              statementDate: p['statement_date'] != null
-                  ? DateTime.parse(p['statement_date'])
-                  : null,
-              lineItems: lineItems is List ? lineItems : null,
-            );
-          }).toList();
+          _userName = resident?.fullName ?? '';
+          _fullAddress = resident?.lotAddress ?? '';
+          _ledger = ledger;
 
           _isLoading = false;
         });
@@ -177,25 +73,10 @@ class _PaymentPageState extends State<PaymentPage> {
 
   // ── Statement of Account ─────────────────────────────────────────────────
 
-  SoaPaymentEntry _toSoaEntry(_Payment p) => SoaPaymentEntry(
-        amount: p.amount,
-        dueDate: p.dueDate,
-        statementDate: p.statementDate,
-        paidAt: p.paidAt,
-        referenceNo: p.referenceNo,
-        payerReferenceNo: p.payerReferenceNo,
-        status: p.status,
-        lineItems: p.lineItems,
-      );
-
   Future<void> _downloadStatementOfAccount() async {
     final userId = _supabase.auth.currentUser?.id ?? '';
-    final unpaidList = _payments
-        .where((p) =>
-            p.isUnpaid || p.isOverdue || p.isPending || p.isAwaitingConfirmation)
-        .map(_toSoaEntry)
-        .toList();
-    final paidHistory = _payments.where((p) => p.isPaid).map(_toSoaEntry).toList();
+    final unpaidList = _ledger?.outstanding ?? const <Payment>[];
+    final paidHistory = _ledger?.paidHistory ?? const <Payment>[];
 
     showDialog(
       context: context,
@@ -203,6 +84,9 @@ class _PaymentPageState extends State<PaymentPage> {
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
+    // The loading dialog closes before sharing starts, so a sharePdf failure
+    // must not pop again — that would close this page instead.
+    var dialogOpen = true;
     try {
       final bytes = await generateSoaPdf(
         residentId: userId,
@@ -214,11 +98,12 @@ class _PaymentPageState extends State<PaymentPage> {
         qrCodeUrl: _qrImageUrl,
       );
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      dialogOpen = false;
       await Printing.sharePdf(
           bytes: bytes, filename: 'Statement-of-Account.pdf');
     } catch (e) {
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+        if (dialogOpen) Navigator.of(context, rootNavigator: true).pop();
         showAppSnack(context, 'Could not generate Statement of Account: $e',
             type: SnackType.error);
       }
@@ -227,46 +112,9 @@ class _PaymentPageState extends State<PaymentPage> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  _Payment? get _latestUnpaid {
-    try {
-      return _payments.firstWhere((p) =>
-          p.isUnpaid || p.isOverdue || p.isPending || p.isAwaitingConfirmation);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // Outstanding balance = all unpaid + overdue + pending (submitted or
-  // awaiting-confirmation) amounts
-  double get _outstandingBalance => _payments
-      .where((p) =>
-          p.isUnpaid || p.isOverdue || p.isPending || p.isAwaitingConfirmation)
-      .fold(0, (sum, p) => sum + p.amount);
-
-  // ── Advance payment ─────────────────────────────────────────────────────
-  // Derived purely from date math against confirmed advance payments — no
-  // dependency on how/when the admin side generates each month's actual
-  // bill, so it just counts down on its own as time passes.
-
-  // Furthest date any *verified* advance payment currently covers through.
-  DateTime? get _advanceCoversUntil {
-    final advancePaid = _payments.where((p) => p.isPaid && p.isAdvance);
-    if (advancePaid.isEmpty) return null;
-    return advancePaid.map((p) => p.dueDate).reduce((a, b) => a.isAfter(b) ? a : b);
-  }
-
-  int get _advanceMonthsRemaining {
-    final until = _advanceCoversUntil;
-    if (until == null) return 0;
-    final now = DateTime.now();
-    if (!until.isAfter(now)) return 0;
-    final months = (until.year - now.year) * 12 +
-        (until.month - now.month) -
-        (until.day < now.day ? 1 : 0);
-    return months < 0 ? 0 : months;
-  }
-
-  double get _advanceAmountRemaining => _advanceMonthsRemaining * _monthlyDue;
+  DateTime? get _advanceCoversUntil => _ledger?.advanceCoversUntil;
+  int get _advanceMonthsRemaining => _ledger?.advanceMonthsRemaining ?? 0;
+  double get _advanceAmountRemaining => _ledger?.advanceAmountRemaining ?? 0;
 
   void _showAdvancePaySheet() {
     showModalBottomSheet(
@@ -282,57 +130,20 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
-  String _formatDate(DateTime d) =>
-      '${_monthName(d.month)} ${d.day}, ${d.year}';
+  String _formatDateTime(DateTime d) =>
+      '${dateKey(d)} ${time12(TimeOfDay.fromDateTime(d))}';
 
-  String _formatDateTime(DateTime d) {
-    final h = d.hour > 12 ? d.hour - 12 : (d.hour == 0 ? 12 : d.hour);
-    final m = d.minute.toString().padLeft(2, '0');
-    final period = d.hour >= 12 ? 'PM' : 'AM';
-    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')} $h:$m $period';
-  }
-
-  String _monthName(int m) {
-    const months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    return months[m];
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'paid':
-        return chateuPrimary;
-      case 'pending_verification':
-        return chateuInfo;
-      case 'pending':
-        return chateuTextMuted; // awaiting Treasurer confirmation
-      case 'overdue':
-        return chateuWarning; // amber-700
-      default:
-        return chateuError;
-    }
-  }
-
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'paid':
-        return 'Paid';
-      case 'pending_verification':
-        return 'Pending';
-      case 'pending':
-        return 'Awaiting Confirmation';
-      case 'overdue':
-        return 'Overdue';
-      default:
-        return 'Unpaid';
-    }
-  }
+  Color _statusColor(PaymentState state) => switch (state) {
+        PaymentState.paid => chateuPrimary,
+        PaymentState.pendingVerification => chateuInfo,
+        PaymentState.unconfirmedDues => chateuTextMuted,
+        PaymentState.overdue => chateuWarning,
+        PaymentState.unpaid => chateuError,
+      };
 
   // ── GCash payment sheet ───────────────────────────────────────────────────
 
-  void _showPaySheet(_Payment payment) {
+  void _showPaySheet(Payment payment) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -370,7 +181,7 @@ class _PaymentPageState extends State<PaymentPage> {
                   AppNoticeBanner(
                     icon: Icons.event_available_rounded,
                     text:
-                        'You have ₱${_advanceAmountRemaining.toStringAsFixed(2)} paid in advance '
+                        'You have ${peso(_advanceAmountRemaining)} paid in advance '
                         '($_advanceMonthsRemaining month${_advanceMonthsRemaining > 1 ? 's' : ''} ahead).',
                   ),
                 ],
@@ -389,7 +200,7 @@ class _PaymentPageState extends State<PaymentPage> {
                           itemCount: _payments.length,
                           itemBuilder: (context, index) {
                             final p = _payments[index];
-                            final color = _statusColor(p.status);
+                            final color = _statusColor(p.state);
                             return Container(
                               margin:
                                   const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -410,7 +221,7 @@ class _PaymentPageState extends State<PaymentPage> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          "Due: ${_formatDate(p.dueDate)}",
+                                          "Due: ${shortDate(p.dueDate)}",
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: AppText.bodyMedium.copyWith(
@@ -434,12 +245,12 @@ class _PaymentPageState extends State<PaymentPage> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        "₱${p.amount.toStringAsFixed(2)}",
+                                        peso(p.amount),
                                         style: AppText.titleMedium,
                                       ),
                                       const SizedBox(height: 4),
                                       AppStatusBadge(
-                                        label: _statusLabel(p.status),
+                                        label: p.state.label,
                                         color: color,
                                       ),
                                     ],
@@ -460,7 +271,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
-  Widget _buildSummary(_Payment? unpaid) {
+  Widget _buildSummary(Payment? unpaid) {
     final divider = const Padding(
       padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
       child: Divider(),
@@ -484,7 +295,7 @@ class _PaymentPageState extends State<PaymentPage> {
               if (unpaid != null)
                 _LabeledValue(
                   label: "Payment Due",
-                  value: _formatDate(unpaid.dueDate),
+                  value: shortDate(unpaid.dueDate),
                   end: true,
                 ),
             ],
@@ -493,28 +304,38 @@ class _PaymentPageState extends State<PaymentPage> {
           _BillRow(
             label: "Monthly Fee",
             value: unpaid != null
-                ? "₱ ${unpaid.amount.toStringAsFixed(2)}"
-                : "₱ 0.00",
+                ? peso(unpaid.amount)
+                : peso(0),
           ),
           divider,
           _BillRow(
             label: "Total Amount Due",
-            value: "₱ ${_outstandingBalance.toStringAsFixed(2)}",
+            value: peso(_ledger?.balance ?? 0),
             labelStyle: AppText.titleMedium,
             valueStyle: AppText.displayMedium.copyWith(
                 fontFeatures: const [FontFeature.tabularFigures()]),
           ),
+          // Sent but not yet verified by an Admin: shown beside the
+          // Balance, not inside it (CONTEXT.md).
+          if ((_ledger?.pendingVerification ?? 0) > 0) ...[
+            divider,
+            _BillRow(
+              label: "Pending verification",
+              value: peso(_ledger!.pendingVerification),
+              valueColor: chateuInfo,
+            ),
+          ],
           if (_advanceMonthsRemaining > 0) ...[
             divider,
             _BillRow(
               label: "Advance Paid ($_advanceMonthsRemaining mo. ahead)",
-              value: "₱ ${_advanceAmountRemaining.toStringAsFixed(2)}",
+              value: peso(_advanceAmountRemaining),
               valueColor: chateuSuccess,
             ),
           ],
           const SizedBox(height: AppSpacing.xl),
           Row(children: [
-            if (unpaid != null && unpaid.canSubmitPayment) ...[
+            if (unpaid != null && unpaid.canSubmitProof) ...[
               Expanded(
                 child: FilledButton.icon(
                   onPressed: () => _showPaySheet(unpaid),
@@ -544,8 +365,8 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
-  Widget _buildPaymentRow(_Payment p) {
-    final color = _statusColor(p.status);
+  Widget _buildPaymentRow(Payment p) {
+    final color = _statusColor(p.state);
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -553,11 +374,13 @@ class _PaymentPageState extends State<PaymentPage> {
       child: Row(
         children: [
           Icon(
-            p.isPaid
-                ? Icons.check_circle_rounded
-                : (p.isPending || p.isAwaitingConfirmation)
-                    ? Icons.hourglass_top_rounded
-                    : Icons.receipt_rounded,
+            switch (p.state) {
+              PaymentState.paid => Icons.check_circle_rounded,
+              PaymentState.pendingVerification ||
+              PaymentState.unconfirmedDues =>
+                Icons.hourglass_top_rounded,
+              _ => Icons.receipt_rounded,
+            },
             color: color,
             size: 22,
           ),
@@ -567,23 +390,21 @@ class _PaymentPageState extends State<PaymentPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  p.isPaid
-                      ? "Payment Success"
-                      : p.isPending
-                          ? "Payment Pending"
-                          : p.isAwaitingConfirmation
-                              ? "Awaiting Confirmation"
-                              : p.isOverdue
-                                  ? "Overdue Bill"
-                                  : "Monthly Due",
+                  switch (p.state) {
+                    PaymentState.paid => "Payment Success",
+                    PaymentState.pendingVerification => "Pending verification",
+                    PaymentState.unconfirmedDues => "Unconfirmed dues",
+                    PaymentState.overdue => "Overdue Bill",
+                    PaymentState.unpaid => "Monthly Due",
+                  },
                   style: AppText.bodyMedium
                       .copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  p.isPaid && p.paidAt != null
+                  p.state == PaymentState.paid && p.paidAt != null
                       ? _formatDateTime(p.paidAt!)
-                      : "Due: ${_formatDate(p.dueDate)}",
+                      : "Due: ${shortDate(p.dueDate)}",
                   style: AppText.caption,
                 ),
               ],
@@ -593,10 +414,10 @@ class _PaymentPageState extends State<PaymentPage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text("₱${p.amount.toStringAsFixed(2)}",
+              Text(peso(p.amount),
                   style: AppText.titleMedium),
               const SizedBox(height: AppSpacing.xs),
-              AppStatusBadge(label: _statusLabel(p.status), color: color),
+              AppStatusBadge(label: p.state.label, color: color),
             ],
           ),
         ],
@@ -606,7 +427,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
   @override
   Widget build(BuildContext context) {
-    final unpaid = _latestUnpaid;
+    final unpaid = _ledger?.nextDue;
     // Summary, spacing, header, then one row per payment (or the empty state).
     const headerCount = 3;
 
@@ -728,7 +549,7 @@ class _BillRow extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PaySheet extends StatefulWidget {
-  final _Payment payment;
+  final Payment payment;
   final String? qrImageUrl;
   final VoidCallback onSubmitted;
 
@@ -745,7 +566,6 @@ class _PaySheetState extends State<_PaySheet> {
   final _referenceCtrl = TextEditingController();
 
   XFile? _newProofFile;
-  Uint8List? _newProofBytes;
   bool _isSubmitting = false;
 
   bool get _hasExistingProof =>
@@ -761,16 +581,7 @@ class _PaySheetState extends State<_PaySheet> {
   Future<void> _pickProof() async {
     final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (file == null || !mounted) return;
-    if (kIsWeb) {
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
-      setState(() {
-        _newProofFile = file;
-        _newProofBytes = bytes;
-      });
-    } else {
-      setState(() => _newProofFile = file);
-    }
+    setState(() => _newProofFile = file);
   }
 
   Future<void> _submit() async {
@@ -794,23 +605,8 @@ class _PaySheetState extends State<_PaySheet> {
       String? proofUrl = widget.payment.proofUrl;
 
       if (_hasNewProof) {
-        final ext = kIsWeb
-            ? 'jpg'
-            : (_newProofFile!.path.contains('.')
-                ? _newProofFile!.path.split('.').last
-                : 'jpg');
-        final path =
-            '$userId/${widget.payment.id}/${DateTime.now().millisecondsSinceEpoch}.$ext';
-        if (kIsWeb) {
-          await _supabase.storage.from('payment-proofs').uploadBinary(
-              path, _newProofBytes!,
-              fileOptions: const FileOptions(upsert: true));
-        } else {
-          await _supabase.storage.from('payment-proofs').upload(
-              path, File(_newProofFile!.path),
-              fileOptions: const FileOptions(upsert: true));
-        }
-        proofUrl = _supabase.storage.from('payment-proofs').getPublicUrl(path);
+        proofUrl = await uploads.store(
+            Evidence.paymentProof(widget.payment.id), _newProofFile!);
       }
 
       await _supabase.from('payments').update({
@@ -822,7 +618,7 @@ class _PaySheetState extends State<_PaySheet> {
 
       await logAudit(
         'SUBMIT_PAYMENT_PROOF',
-        'Submitted proof of payment for ₱${widget.payment.amount.toStringAsFixed(2)} — reference #$reference.',
+        'Submitted proof of payment for ${peso(widget.payment.amount)} — reference #$reference.',
       );
 
       if (!mounted) return;
@@ -864,7 +660,7 @@ class _PaySheetState extends State<_PaySheet> {
               buildSheetHandle(),
               Text('Pay via GCash', style: AppText.titleLarge),
               const SizedBox(height: AppSpacing.xs),
-              Text('Amount Due: ₱${widget.payment.amount.toStringAsFixed(2)}',
+              Text('Amount Due: ${peso(widget.payment.amount)}',
                   style: AppText.bodyMedium.copyWith(
                       color: chateuPrimary, fontWeight: FontWeight.w700)),
               const SizedBox(height: AppSpacing.lg),
@@ -992,7 +788,6 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
   final _referenceCtrl = TextEditingController();
   int _months = 1;
   XFile? _proofFile;
-  Uint8List? _proofBytes;
   bool _isSubmitting = false;
 
   double get _total => _months * widget.monthlyDue;
@@ -1014,16 +809,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
   Future<void> _pickProof() async {
     final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (file == null || !mounted) return;
-    if (kIsWeb) {
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
-      setState(() {
-        _proofFile = file;
-        _proofBytes = bytes;
-      });
-    } else {
-      setState(() => _proofFile = file);
-    }
+    setState(() => _proofFile = file);
   }
 
   Future<void> _submit() async {
@@ -1044,23 +830,8 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
 
     setState(() => _isSubmitting = true);
     try {
-      final ext = kIsWeb
-          ? 'jpg'
-          : (_proofFile!.path.contains('.')
-              ? _proofFile!.path.split('.').last
-              : 'jpg');
-      final path =
-          '$userId/advance/${DateTime.now().millisecondsSinceEpoch}.$ext';
-      if (kIsWeb) {
-        await _supabase.storage.from('payment-proofs').uploadBinary(
-            path, _proofBytes!,
-            fileOptions: const FileOptions(upsert: true));
-      } else {
-        await _supabase.storage.from('payment-proofs').upload(
-            path, File(_proofFile!.path),
-            fileOptions: const FileOptions(upsert: true));
-      }
-      final proofUrl = _supabase.storage.from('payment-proofs').getPublicUrl(path);
+      final proofUrl =
+          await uploads.store(const Evidence.advanceProof(), _proofFile!);
 
       await _supabase.from('payments').insert({
         'user_id': userId,
@@ -1077,7 +848,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
 
       await logAudit(
         'SUBMIT_ADVANCE_PAYMENT',
-        'Submitted advance payment for ₱${_total.toStringAsFixed(2)} — covers $_months month(s), reference #$reference.',
+        'Submitted advance payment for ${peso(_total)} — covers $_months month(s), reference #$reference.',
       );
 
       if (!mounted) return;
@@ -1173,7 +944,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
                   Text('Total Amount',
                       style: AppText.labelMedium.copyWith(color: chateuPrimary)),
                   const Spacer(),
-                  Text('₱${_total.toStringAsFixed(2)}',
+                  Text(peso(_total),
                       style: AppText.titleMedium.copyWith(color: chateuPrimary)),
                 ]),
               ),
@@ -1204,7 +975,7 @@ class _AdvancePaySheetState extends State<_AdvancePaySheet> {
               ),
               const SizedBox(height: AppSpacing.sm),
               Center(
-                child: Text('Scan with your GCash app to pay ₱${_total.toStringAsFixed(2)}',
+                child: Text('Scan with your GCash app to pay ${peso(_total)}',
                     style:
                         AppText.caption.copyWith(color: chateuTextMuted)),
               ),

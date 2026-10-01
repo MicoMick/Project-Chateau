@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'app_services.dart';
+
 /// audit_logger.dart
 ///
 /// Mirrors the web admin dashboard's `auditLogger.js` — writes one row into
@@ -23,23 +25,14 @@ Future<void> logAudit(
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
 
-    // Owner vs tenant — mirrors resident_type checks used throughout the
-    // rest of the app (see account_page.dart, reserve_page.dart).
-    String role = 'OWNER';
-    if (user != null) {
-      try {
-        final profile = await supabase
-            .from('profiles')
-            .select('resident_type')
-            .eq('id', user.id)
-            .maybeSingle();
-        final type = (profile?['resident_type'] as String?)?.toLowerCase();
-        if (type == 'tenant') {
-          role = 'TENANT';
-        }
-      } catch (_) {
-        // Keep default role if the profile lookup fails for any reason.
-      }
+    // Fails closed like the rest of the app: unknown → TENANT. The
+    // Resident is cached for the session, so this adds no query per action.
+    String role = 'TENANT';
+    try {
+      final resident = await currentResident.load();
+      if (resident?.isHomeowner ?? false) role = 'OWNER';
+    } catch (_) {
+      // Keep the Tenant tag if the Resident can't be loaded.
     }
 
     await supabase.from('system_logs').insert({

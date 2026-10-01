@@ -1677,9 +1677,6 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> {
-  final _searchCtrl = TextEditingController();
-  List<Map<String, dynamic>> _results = [];
-  bool _showSearch = false;
   Map<String, dynamic>? _selectedStreet;
   Position? _userPosition;
   List<LatLng> _routePoints = [];
@@ -1709,12 +1706,6 @@ class _MapPageState extends State<MapPage> {
     _requestLocation();
   }
 
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
   Future<void> _requestLocation({bool userInitiated = false}) async {
     var perm = await Geolocator.checkPermission();
     if (perm == LocationPermission.denied) {
@@ -1723,7 +1714,8 @@ class _MapPageState extends State<MapPage> {
     if (perm == LocationPermission.denied ||
         perm == LocationPermission.deniedForever) {
       if (mounted && userInitiated) {
-        showAppSnack(context, 'Location permission is off. Turn it on in Settings to see where you are.',
+        showAppSnack(context,
+            'Location permission is off. Turn it on in Settings to see where you are.',
             type: SnackType.warning);
       }
       return;
@@ -1804,24 +1796,8 @@ class _MapPageState extends State<MapPage> {
     if (mounted) setState(() => _loadingRoute = false);
   }
 
-  void _onSearchChanged(String q) {
-    final t = q.trim().toLowerCase();
-    setState(() {
-      _results = t.isEmpty
-          ? []
-          : _streets
-              .where((s) => (s['label'] as String).toLowerCase().contains(t))
-              .toList();
-    });
-  }
-
   void _selectStreet(Map<String, dynamic> street) {
-    _searchCtrl.text = street['label'] as String;
-    setState(() {
-      _results = [];
-      _showSearch = false;
-      _selectedStreet = street;
-    });
+    setState(() => _selectedStreet = street);
     _loadRoute(street);
   }
 
@@ -1832,7 +1808,6 @@ class _MapPageState extends State<MapPage> {
       _routeDistance = null;
       _routeDuration = null;
     });
-    _searchCtrl.clear();
   }
 
   List<Map<String, dynamic>> get _filteredStreets {
@@ -1845,24 +1820,32 @@ class _MapPageState extends State<MapPage> {
         .toList();
   }
 
-  void _toggleSearch() => setState(() {
-        _showSearch = !_showSearch;
-        if (!_showSearch) {
-          _searchCtrl.clear();
-          _results = [];
-        }
-      });
+  Future<void> _openLocationPicker() async {
+    final selection = await showModalBottomSheet<_MapLocationSelection>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MapLocationPicker(
+        activeFilter: _activeStreetFilter,
+        streetNames: _streetNames,
+      ),
+    );
+
+    if (!mounted || selection == null) return;
+    if (selection.changesFilter) {
+      setState(() => _activeStreetFilter = selection.filter);
+    }
+    if (selection.place != null) _selectStreet(selection.place!);
+  }
 
   @override
   Widget build(BuildContext context) {
     final hasRoute = _selectedStreet != null;
-    // Landscape phones have ~200dp of height under the app and tab bars;
-    // the panel moves beside the map there so the map keeps its height.
     final size = MediaQuery.sizeOf(context);
-    final side = size.width > size.height;
+    final isLandscape = size.width > size.height;
 
     return Flex(
-      direction: side ? Axis.horizontal : Axis.vertical,
+      direction: Axis.vertical,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
@@ -1875,113 +1858,33 @@ class _MapPageState extends State<MapPage> {
                   routePoints: _routePoints,
                   filteredStreets: _filteredStreets,
                   onStreetSelected: _selectStreet,
-                  onRegisterCenterSubdivision: (cb) => _onCenterSubdivision = cb,
+                  onRegisterCenterSubdivision: (cb) =>
+                      _onCenterSubdivision = cb,
                   onRegisterCenterUser: (cb) => _onCenterUser = cb,
                 ),
               ),
 
-              // Top controls: street filter + search, search field, or route
+              // A compact entry point keeps the map clear until a resident
+              // chooses to search or filter.
               Positioned(
                 top: AppSpacing.md,
-                left: 0,
-                right: 0,
-                child: _showSearch
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _SearchBar(
-                              controller: _searchCtrl,
-                              onChanged: _onSearchChanged,
-                              onClose: _toggleSearch,
-                            ),
-                            if (_results.isNotEmpty)
-                              _ResultsList(
-                                  results: _results, onTap: _selectStreet),
-                          ],
-                        ),
-                      )
-                    : hasRoute
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.lg),
-                            child: _mapPanel(
-                              padding: const EdgeInsets.only(
-                                  left: AppSpacing.md),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.route_rounded,
-                                      color: chateuPrimary, size: 20),
-                                  const SizedBox(width: AppSpacing.sm),
-                                  Expanded(
-                                    child: Text(
-                                      'Route to ${_selectedStreet!['label']}',
-                                      style: AppText.bodyMedium.copyWith(
-                                          fontWeight: FontWeight.w600),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Clear route',
-                                    onPressed: _clearRoute,
-                                    icon: const Icon(Icons.close_rounded),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : Row(
-                            children: [
-                              Expanded(
-                                child: SizedBox(
-                                  height: 48,
-                                  child: ListView.separated(
-                                    scrollDirection: Axis.horizontal,
-                                    padding: const EdgeInsets.only(
-                                        left: AppSpacing.lg),
-                                    itemCount: _streetNames.length,
-                                    separatorBuilder: (_, __) =>
-                                        const SizedBox(width: AppSpacing.xs),
-                                    itemBuilder: (context, i) {
-                                      final name = _streetNames[i];
-                                      return Center(
-                                        child: ChoiceChip(
-                                          label: Text(name),
-                                          selected:
-                                              (_activeStreetFilter ?? 'All') ==
-                                                  name,
-                                          backgroundColor: chateuSurface,
-                                          elevation: 2,
-                                          pressElevation: 2,
-                                          onSelected: (_) => setState(() =>
-                                              _activeStreetFilter =
-                                                  name == 'All' ? null : name),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.sm),
-                                child: _MapButton(
-                                  tooltip: 'Search street or lot',
-                                  icon: Icons.search_rounded,
-                                  onPressed: _toggleSearch,
-                                ),
-                              ),
-                            ],
-                          ),
+                left: AppSpacing.lg,
+                right: AppSpacing.lg,
+                child: _MapSearchFilterControl(
+                  activeFilter: _activeStreetFilter,
+                  onTap: _openLocationPicker,
+                  onClearFilter: _activeStreetFilter == null
+                      ? null
+                      : () => setState(() => _activeStreetFilter = null),
+                ),
               ),
 
               // Map controls
               Positioned(
                 right: AppSpacing.lg,
                 bottom: AppSpacing.lg,
-                child: Column(
+                child: Flex(
+                  direction: isLandscape ? Axis.horizontal : Axis.vertical,
                   children: [
                     _MapButton(
                       tooltip: 'Show my location',
@@ -1990,7 +1893,7 @@ class _MapPageState extends State<MapPage> {
                           : Icons.location_searching_rounded,
                       onPressed: () => _requestLocation(userInitiated: true),
                     ),
-                    const SizedBox(height: AppSpacing.sm),
+                    const SizedBox(width: AppSpacing.sm, height: AppSpacing.sm),
                     _MapButton(
                       tooltip: 'Center on the subdivision',
                       icon: Icons.center_focus_strong_rounded,
@@ -2005,20 +1908,16 @@ class _MapPageState extends State<MapPage> {
 
         // Destination panel
         Container(
-          width: side ? 320 : null,
           padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
           decoration: BoxDecoration(
             color: chateuSurface,
-            border: side
-                ? Border(left: BorderSide(color: chateuBorder))
-                : Border(top: BorderSide(color: chateuBorder)),
+            border: Border(top: BorderSide(color: chateuBorder)),
           ),
           child: AppContentWidth(
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment:
-                  side ? MainAxisAlignment.center : MainAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
@@ -2037,7 +1936,7 @@ class _MapPageState extends State<MapPage> {
                           Text(
                             hasRoute
                                 ? _selectedStreet!['label'] as String
-                                : 'Tap a pin on the map',
+                                : 'Tap a pin or search for a lot',
                             style: AppText.titleMedium,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -2070,15 +1969,7 @@ class _MapPageState extends State<MapPage> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
-                FilledButton.icon(
-                  onPressed:
-                      hasRoute && !_loadingRoute ? _startNavigation : null,
-                  style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50)),
-                  icon: const Icon(Icons.navigation_rounded, size: 20),
-                  label: Text(
-                      hasRoute ? 'Start Navigation' : 'Select a destination'),
-                ),
+                _destinationActions(hasRoute, isLandscape),
               ],
             ),
           ),
@@ -2087,15 +1978,40 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-  Widget _mapPanel({required Widget child, EdgeInsets? padding}) => Material(
-        color: chateuSurface,
-        elevation: 2,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        child: Padding(
-          padding: padding ?? EdgeInsets.zero,
-          child: child,
-        ),
-      );
+  Widget _destinationActions(bool hasRoute, bool isLandscape) {
+    final start = FilledButton.icon(
+      onPressed: hasRoute && !_loadingRoute ? _startNavigation : null,
+      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+      icon: const Icon(Icons.navigation_rounded, size: 20),
+      label: Text(hasRoute ? 'Start Navigation' : 'Select a destination'),
+    );
+
+    if (!hasRoute) return start;
+
+    final clear = OutlinedButton.icon(
+      onPressed: _clearRoute,
+      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+      icon: const Icon(Icons.close_rounded, size: 20),
+      label: const Text('Clear route'),
+    );
+
+    return isLandscape
+        ? Row(
+            children: [
+              Expanded(child: start),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(child: clear),
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              start,
+              const SizedBox(height: AppSpacing.sm),
+              clear,
+            ],
+          );
+  }
 
   void _startNavigation() {
     if (_selectedStreet == null) return;
@@ -2686,75 +2602,246 @@ class _MapButton extends StatelessWidget {
   }
 }
 
-class _SearchBar extends StatelessWidget {
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClose;
-  const _SearchBar(
-      {required this.controller,
-      required this.onChanged,
-      required this.onClose});
+/// The single map overlay that opens destination search and area filtering.
+class _MapSearchFilterControl extends StatelessWidget {
+  final String? activeFilter;
+  final VoidCallback onTap;
+  final VoidCallback? onClearFilter;
+
+  const _MapSearchFilterControl({
+    required this.activeFilter,
+    required this.onTap,
+    this.onClearFilter,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final filterLabel = activeFilter ?? 'All locations';
     return Material(
       color: chateuSurface,
       elevation: 3,
-      borderRadius: BorderRadius.circular(AppRadius.sm),
-      child: TextField(
-        controller: controller,
-        autofocus: true,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: 'Search street or lot…',
-          prefixIcon: const Icon(Icons.search_rounded, size: 20),
-          suffixIcon: IconButton(
-            tooltip: 'Close search',
-            onPressed: onClose,
-            icon: const Icon(Icons.close_rounded),
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 52),
+          child: Padding(
+            padding: const EdgeInsets.only(left: AppSpacing.md),
+            child: Row(
+              children: [
+                Icon(Icons.search_rounded, color: chateuPrimary),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Search lots & landmarks',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.bodyMedium
+                              .copyWith(fontWeight: FontWeight.w600)),
+                      Text(filterLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              AppText.caption.copyWith(color: chateuTextMuted)),
+                    ],
+                  ),
+                ),
+                if (onClearFilter != null)
+                  IconButton(
+                    tooltip: 'Show all locations',
+                    onPressed: onClearFilter,
+                    icon: const Icon(Icons.close_rounded),
+                  )
+                else
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                    child: Icon(Icons.tune_rounded),
+                  ),
+              ],
+            ),
           ),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          filled: false,
         ),
-        onChanged: onChanged,
       ),
     );
   }
 }
 
-class _ResultsList extends StatelessWidget {
-  final List<Map<String, dynamic>> results;
-  final ValueChanged<Map<String, dynamic>> onTap;
-  const _ResultsList({required this.results, required this.onTap});
+class _MapLocationSelection {
+  const _MapLocationSelection.filter(this.filter)
+      : place = null,
+        changesFilter = true;
+
+  const _MapLocationSelection.destination(this.place)
+      : filter = null,
+        changesFilter = false;
+
+  final String? filter;
+  final Map<String, dynamic>? place;
+  final bool changesFilter;
+}
+
+class _MapLocationPicker extends StatefulWidget {
+  final String? activeFilter;
+  final List<String> streetNames;
+
+  const _MapLocationPicker({
+    required this.activeFilter,
+    required this.streetNames,
+  });
+
+  @override
+  State<_MapLocationPicker> createState() => _MapLocationPickerState();
+}
+
+class _MapLocationPickerState extends State<_MapLocationPicker> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> get _matches {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return const [];
+    return _streets.where((place) {
+      final label = place['label'] as String;
+      final street = place['street'] as String? ?? '';
+      return label.toLowerCase().contains(query) ||
+          street.toLowerCase().contains(query);
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.xs),
-      child: Material(
-        color: chateuSurface,
-        elevation: 3,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        clipBehavior: Clip.antiAlias,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 320),
-          child: ListView.builder(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            itemCount: results.length,
-            itemBuilder: (_, i) {
-              final r = results[i];
-              return ListTile(
-                leading: const Icon(Icons.location_on_rounded),
-                title: Text(r['label'] as String, style: AppText.bodyMedium),
-                subtitle: Text(r['street'] as String? ?? '',
-                    style: AppText.caption),
-                onTap: () => onTap(r),
-              );
-            },
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.35,
+      maxChildSize: 0.92,
+      builder: (context, scrollController) => Container(
+        decoration: AppDecorations.sheet,
+        child: ListView(
+          controller: scrollController,
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.sm,
+            AppSpacing.xl,
+            AppSpacing.xxl +
+                MediaQuery.viewInsetsOf(context).bottom +
+                MediaQuery.paddingOf(context).bottom,
           ),
+          children: [
+            buildSheetHandle(),
+            Text('Find a location', style: AppText.titleLarge),
+            const SizedBox(height: AppSpacing.xs),
+            Text('Search a lot or landmark, or filter markers by area.',
+                style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
+            const SizedBox(height: AppSpacing.lg),
+            TextField(
+              controller: _searchController,
+              autofocus: true,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Search lots or landmarks',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+              ),
+              onChanged: (value) => setState(() => _query = value),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            if (_query.trim().isEmpty)
+              ..._buildAreaOptions(context)
+            else
+              ..._buildResults(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildAreaOptions(BuildContext context) => [
+        Text('Filter map markers',
+            style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
+        const SizedBox(height: AppSpacing.sm),
+        for (final name in widget.streetNames)
+          _areaOption(context, name,
+              selected: (widget.activeFilter ?? 'All') == name),
+      ];
+
+  Widget _areaOption(BuildContext context, String name,
+      {required bool selected}) {
+    final all = name == 'All';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Material(
+        color: selected ? chateuPrimary.withAlpha(18) : chateuSurfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        child: ListTile(
+          leading: Icon(all ? Icons.public_rounded : Icons.route_rounded,
+              color: selected ? chateuPrimary : chateuTextMuted),
+          title: Text(all ? 'All locations' : name, style: AppText.bodyMedium),
+          trailing: selected
+              ? Icon(Icons.check_circle_rounded, color: chateuPrimary)
+              : null,
+          onTap: () => Navigator.pop(
+              context, _MapLocationSelection.filter(all ? null : name)),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildResults() {
+    final matches = _matches;
+    return [
+      Text(
+        '${matches.length} matching location${matches.length == 1 ? '' : 's'}',
+        style: AppText.labelMedium.copyWith(color: chateuTextMuted),
+      ),
+      const SizedBox(height: AppSpacing.sm),
+      if (matches.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+          child: Center(
+            child: Text('No lots or landmarks match that search.',
+                textAlign: TextAlign.center,
+                style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
+          ),
+        )
+      else
+        for (final place in matches) _resultOption(place),
+    ];
+  }
+
+  Widget _resultOption(Map<String, dynamic> place) {
+    final icon = place['icon'] as IconData? ?? Icons.location_on_rounded;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Material(
+        color: chateuSurfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        child: ListTile(
+          leading: Icon(icon, color: chateuPrimary),
+          title: Text(place['label'] as String, style: AppText.bodyMedium),
+          subtitle:
+              Text(place['street'] as String? ?? '', style: AppText.caption),
+          trailing: const Icon(Icons.arrow_forward_rounded, size: 20),
+          onTap: () =>
+              Navigator.pop(context, _MapLocationSelection.destination(place)),
         ),
       ),
     );

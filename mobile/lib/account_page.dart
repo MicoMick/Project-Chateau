@@ -1,18 +1,26 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
+import 'domain/format/format.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
 import 'login_page.dart';
+import 'app_services.dart';
+import 'domain/uploads/uploads.dart';
 import 'audit_logger.dart';
+import 'domain/resident/current_resident.dart';
 import 'push_notifications.dart';
 
 class AccountPage extends StatefulWidget {
-  const AccountPage({super.key});
+  const AccountPage({super.key, this.resident});
+
+  /// Defaults to the app's [currentResident]; tests pass their own.
+  final CurrentResident? resident;
 
   @override
   State<AccountPage> createState() => _AccountPageState();
@@ -190,11 +198,6 @@ class _AccountPageState extends State<AccountPage> {
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
-  bool _isValidPhone(String phone) {
-    final cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
-    return RegExp(r'^(09\d{9}|\+639\d{9})$').hasMatch(cleaned);
-  }
-
   bool _validateProfile() {
     final firstName = _firstNameCtrl.text.trim();
     final lastName  = _lastNameCtrl.text.trim();
@@ -205,7 +208,7 @@ class _AccountPageState extends State<AccountPage> {
     if (lastName.isEmpty) {
       _showSnack('Last name is required.', isError: true); return false;
     }
-    if (phone.isNotEmpty && !_isValidPhone(phone)) {
+    if (phone.isNotEmpty && !isValidPhPhone(phone)) {
       _showSnack('Enter a valid PH phone number (e.g. 09123456789).', isError: true);
       return false;
     }
@@ -224,20 +227,11 @@ class _AccountPageState extends State<AccountPage> {
       String? newAvatarUrl = _avatarUrl;
 
       if (_hasNewAvatar) {
-        final ext      = kIsWeb ? 'jpg' : _newAvatarFile!.path.split('.').last;
-        final fileName =
-            '${user.id}/avatar_${DateTime.now().millisecondsSinceEpoch}.$ext';
-        if (kIsWeb) {
-          await _supabase.storage.from('avatars').uploadBinary(
-              fileName, _newAvatarBytes!,
-              fileOptions: const FileOptions(upsert: true));
-        } else {
-          await _supabase.storage.from('avatars').upload(
-              fileName, _newAvatarFile!,
-              fileOptions: const FileOptions(upsert: true));
-        }
-        newAvatarUrl =
-            _supabase.storage.from('avatars').getPublicUrl(fileName);
+        newAvatarUrl = await uploads.store(
+            const Evidence.avatar(),
+            kIsWeb
+                ? XFile.fromData(_newAvatarBytes!, name: 'avatar.jpg')
+                : XFile(_newAvatarFile!.path));
       }
 
       final mi       = _middleInitialCtrl.text.trim().toUpperCase();
@@ -257,6 +251,8 @@ class _AccountPageState extends State<AccountPage> {
         'avatar_url':     newAvatarUrl,
       });
 
+      // The name and avatar shown elsewhere come from the Current Resident.
+      await (widget.resident ?? currentResident).refresh();
       await logAudit('UPDATE_PROFILE', 'Updated profile details.');
       if (!mounted) return;
 
@@ -741,9 +737,7 @@ class _AccountPageState extends State<AccountPage> {
 
   Widget _buildDateField() {
     final display = _birthDate != null
-        ? "${_birthDate!.month.toString().padLeft(2, '0')}/"
-            "${_birthDate!.day.toString().padLeft(2, '0')}/"
-            "${_birthDate!.year}"
+        ? DateFormat('MM/dd/yyyy').format(_birthDate!)
         : "Not set";
 
     return InkWell(

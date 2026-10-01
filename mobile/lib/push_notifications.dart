@@ -1,7 +1,8 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show ValueNotifier, kIsWeb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _channelId = 'chateau_announcements';
@@ -25,8 +26,38 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 // Android by default, so we surface them ourselves via a local notification.
 class PushNotifications {
   static final _supabase = Supabase.instance.client;
+  static const _enabledKey = 'push_enabled';
+  static bool _listeningForRefresh = false;
+  static Future<void>? _initialization;
+
+  /// The Resident's on/off choice in Settings; on by default. Remembered
+  /// on this device.
+  static final enabled = ValueNotifier<bool>(true);
+
+  static Future<void> loadEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    enabled.value = prefs.getBool(_enabledKey) ?? true;
+  }
+
+  /// Turning off removes this device's token so the backend stops pushing
+  /// to it; turning on registers it again.
+  static Future<void> setEnabled(bool on) async {
+    enabled.value = on;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_enabledKey, on);
+    on ? await registerToken() : await unregisterToken();
+  }
 
   static Future<void> initialize() async {
+    try {
+      await (_initialization ??= _initialize());
+    } catch (_) {
+      _initialization = null;
+      rethrow;
+    }
+  }
+
+  static Future<void> _initialize() async {
     // Only Android has a Firebase config wired up (google-services.json) —
     // web has no equivalent, so Firebase.initializeApp() would crash there.
     if (kIsWeb) return;
@@ -80,16 +111,24 @@ class PushNotifications {
   // Call once a resident is signed in — registers this device to receive
   // pushes, and keeps the token fresh if Firebase ever rotates it.
   static Future<void> registerToken() async {
-    if (kIsWeb) return;
+    if (kIsWeb || !enabled.value) return;
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
+    try {
+      await initialize();
+    } catch (_) {
+      return;
+    }
     try {
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) await _saveToken(userId, token);
     } catch (_) {}
+    // Once per app run: this is called on every Home visit.
+    if (_listeningForRefresh) return;
+    _listeningForRefresh = true;
     FirebaseMessaging.instance.onTokenRefresh.listen((token) {
       final uid = _supabase.auth.currentUser?.id;
-      if (uid != null) _saveToken(uid, token);
+      if (uid != null && enabled.value) _saveToken(uid, token);
     });
   }
 
@@ -109,6 +148,7 @@ class PushNotifications {
   static Future<void> unregisterToken() async {
     if (kIsWeb) return;
     try {
+      await initialize();
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
         await _supabase.from('device_tokens').delete().eq('token', token);
