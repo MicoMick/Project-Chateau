@@ -7,6 +7,15 @@
 // Idempotent: safe to run multiple times a day. It only actually inserts dues
 // the first time it runs after a new month has started (checked via the
 // "does a payment row already exist for this month's due_date?" query).
+//
+// Also the trigger point for the two things that need to happen once a new
+// month starts (see Task 1b below): posting a single "Monthly HOA Dues"
+// announcement (start = 1st, end = last day of month — shows as one calendar
+// dot per day for that span, not a new post every day) and auto-sending the
+// Statement of Account email to every resident with an outstanding balance.
+// Both piggyback on this cron instead of needing a schedule of their own, and
+// only fire on the 1st when dues were freshly generated this run — not on
+// every subsequent "already generated" day for the rest of the month.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -212,6 +221,99 @@ Deno.serve(async (req: Request) => {
       duesResult = { skipped: true, reason: 'No active residents found.' }
     }
 
+    // ── Task 1b: post the monthly announcement + auto-send SOA emails ──────
+    // Only on the 1st, and only when Task 1 actually inserted fresh dues this
+    // run (duesResult.success) — NOT on every "skipped" day for the rest of
+    // the month, and NOT on a later day where a single late-approved resident
+    // backfilled a current-month row and incidentally made duesResult.success
+    // true again. Replaces the old client-side version that used to live in
+    // Announcements.jsx (only fired if an admin happened to have that page
+    // open on the 1st — unreliable, and hardcoded ₱150 instead of the real
+    // configurable hoa_settings amount).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let announcementResult: Record<string, any> = { skipped: true }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let soaResult: Record<string, any> = { skipped: true }
+
+    if (date === 1 && duesResult.success) {
+      const annTitle = `Monthly HOA Dues — ${MONTHS[month]} ${year}`
+
+      try {
+        // Idempotency guard — in case this cron fires more than once on the 1st.
+        const { data: existingAnn } = await supabase
+          .from('announcements')
+          .select('id')
+          .eq('title', annTitle)
+          .limit(1)
+
+        if (existingAnn?.length) {
+          announcementResult = { skipped: true, reason: 'Already posted today.' }
+        } else {
+          const monthEndFmt = new Date(Date.UTC(year, month, lastDay))
+            .toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })
+          const content =
+            `This is your monthly reminder that HOA dues of ₱${monthlyDueAmount.toLocaleString('en-PH')} are now due for ${MONTHS[month]} ${year}. ` +
+            `Please settle your payment on or before ${monthEndFmt}. ` +
+            `For payments and inquiries, please contact the HOA Treasurer or any board member. Thank you for your continued support of our community.`
+
+          const { error: annErr } = await supabase.from('announcements').insert([{
+            title: annTitle,
+            content,
+            category: 'Financial',
+            status: 'published',
+            is_emergency: false,
+            is_pinned: false,
+            start_date: statementDate,
+            end_date: monthEnd,
+            author_name: 'System',
+          }])
+
+          if (annErr) {
+            announcementResult = { success: false, error: annErr.message }
+          } else {
+            await supabase.from('notifications').insert([{
+              title: annTitle,
+              message: `Monthly HOA dues of ₱${monthlyDueAmount.toLocaleString('en-PH')} are due for ${MONTHS[month]} ${year}. Due date: ${monthEndFmt}.`,
+              is_read: false,
+              created_at: new Date().toISOString(),
+            }])
+            announcementResult = { success: true, title: annTitle }
+          }
+        }
+      } catch (e) {
+        announcementResult = { success: false, error: e instanceof Error ? e.message : String(e) }
+      }
+
+      // Auto-send the Statement of Account email to every resident with an
+      // outstanding balance — server-to-server call to send-soa-emails, using
+      // the service role key as the bearer token (this function has no user
+      // session to forward). The "Send SOA to All" button in Payment.jsx still
+      // works exactly as before for manual/ad-hoc re-sends.
+      try {
+        const soaRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-soa-emails`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({ viewMode: 'both' }),
+        })
+        soaResult = await soaRes.json()
+      } catch (e) {
+        soaResult = { success: false, error: e instanceof Error ? e.message : String(e) }
+      }
+
+      try {
+        await supabase.from('system_logs').insert({
+          activity: 'AUTO_MONTHLY_ANNOUNCEMENT_AND_SOA',
+          severity: 'info',
+          details: `[SYSTEM] Posted "${annTitle}" and auto-sent SOA emails — sent: ${soaResult.sent ?? 0}, failed: ${soaResult.failed ?? 0}.`,
+        })
+      } catch (_e) {
+        // Best-effort, same as the dues-generation log above.
+      }
+    }
+
     // ── Task 2: delinquency check (3 months unpaid, at the current due amount) ─
     // 'pending' is excluded on purpose — it's used for back-filled dues on
     // newly-approved residents (see Payment.jsx / AccountApproval.jsx's
@@ -278,7 +380,7 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ dues: duesResult, delinquency: delinquencyResult }),
+      JSON.stringify({ dues: duesResult, delinquency: delinquencyResult, announcement: announcementResult, soa: soaResult }),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
     )
   } catch (err) {
