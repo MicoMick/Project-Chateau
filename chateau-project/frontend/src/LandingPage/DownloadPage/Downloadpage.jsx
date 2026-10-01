@@ -36,12 +36,22 @@ const Downloadpage = () => {
   const [apkFilename, setApkFilename] = useState(null);
   const [screenshotOverrides, setScreenshotOverrides] = useState({});
   const [slidePage, setSlidePage] = useState(0);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const ref = useRef(null);
+  const touchStartX = useRef(null);
 
   useEffect(() => {
     const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); }}, { threshold: 0.15 });
     if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
+  }, []);
+
+  // One card per slide on mobile (so each screenshot is actually viewable
+  // instead of 3 squeezed into a narrow screen), 3 on desktop.
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
   // Admin-uploaded QR code / APK / app screenshots — set from HOA Page > Website Settings.
@@ -59,14 +69,31 @@ const Downloadpage = () => {
 
   const screenshots = APP_SCREENSHOTS.map(s => ({ ...s, url: screenshotOverrides[s.key] || s.fallback }));
 
-  // 3 cards per slide — the rest are reached via the arrow buttons, not free scroll.
-  const CARDS_PER_SLIDE = 3;
+  // 3 cards per slide on desktop (reached via the arrow buttons), 1 per slide
+  // on mobile (reached by swiping) so each screenshot is actually readable.
+  const CARDS_PER_SLIDE = isMobile ? 1 : 3;
   const screenshotSlides = [];
   for (let i = 0; i < screenshots.length; i += CARDS_PER_SLIDE) {
     screenshotSlides.push(screenshots.slice(i, i + CARDS_PER_SLIDE));
   }
   const totalSlides = screenshotSlides.length;
   const goToSlide = (dir) => setSlidePage(p => Math.max(0, Math.min(totalSlides - 1, p + dir)));
+
+  // Keep slidePage in range when CARDS_PER_SLIDE changes (e.g. rotating a
+  // tablet, or resizing across the mobile breakpoint) and re-slices totalSlides.
+  useEffect(() => {
+    setSlidePage(p => Math.max(0, Math.min(totalSlides - 1, p)));
+  }, [totalSlides]);
+
+  // ── Swipe gesture (mobile) ────────────────────────────────────────────────
+  const SWIPE_THRESHOLD = 40; // px
+  const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current == null) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(delta) > SWIPE_THRESHOLD) goToSlide(delta < 0 ? 1 : -1);
+    touchStartX.current = null;
+  };
 
   const handleDownloadClick = () => {
     if (!apkUrl) return;
@@ -172,14 +199,16 @@ const Downloadpage = () => {
               <ChevronRight size={20} />
             </button>
 
-            {/* Slide viewport — shows exactly one slide (3 cards) at a time */}
-            <div className="overflow-hidden">
+            {/* Slide viewport — shows exactly one slide at a time (3 cards on
+                desktop via the arrows, 1 card on mobile via swipe) */}
+            <div className="overflow-hidden touch-pan-y"
+              onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
               <div className="flex transition-transform duration-500 ease-out"
                 style={{ transform: `translateX(-${slidePage * 100}%)` }}>
                 {screenshotSlides.map((slide, i) => (
                   <div key={i} className="flex gap-6 shrink-0 w-full px-1 py-2 justify-center">
                     {slide.map(s => (
-                      <div key={s.key} className="w-full max-w-[15rem]">
+                      <div key={s.key} className="w-full max-w-[17rem] md:max-w-[15rem]">
                         <div className="rounded-[2rem] border-4 border-slate-800 bg-slate-900 shadow-2xl overflow-hidden aspect-[9/18]">
                           <img src={s.url} alt={s.key} className="w-full h-full object-cover" />
                         </div>
