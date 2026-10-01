@@ -316,78 +316,13 @@ const Announcements = () => {
 
   useEffect(() => { fetchAnnouncements(); }, []);
 
-  // ── Auto-post Monthly Dues announcement (1st of each month) ──────────────
-  useEffect(() => {
-    const runMonthlyAnnouncement = async () => {
-      const today = new Date();
-      if (today.getDate() !== 1) return; // Only on the 1st
-
-      const month     = today.getMonth();
-      const year      = today.getFullYear();
-      const todayStr  = today.toISOString().split('T')[0];
-
-      const MONTH_NAMES = [
-        'January','February','March','April','May','June',
-        'July','August','September','October','November','December',
-      ];
-
-      const annTitle = `Monthly HOA Dues — ${MONTH_NAMES[month]} ${year}`;
-
-      // Already posted today?
-      const { data: existing } = await supabase
-        .from('announcements')
-        .select('id')
-        .eq('title', annTitle)
-        .gte('created_at', todayStr + 'T00:00:00')
-        .limit(1);
-
-      if (existing?.length) return;
-
-      const lastDay   = new Date(year, month + 1, 0).toISOString().split('T')[0];
-      const content   = `This is your monthly reminder that HOA dues of ₱150 are now due for ${MONTH_NAMES[month]} ${year}. ` +
-                        `Please settle your payment on or before ${lastDay}. ` +
-                        `For payments and inquiries, please contact the HOA Treasurer or any board member. Thank you for your continued support of our community.`;
-
-      const { error } = await supabase.from('announcements').insert([{
-        title:       annTitle,
-        content,
-        category:    'Financial',
-        status:      'published',
-        is_emergency: false,
-        is_pinned:    false,
-        start_date:   todayStr,
-        end_date:     lastDay,
-        author_name:  'System',
-      }]);
-
-      if (error) {
-        console.error('[AutoAnnouncement] Failed:', error.message);
-        return;
-      }
-
-      // Push notification to residents
-      await supabase.from('notifications').insert([{
-        title:   annTitle,
-        message: `Monthly HOA dues of ₱150 are due for ${MONTH_NAMES[month]} ${year}. Due date: ${lastDay}.`,
-        is_read: false,
-        created_at: new Date().toISOString(),
-      }]);
-
-      await supabase.from('system_logs').insert([{
-        activity:   'AUTO_MONTHLY_ANNOUNCEMENT',
-        details:    `System auto-posted Monthly Dues announcement for ${MONTH_NAMES[month]} ${year}.`,
-        severity:   'info',
-        created_at: new Date().toISOString(),
-      }]);
-
-      // Refresh list
-      fetchAnnouncements();
-    };
-
-    runMonthlyAnnouncement();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+  // NOTE: the Monthly Dues announcement used to be auto-posted from here,
+  // client-side, on the 1st — but that only fired if an admin happened to
+  // have this page open that day, and was hardcoded to ₱150 instead of the
+  // real hoa_settings amount. It's now posted server-side by the
+  // generate-monthly-dues Edge Function (runs on Supabase Cron, so it's
+  // reliable regardless of who's logged in), which also triggers that day's
+  // "Send SOA to All" automatically. See supabase/functions/generate-monthly-dues/index.ts.
 
   const resetForm = () => {
     setNewTitle(''); setNewContent(''); setNewCategory('General');
