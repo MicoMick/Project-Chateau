@@ -60,6 +60,22 @@ const generateRefNo = (month, year, userId) => {
 // exclusively by SOAPrintModal now.
 
 
+// ─── Status badge lookup — used by the Edit Transaction status display ───────
+const STATUS_LABEL = {
+  unpaid:               'Unpaid',
+  overdue:               'Overdue',
+  pending:               'Pending',
+  pending_verification:  'Pending Verification',
+  paid:                  'Paid',
+};
+const STATUS_BADGE = {
+  unpaid:                'bg-amber-50 text-amber-700',
+  overdue:                'bg-red-100 text-red-600',
+  pending:                'bg-slate-100 text-slate-600',
+  pending_verification:   'bg-blue-100 text-blue-600',
+  paid:                   'bg-emerald-100 text-emerald-600',
+};
+
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 const StatCard = ({ title, value, icon: Icon, iconColor, bgColor }) => (
   <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between flex-1 hover:shadow-md transition-shadow">
@@ -82,7 +98,13 @@ const TransactionModal = ({ status, message, onClose }) => {
     error:   { icon: <AlertCircle  className="w-12 h-12 text-red-600" />,            title: 'Action Failed', bg: 'bg-red-50'        },
   };
   const cur = configs[status];
-  return (
+  // Portaled straight to <body> — this page's layout wraps content in a
+  // scrollable <main className="overflow-y-auto"> (see App.jsx), and a
+  // `fixed inset-0` backdrop nested inside that container can end up
+  // slightly short of the true viewport instead of covering it edge to
+  // edge. Matches the pattern already used by the proof-review/approve
+  // modals further down this file.
+  return createPortal(
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl p-8 w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95 duration-200">
         <div className={`w-20 h-20 ${cur.bg} rounded-full flex items-center justify-center mx-auto mb-5`}>{cur.icon}</div>
@@ -95,14 +117,18 @@ const TransactionModal = ({ status, message, onClose }) => {
           </button>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
 // ─── ModalOverlay ─────────────────────────────────────────────────────────────
 const ModalOverlay = ({ title, subtitle, isOpen, onClose, children, actionLabel, onAction }) => {
   if (!isOpen) return null;
-  return (
+  // Portaled to <body> for the same reason as TransactionModal above — avoids
+  // the backdrop being confined short of the real viewport by the scrollable
+  // <main> this page's layout nests everything inside.
+  return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
@@ -127,7 +153,8 @@ const ModalOverlay = ({ title, subtitle, isOpen, onClose, children, actionLabel,
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -961,28 +988,30 @@ const Payment = () => {
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Status</label>
-            {/* 'pending' and 'pending_verification' are deliberately NOT
-                manually selectable here. Both are status values that other
-                flows treat as proof a real event already happened elsewhere:
-                'pending' = the automated historical backfill ran at account
-                approval, 'pending_verification' = the resident actually
-                submitted a reference # + proof photo through the app. Letting
-                a treasurer relabel any ordinary due into either one by hand
-                would let them open the settlement-request flow, or the Review
-                Proof modal's Approve button, on a due with nothing real to
-                review — a one-click path to marking a due Paid with no
-                payment behind it. Reverting back to Unpaid stays available as
-                a normal correction. */}
-            <select name="status" value={editFormData.status} onChange={handleEditChange}
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#006837]/20 cursor-pointer">
-              <option value="unpaid">Unpaid</option>
-              {editFormData.status === 'pending' && (
-                <option value="pending" disabled>Pending (backfilled — not manually settable)</option>
+            {/* Read-only badge, not a dropdown — there was never more than one
+                real choice here ("revert to Unpaid"), and a <select> with no
+                matching <option> for overdue/paid/pending/pending_verification
+                used to silently fall back to displaying "Unpaid" even when
+                the real status was something else. Status changes to 'paid'
+                or 'pending_verification' only ever happen through their own
+                dedicated flows (Review Proof's Approve, the resident
+                submitting proof) — never by hand here. The one correction
+                this form still allows is reverting an overdue/pending/
+                pending_verification due back to Unpaid; reverting a 'paid'
+                due goes through Void instead, which requires President
+                approval rather than a quiet edit. */}
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${STATUS_BADGE[editFormData.status] || STATUS_BADGE.unpaid}`}>
+                {STATUS_LABEL[editFormData.status] || 'Unpaid'}
+              </span>
+              {['overdue', 'pending', 'pending_verification'].includes(editFormData.status) && (
+                <button type="button"
+                  onClick={() => setEditFormData(prev => ({ ...prev, status: 'unpaid' }))}
+                  className="text-xs font-bold text-[#006837] hover:underline cursor-pointer">
+                  Revert to Unpaid
+                </button>
               )}
-              {editFormData.status === 'pending_verification' && (
-                <option value="pending_verification" disabled>Pending Verification (resident-submitted — not manually settable)</option>
-              )}
-            </select>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
