@@ -325,7 +325,7 @@ const Reservation = () => {
   const [proofZoomed,       setProofZoomed]        = useState(false); // toggled by clicking the proof image
   const [payingId,          setPayingId]           = useState(null); // reservation id currently being accepted/rejected
 
-  const currentUserRole = localStorage.getItem('userRole') || 'resident';
+  const currentUserRole = sessionStorage.getItem('userRole') || 'resident';
 
   const fetchAll = async () => {
     setLoading(true);

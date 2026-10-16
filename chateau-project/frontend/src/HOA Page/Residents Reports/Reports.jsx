@@ -112,7 +112,7 @@ const Reports = () => {
   const [dateTo,          setDateTo]          = useState('');
 
   const filters = ['All', 'Pending', 'In Progress', 'Resolved', 'On Hold', 'Denied'];
-  const currentUserRole = localStorage.getItem('userRole') || 'resident';
+  const currentUserRole = sessionStorage.getItem('userRole') || 'resident';
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });

@@ -194,7 +194,7 @@ const Payment = () => {
   const [payments,             setPayments]             = useState([]);
   const [loading,              setLoading]              = useState(true);
 
-  const currentUserRole = localStorage.getItem('userRole') || 'resident';
+  const currentUserRole = sessionStorage.getItem('userRole') || 'resident';
 
   // ── Configurable monthly due (Treasurer/President only) ─────────────────────
   // Stored in hoa_settings (single row, id=1). Falls back to MONTHLY_DUE_DEFAULT

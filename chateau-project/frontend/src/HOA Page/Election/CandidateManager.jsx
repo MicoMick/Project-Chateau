@@ -382,7 +382,7 @@ const CandidateCard = ({ c, onView, onEdit, onDelete, canManage }) => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 // ─── Access — inside component so it re-reads after login ───────────────────
 const CandidateManager = ({ electionId }) => {
-  const currentUserRole = localStorage.getItem('userRole') || 'resident';
+  const currentUserRole = sessionStorage.getItem('userRole') || 'resident';
   const canManage = currentUserRole === 'elecom' || currentUserRole === 'super_admin';
   const [candidates,    setCandidates]    = useState([]);
   const [loading,       setLoading]       = useState(true);

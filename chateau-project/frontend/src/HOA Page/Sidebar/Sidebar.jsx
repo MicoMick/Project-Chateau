@@ -83,11 +83,11 @@ const Sidebar = () => {
   const location  = useLocation();
   const navigate  = useNavigate(); 
   const [currentUserRole, setCurrentUserRole] = useState(
-    localStorage.getItem('userRole') || 'resident'
+    sessionStorage.getItem('userRole') || 'resident'
   );
 
   useEffect(() => {
-    setCurrentUserRole(localStorage.getItem('userRole') || 'resident');
+    setCurrentUserRole(sessionStorage.getItem('userRole') || 'resident');
     const getUserData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -100,7 +100,7 @@ const Sidebar = () => {
       if (session?.user) {
         setDisplayName(session.user.user_metadata?.first_name || session.user.email?.split('@')[0] || 'Admin');
         setAvatarUrl(session.user.user_metadata?.avatar_url || null);
-        setCurrentUserRole(localStorage.getItem('userRole') || 'resident');
+        setCurrentUserRole(sessionStorage.getItem('userRole') || 'resident');
       }
     });
     return () => subscription.unsubscribe();
@@ -116,7 +116,7 @@ const Sidebar = () => {
         details:    `[${currentUserRole.toUpperCase()}] Session terminated`,
       }]);
     }
-    localStorage.removeItem('userRole'); 
+    sessionStorage.removeItem('userRole');
     await supabase.auth.signOut();
     navigate('/admin'); 
   };

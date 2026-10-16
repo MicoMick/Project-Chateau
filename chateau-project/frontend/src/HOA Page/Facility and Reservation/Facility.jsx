@@ -255,7 +255,7 @@ const Facility = () => {
   const [newFacility, setNewFacility] = useState({ name: '', description: '', capacity: '', rate: '', opening_time: '', closing_time: '', status: 'Available' });
   const [newItem,     setNewItem]     = useState({ name: '', status: 'Available', amount: '' });
 
-  const currentUserRole = localStorage.getItem('userRole') || 'resident';
+  const currentUserRole = sessionStorage.getItem('userRole') || 'resident';
 
   useEffect(() => {
     (async () => {

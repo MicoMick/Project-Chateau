@@ -186,7 +186,7 @@ const HoaDashboard = () => {
   const [pendingReservations,setPendingReservations]= useState(0);
   const [pendingReports,     setPendingReports]     = useState(0);
 
-  const currentUserRole = localStorage.getItem('userRole') || 'resident';
+  const currentUserRole = sessionStorage.getItem('userRole') || 'resident';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 

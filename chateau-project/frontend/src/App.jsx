@@ -115,7 +115,7 @@ const AuthRoute = ({ children }) => {
 };
 
 const RoleBasedRoute = ({ allowedRoles, children }) => {
-  const currentRole = localStorage.getItem('userRole') || 'resident';
+  const currentRole = sessionStorage.getItem('userRole') || 'resident';
   return (
     <ProtectedRoute userRole={currentRole} allowedRoles={allowedRoles}>
       {children}
@@ -151,7 +151,7 @@ const AdminLayout = () => (
 
 // ─── Dashboard redirect ─────────────────────────────────────────────────────
 const DashboardRedirect = () => {
-  const role = (localStorage.getItem('userRole') || 'resident').trim().toLowerCase();
+  const role = (sessionStorage.getItem('userRole') || 'resident').trim().toLowerCase();
 
   // Treasurer → Payments
   if (role === ROLES.TREASURER) return <Navigate to="/hoa/payments" replace />;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseAdmin';
 import { logAudit } from '../auditLogger';
 import {
@@ -132,7 +133,11 @@ const ConfirmDialog = ({ data, onConfirm, onCancel, loading }) => {
   if (!data) return null;
   const cfg  = ACTION_CONFIG[data.action] || ACTION_CONFIG.approve;
   const Icon = cfg.icon;
-  return (
+  // Portaled to <body> — this page's layout (and ResidentManage.jsx's, when
+  // embedded as a tab there) nests everything inside a scrollable
+  // <main className="overflow-y-auto">, and a `fixed inset-0` backdrop left
+  // nested in there instead of portaled can fall short of the real viewport.
+  return createPortal(
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
       <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="flex flex-col items-center text-center">
@@ -151,7 +156,8 @@ const ConfirmDialog = ({ data, onConfirm, onCancel, loading }) => {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -168,7 +174,7 @@ const AccountApproval = ({ embedded = false, onDataChange }) => {
   const [confirmData,     setConfirmData]     = useState(null);
   const [toast,           setToast]           = useState({ show: false, message: '', type: 'success' });
 
-  const currentUserRole = localStorage.getItem('userRole') || 'resident';
+  const currentUserRole = sessionStorage.getItem('userRole') || 'resident';
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });

@@ -41,7 +41,7 @@ const ProfileManage = () => {
   const strength = getPasswordStrength(newPassword);
 
   // ── Dynamic role label ────────────────────────────────────────────────────
-  const currentUserRole = localStorage.getItem('userRole') || 'admin';
+  const currentUserRole = sessionStorage.getItem('userRole') || 'admin';
   const roleLabelMap = {
     president:      'President — CREVHAI',
     vice_president: 'Vice President — CREVHAI',
