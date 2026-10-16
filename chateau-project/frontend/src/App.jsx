@@ -204,6 +204,10 @@ function App() {
           <Route path="residents"         element={<Residents />} />
           <Route path="password-history"  element={<PasswordResetHistory />} />
           <Route path="logs"              element={<RoleBasedRoute allowedRoles={['super_admin']}><SystemLogs /></RoleBasedRoute>} />
+          {/* App Preview Carousel + Download Page only — the rest of Website
+              Settings (Board of Directors, About Us gallery) stays with HOA
+              officers at /hoa/website-settings. */}
+          <Route path="website-settings"  element={<WebsiteSettings scope="superadmin" />} />
         </Route>
 
         {/* HOA Admin shell */}
@@ -303,10 +307,13 @@ function App() {
             </RoleBasedRoute>
           } />
 
-          {/* ── Website Settings — landing page content ── */}
+          {/* ── Website Settings — Board of Directors + About Us gallery.
+              App Preview Carousel and Download Page moved to Super Admin
+              (/super-admin/website-settings) since they control what
+              residents actually download and install. ── */}
           <Route path="website-settings" element={
             <RoleBasedRoute allowedRoles={ACCESS.WEBSITE_SETTINGS}>
-              <WebsiteSettings />
+              <WebsiteSettings scope="hoa" />
             </RoleBasedRoute>
           } />
 

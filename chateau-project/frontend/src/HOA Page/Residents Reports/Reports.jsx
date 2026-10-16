@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Search, FileText, AlertCircle, CheckCircle2,
   Eye, Trash2, X, Calendar,
@@ -262,8 +263,11 @@ const Reports = () => {
         </div>
       )}
 
-      {/* Delete confirm */}
-      {deleteConfirmation.show && (
+      {/* Delete confirm — portaled to <body>: this page's layout nests
+          everything inside a scrollable <main className="overflow-y-auto">
+          (see App.jsx), and a `fixed inset-0` backdrop left nested in there
+          instead of portaled can fall short of the real viewport. */}
+      {deleteConfirmation.show && createPortal(
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white p-7 rounded-3xl shadow-2xl max-w-sm w-full animate-in zoom-in-95 duration-200">
             <div className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mb-4">
@@ -282,7 +286,8 @@ const Reports = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Header ── */}

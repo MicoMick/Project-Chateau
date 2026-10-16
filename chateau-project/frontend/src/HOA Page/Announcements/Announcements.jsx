@@ -452,8 +452,11 @@ const Announcements = () => {
           {...formProps} />
       )}
 
-      {/* Delete confirm */}
-      {showDeleteConfirm && pendingDeleteItem && (
+      {/* Delete confirm — portaled to <body>: this page's layout nests
+          everything inside a scrollable <main className="overflow-y-auto">
+          (see App.jsx), and a `fixed inset-0` backdrop left nested in there
+          instead of portaled can fall short of the real viewport. */}
+      {showDeleteConfirm && pendingDeleteItem && createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl p-7 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center mb-4">
@@ -472,7 +475,8 @@ const Announcements = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Details modal */}

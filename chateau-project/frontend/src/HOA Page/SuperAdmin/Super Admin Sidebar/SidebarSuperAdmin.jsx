@@ -97,6 +97,7 @@ const SidebarSuperAdmin = () => {
     { icon: <ShieldAlert size={22} />, label: "Admin Control", path: "/super-admin/admins" },
     { icon: <Users size={22} />, label: "All Residents", path: "/super-admin/residents" },
     { icon: <Clock size={22} />, label: "Password Reset History", path: "/super-admin/password-history" },
+    { icon: <Globe size={22} />, label: "Website Settings", path: "/super-admin/website-settings" },
     { icon: <Activity size={22} />, label: "System Logs", path: "/super-admin/logs" },
   ];
 
@@ -122,7 +123,12 @@ const SidebarSuperAdmin = () => {
           <div className="h-px w-full bg-white/20 mt-6"></div>
         </div>
 
-        <nav className="mt-4 px-3 space-y-2 flex-1 overflow-y-auto">
+        {/* overflow-x-hidden matters here: during the 300ms width transition
+            between w-20 and w-72, nav item content can momentarily be wider
+            than the animating width, which without this triggers a
+            horizontal scrollbar flashing in and out at the bottom of the
+            nav for the duration of the transition. */}
+        <nav className="mt-4 px-3 space-y-2 flex-1 overflow-y-auto overflow-x-hidden">
           {menuItems.map((item, index) => {
             const isActive = location.pathname === item.path;
             return (
@@ -148,10 +154,19 @@ const SidebarSuperAdmin = () => {
           })}
         </nav>
 
-        {/* ... Profile and Logout sections remain unchanged ... */}
-        <div className="p-3 mt-auto">
-          {isProfileOpen && !isCollapsed && (
-            <div className="absolute bottom-24 left-3 right-3 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200 z-50">
+        {/* Profile menu — shown in both states now, same as the HOA
+            sidebar. It used to only render (and only be clickable) when
+            !isCollapsed, so while collapsed the avatar did nothing at all —
+            no way to sign out or open your profile without first expanding
+            the whole sidebar. Collapsed now flies out to the right of the
+            avatar at a fixed width instead of trying to stack above a w-20
+            column. */}
+        <div className="p-3 mt-auto relative">
+          {isProfileOpen && (
+            <div className={`absolute bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in duration-200 z-50
+              ${isCollapsed
+                ? 'left-full ml-3 bottom-3 w-56 slide-in-from-left-2'
+                : 'bottom-24 left-3 right-3 slide-in-from-bottom-4'}`}>
               <div className="p-4 border-b border-slate-50 bg-slate-50/50">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Master Account</p>
               </div>
@@ -160,7 +175,7 @@ const SidebarSuperAdmin = () => {
                   <UserCircle size={18} /> System Profile
                 </Link>
                 <div className="h-px bg-slate-100 my-2 mx-2"></div>
-                <button 
+                <button
                   onClick={() => setIsLogoutModalOpen(true)}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50 rounded-xl transition-all text-left cursor-pointer"
                 >
@@ -170,14 +185,10 @@ const SidebarSuperAdmin = () => {
             </div>
           )}
 
-          <div 
-            // --- FIXED: Only allows toggling the profile menu if the sidebar is NOT collapsed ---
-            onClick={() => {
-              if (!isCollapsed) setIsProfileOpen(!isProfileOpen);
-            }}
-            // --- FIXED: Disables hover effects and pointer cursor when collapsed ---
-            className={`bg-black/20 backdrop-blur-md p-4 rounded-2xl flex items-center gap-3 border border-white/10 transition-all group
-            ${isCollapsed ? 'justify-center cursor-default' : 'justify-between hover:bg-white/10 cursor-pointer'}`}
+          <div
+            onClick={() => setIsProfileOpen(!isProfileOpen)}
+            className={`bg-black/20 backdrop-blur-md p-4 rounded-2xl flex items-center gap-3 border border-white/10 transition-all group hover:bg-white/10 cursor-pointer
+            ${isCollapsed ? 'justify-center' : 'justify-between'}`}
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#FFF200] to-white flex items-center justify-center text-[#006837] font-bold shadow-inner text-lg group-hover:scale-105 transition-transform uppercase overflow-hidden">
