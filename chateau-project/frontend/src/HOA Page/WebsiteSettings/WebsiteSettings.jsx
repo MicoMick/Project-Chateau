@@ -271,7 +271,14 @@ const TeamMemberCard = ({
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-const WebsiteSettings = () => {
+// `scope` splits this page in two, by who's allowed to touch what:
+//  - 'hoa' (default, used at /hoa/website-settings): HOA officers manage the
+//    Board of Directors photos and About Us gallery — ordinary landing-page
+//    content, not tied to the mobile app release.
+//  - 'superadmin' (used at /super-admin/website-settings): only the App
+//    Preview Carousel and Download Page (QR code + APK) — these control what
+//    residents actually download and install, so only Super Admin touches them.
+const WebsiteSettings = ({ scope = 'hoa' }) => {
   const [teamPhotos,  setTeamPhotos]  = useState({});
   const [teamRoster,  setTeamRoster]  = useState({}); // { [defaultName]: { name, role } }
   const [aboutPhotos, setAboutPhotos] = useState({});
@@ -547,7 +554,11 @@ const WebsiteSettings = () => {
           <div>
             <p className="text-white/60 text-[10px] font-black uppercase tracking-widest mb-1">Landing Page</p>
             <h2 className="text-xl font-black leading-tight">Website Settings</h2>
-            <p className="text-white/70 text-sm mt-1 font-semibold">Manage the photos shown on the public landing page.</p>
+            <p className="text-white/70 text-sm mt-1 font-semibold">
+              {scope === 'superadmin'
+                ? 'Manage the app preview screenshots and the mobile app download.'
+                : 'Manage the photos shown on the public landing page.'}
+            </p>
           </div>
         </div>
       </div>
@@ -559,7 +570,9 @@ const WebsiteSettings = () => {
         </div>
       ) : (
         <>
-          {/* ── Team photos ── */}
+          {/* ── Team photos — HOA officers only ── */}
+          {scope === 'hoa' && (
+          <>
           <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-9 h-9 bg-[#006837]/10 rounded-xl flex items-center justify-center">
@@ -614,8 +627,12 @@ const WebsiteSettings = () => {
               ))}
             </div>
           </div>
+          </>
+          )}
 
-          {/* ── App screenshots — Download page carousel ── */}
+          {/* ── App screenshots — Download page carousel — Super Admin only ── */}
+          {scope === 'superadmin' && (
+          <>
           <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-9 h-9 bg-[#006837]/10 rounded-xl flex items-center justify-center">
@@ -673,6 +690,8 @@ const WebsiteSettings = () => {
               />
             </div>
           </div>
+          </>
+          )}
         </>
       )}
     </div>

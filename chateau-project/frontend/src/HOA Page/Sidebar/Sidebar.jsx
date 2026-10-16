@@ -309,8 +309,18 @@ const Sidebar = () => {
 
         {/* Profile footer */}
         <div className="mt-auto mb-8 w-full px-3 relative z-50">
-          {isProfileOpen && !isCollapsed && (
-            <div className="absolute bottom-[calc(100%+16px)] left-3 right-3 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200 z-50">
+          {/* Shown in both states now — collapsed flies out to the right of
+              the avatar (fixed width, since there's no room to stack it
+              above a w-20 column) instead of being silently unclickable.
+              Previously this only rendered when !isCollapsed, so clicking
+              the avatar while collapsed set isProfileOpen=true with nothing
+              visibly happening — then it would pop open look "out of
+              nowhere" the moment the sidebar was later expanded. */}
+          {isProfileOpen && (
+            <div className={`absolute bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in duration-200 z-50
+              ${isCollapsed
+                ? 'left-full ml-3 bottom-0 w-56 slide-in-from-left-2'
+                : 'bottom-[calc(100%+16px)] left-3 right-3 slide-in-from-bottom-4'}`}>
               <div className="p-4 border-b border-slate-50 bg-slate-50/50">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Account</p>
               </div>
