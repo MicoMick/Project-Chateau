@@ -279,7 +279,7 @@ const Announcements = () => {
   const [attachmentUrl, setAttachmentUrl] = useState('');
   const [isUploading,   setIsUploading]   = useState(false);
 
-  const currentUserRole = localStorage.getItem('userRole') || 'resident';
+  const currentUserRole = sessionStorage.getItem('userRole') || 'resident';
 
   const showToast = (msg, type = 'success') => {
     setToast({ show: true, message: msg, type });

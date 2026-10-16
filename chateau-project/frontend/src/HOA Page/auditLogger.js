@@ -3,7 +3,7 @@ import { supabase } from './supabaseAdmin';
 const writeLog = async (activity, details, severity = 'info') => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    const role = (localStorage.getItem('userRole') || 'unknown').toUpperCase();
+    const role = (sessionStorage.getItem('userRole') || 'unknown').toUpperCase();
     await supabase.from('system_logs').insert({
       user_email: user?.email || 'unknown',
       activity,

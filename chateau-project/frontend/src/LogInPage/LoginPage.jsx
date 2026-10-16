@@ -56,9 +56,9 @@ const LoginPage = () => {
       // --- ADDED: Fetch and store the role in localStorage for ProtectedRoute to use ---
       const userRole = await fetchAdminRole(user.email);
       if (userRole) {
-        localStorage.setItem('userRole', userRole);
+        sessionStorage.setItem('userRole', userRole);
       } else {
-        localStorage.setItem('userRole', 'resident'); 
+        sessionStorage.setItem('userRole', 'resident');
       }
 
       const { data: adminData } = await supabase

@@ -383,7 +383,7 @@ const ElectionDetailView = ({ election, electionTab, setElectionTab, onBack, tot
 // ─── Main ElectionPage ────────────────────────────────────────────────────────
 const ElectionPage = () => {
   // ── Role — read inside component so it's always fresh after login ──────
-  const currentUserRole = localStorage.getItem('userRole') || 'resident';
+  const currentUserRole = sessionStorage.getItem('userRole') || 'resident';
   const canManage = currentUserRole === 'elecom' || currentUserRole === 'super_admin';
 
   const [elections,          setElections]          = useState([]);

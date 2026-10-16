@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseAdmin';
 import { logAudit } from '../auditLogger';
 import {
@@ -84,7 +85,11 @@ const Toast = ({ toast }) => {
 const ConfirmDialog = ({ data, onConfirm, onCancel, loading }) => {
   if (!data) return null;
   const isApprove = data.action === 'approve';
-  return (
+  // Portaled to <body> — this page's layout nests everything inside a
+  // scrollable <main className="overflow-y-auto">, and a `fixed inset-0`
+  // backdrop left nested in there instead of portaled can fall short of the
+  // real viewport.
+  return createPortal(
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-3xl p-7 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4
@@ -128,7 +133,8 @@ const ConfirmDialog = ({ data, onConfirm, onCancel, loading }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

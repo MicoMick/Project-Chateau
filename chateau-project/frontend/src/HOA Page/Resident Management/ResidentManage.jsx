@@ -123,7 +123,7 @@ const ResidentManage = () => {
   const [toast,           setToast]           = useState({ show: false, message: '', type: 'success' });
 
 
-  const currentUserRole = localStorage.getItem('userRole') || 'resident';
+  const currentUserRole = sessionStorage.getItem('userRole') || 'resident';
   const isPresident = currentUserRole === 'president';
 
   const showToast = (message, type = 'success') => {
