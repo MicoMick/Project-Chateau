@@ -114,10 +114,10 @@ const AuthRoute = ({ children }) => {
   return children;
 };
 
-const RoleBasedRoute = ({ allowedRoles, children }) => {
+const RoleBasedRoute = ({ allowedRoles, exclusive, children }) => {
   const currentRole = sessionStorage.getItem('userRole') || 'resident';
   return (
-    <ProtectedRoute userRole={currentRole} allowedRoles={allowedRoles}>
+    <ProtectedRoute userRole={currentRole} allowedRoles={allowedRoles} exclusive={exclusive}>
       {children}
     </ProtectedRoute>
   );
@@ -266,15 +266,19 @@ function App() {
             </RoleBasedRoute>
           } />
 
-          {/* ── Elections ── */}
+          {/* ── Elections — Elecom-exclusive. `exclusive` opts this out of
+              ProtectedRoute's normal "President can access any HOA page"
+              bypass: election management stays off-limits to every other
+              officer, President included, not just hidden from the
+              dashboard's UI. ── */}
           <Route path="elections" element={
-            <RoleBasedRoute allowedRoles={ACCESS.ELECTIONS}>
+            <RoleBasedRoute allowedRoles={ACCESS.ELECTIONS} exclusive>
               <ElectionPage />
             </RoleBasedRoute>
           } />
 
           <Route path="results" element={
-            <RoleBasedRoute allowedRoles={ACCESS.ELECTIONS}>
+            <RoleBasedRoute allowedRoles={ACCESS.ELECTIONS} exclusive>
               <Results />
             </RoleBasedRoute>
           } />

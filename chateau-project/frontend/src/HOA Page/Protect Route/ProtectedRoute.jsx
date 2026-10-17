@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router-dom';
 
-const ProtectedRoute = ({ userRole, allowedRoles, children }) => {
+const ProtectedRoute = ({ userRole, allowedRoles, exclusive, children }) => {
   if (!userRole) {
     // No role stored — not logged in or session cleared
     return <Navigate to="/admin" replace />;
@@ -11,8 +11,11 @@ const ProtectedRoute = ({ userRole, allowedRoles, children }) => {
     return children;
   }
 
-  // president has full access to all HOA pages
-  if (userRole === 'president') {
+  // president has full access to all HOA pages — EXCEPT routes marked
+  // `exclusive`, which opt out of this blanket bypass on purpose (e.g.
+  // Elections is Elecom-only; President shouldn't be able to manage it just
+  // by virtue of being President, even by typing the URL directly).
+  if (userRole === 'president' && !exclusive) {
     return children;
   }
 

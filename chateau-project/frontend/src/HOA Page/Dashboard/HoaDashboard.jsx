@@ -471,10 +471,14 @@ const HoaDashboard = () => {
             ))}
           </SectionCard>
 
-          {/* Active Elections */}
+          {/* Active Elections — informational only for everyone here. Only
+              Elecom manages elections (see ACCESS.ELECTIONS in App.jsx), so
+              this card has no "Manage" link/shortcut into /hoa/elections —
+              that page is Elecom-exclusive, not something any other HOA
+              officer (including President) should be able to jump into. */}
           {liveElections.length > 0 && (
             <RequireRole userRole={currentUserRole} allowedRoles={['president','vice_president','secretary','auditor','board_member']}>
-              <SectionCard title="Active Elections" linkText="Manage" onLink={() => go('elections')}>
+              <SectionCard title="Active Elections">
                 {liveElections.map((el) => (
                   <div key={el.id} className="px-5 py-4 flex items-center justify-between hover:bg-slate-50/60 transition-colors">
                     <div className="flex items-center gap-3 min-w-0">
