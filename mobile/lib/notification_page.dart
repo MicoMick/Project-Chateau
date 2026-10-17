@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_colors.dart';
 import 'app_theme.dart';
 import 'app_dialogs.dart';
+import 'attachment_preview.dart';
 
 // ── Announcement resolution ────────────────
 const _kImportantPrefix = 'IMPORTANT: ';
@@ -211,7 +212,7 @@ class _NotificationPageState extends State<NotificationPage> {
             .or('user_id.eq.$userId,user_id.is.null')
             .order('created_at', ascending: false),
         _supabase.from('announcements').select(
-            'title, content, category, start_date, end_date, is_emergency, created_at, author_name'),
+            'title, content, category, start_date, end_date, is_emergency, created_at, author_name, attachment_url'),
       ]);
 
       if (mounted) {
@@ -300,6 +301,10 @@ class _NotificationPageState extends State<NotificationPage> {
     final author = announcement['author_name'] as String?;
     final startDate =
         DateTime.tryParse(announcement['start_date'] as String? ?? '');
+    final attachmentUrl = announcement['attachment_url'] as String?;
+    final hasAttachment = attachmentUrl != null &&
+        attachmentUrl.isNotEmpty &&
+        attachmentUrl != 'EMPTY';
 
     showModalBottomSheet(
       context: context,
@@ -343,6 +348,26 @@ class _NotificationPageState extends State<NotificationPage> {
                   content.isNotEmpty ? content : 'No further details.',
                   style: AppText.bodyMedium,
                 ),
+                if (hasAttachment) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  Padding(
+                    padding: const EdgeInsets.only(
+                        bottom: AppSpacing.xs, left: AppSpacing.xs),
+                    child: Row(
+                      children: [
+                        Icon(Icons.attach_file_rounded,
+                            size: 14, color: chateuTextMuted),
+                        const SizedBox(width: 4),
+                        Text('Attachment', style: AppText.caption),
+                      ],
+                    ),
+                  ),
+                  AttachmentPreview(
+                    url: attachmentUrl,
+                    isImage: isImageAttachment(attachmentUrl),
+                    isPdf: isPdfAttachment(attachmentUrl),
+                  ),
+                ],
                 if (author != null && author.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.lg),
                   Row(
