@@ -116,11 +116,16 @@ class _NotificationEntry {
     return diff >= 0 && diff <= 1;
   }
   bool get isFinancial => (category ?? '').toLowerCase() == 'financial';
+
+  // A status update an HOA officer sent in response to a report this
+  // resident filed — carries report_id, linking back to the original
+  // reports row (category/description/photo/video) in _fetchReport.
+  bool get isPersonalReport => raw['report_id'] != null;
 }
 
 // ── Filters ─────────────────────────────────────────
 
-enum _NotifFilter { all, recent, financial, important }
+enum _NotifFilter { all, recent, personal, financial, important }
 
 extension on _NotifFilter {
   String get label {
@@ -129,6 +134,8 @@ extension on _NotifFilter {
         return 'All';
       case _NotifFilter.recent:
         return 'Recent';
+      case _NotifFilter.personal:
+        return 'Personal';
       case _NotifFilter.financial:
         return 'Financial';
       case _NotifFilter.important:
@@ -142,6 +149,8 @@ extension on _NotifFilter {
         return true;
       case _NotifFilter.recent:
         return e.isRecent;
+      case _NotifFilter.personal:
+        return e.isPersonalReport;
       case _NotifFilter.financial:
         return e.isFinancial;
       case _NotifFilter.important:
@@ -387,25 +396,60 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
+  // The reports row a status-update notification was sent for — gives the
+  // resident back their own original photo/video/description so they can
+  // see what the officer's reply is actually about. Null if the report was
+  // since deleted.
+  Future<Map<String, dynamic>?> _fetchReport(Object reportId) async {
+    try {
+      return await _supabase
+          .from('reports')
+          .select('category, description, photo_url, video_url, created_at, status')
+          .eq('id', reportId)
+          .maybeSingle();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Color _reportStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'resolved':
+        return chateuSuccess;
+      case 'in progress':
+        return chateuInfo;
+      case 'on hold':
+        return chateuTextMuted;
+      case 'denied':
+        return chateuError;
+      default: // Pending
+        return chateuWarning;
+    }
+  }
+
   // Fallback for notifications with no resolved announcement — personal
   // report-status updates, or an announcement-shaped one whose title no
   // longer matches anything (e.g. still using an old title prefix). Same
   // sheet shell as the announcement detail, just built from the
-  // notification's own title/message instead.
+  // notification's own title/message instead. For a report-status update
+  // (report_id set) this also fetches and shows the original report —
+  // category, photo/video, and the resident's own description — so the
+  // reply has context.
   void _showNotificationDetail(Map<String, dynamic> raw) {
     final isGlobal = raw['user_id'] == null;
     final title = raw['title'] as String? ?? 'Notification';
     final message = raw['message'] as String? ?? '';
     final createdAt = DateTime.tryParse(raw['created_at'] as String? ?? '');
+    final reportId = raw['report_id'];
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.4,
+        initialChildSize: reportId != null ? 0.65 : 0.4,
         minChildSize: 0.25,
-        maxChildSize: 0.8,
+        maxChildSize: 0.9,
         expand: false,
         builder: (_, scrollController) => Container(
           decoration: AppDecorations.sheet,
@@ -432,6 +476,97 @@ class _NotificationPageState extends State<NotificationPage> {
                   message.isNotEmpty ? message : 'No further details.',
                   style: AppText.bodyMedium,
                 ),
+                if (reportId != null) ...[
+                  const SizedBox(height: AppSpacing.xl),
+                  Divider(color: chateuBorder, height: 1),
+                  const SizedBox(height: AppSpacing.lg),
+                  Text('Your Original Report', style: AppText.titleMedium),
+                  const SizedBox(height: AppSpacing.sm),
+                  FutureBuilder<Map<String, dynamic>?>(
+                    future: _fetchReport(reportId),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState != ConnectionState.done) {
+                        return const Padding(
+                          padding:
+                              EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                          child: Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        );
+                      }
+                      final report = snapshot.data;
+                      if (report == null) {
+                        return Text(
+                          'This report is no longer available.',
+                          style: AppText.bodyMedium
+                              .copyWith(color: chateuTextMuted),
+                        );
+                      }
+                      final category = report['category'] as String?;
+                      final description =
+                          report['description'] as String? ?? '';
+                      final photoUrl = report['photo_url'] as String?;
+                      final videoUrl = report['video_url'] as String?;
+                      final status = report['status'] as String?;
+                      final submittedAt = DateTime.tryParse(
+                          report['created_at'] as String? ?? '');
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              AppStatusBadge(
+                                label: (category ?? 'Other').toUpperCase(),
+                                color: announcementCategoryColor(category),
+                              ),
+                              if (status != null && status.isNotEmpty) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                AppStatusBadge(
+                                  label: status,
+                                  color: _reportStatusColor(status),
+                                ),
+                              ],
+                            ],
+                          ),
+                          if (submittedAt != null) ...[
+                            const SizedBox(height: AppSpacing.sm),
+                            Text('Submitted ${_fmtFullDate(submittedAt)}',
+                                style: AppText.caption),
+                          ],
+                          const SizedBox(height: AppSpacing.sm),
+                          Text(
+                            description.isNotEmpty
+                                ? description
+                                : 'No description provided.',
+                            style: AppText.bodyMedium,
+                          ),
+                          if (photoUrl != null && photoUrl.isNotEmpty) ...[
+                            const SizedBox(height: AppSpacing.md),
+                            AttachmentPreview(
+                              url: photoUrl,
+                              isImage: isImageAttachment(photoUrl),
+                              isPdf: isPdfAttachment(photoUrl),
+                            ),
+                          ],
+                          if (videoUrl != null && videoUrl.isNotEmpty) ...[
+                            const SizedBox(height: AppSpacing.md),
+                            AttachmentPreview(
+                              url: videoUrl,
+                              isImage: isImageAttachment(videoUrl),
+                              isPdf: isPdfAttachment(videoUrl),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ],
             ),
           ),
