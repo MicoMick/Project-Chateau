@@ -217,7 +217,7 @@ const ModalForm = ({
         </div>
         <div className="flex items-center justify-between p-4 bg-red-50 border border-red-100 rounded-2xl">
           <div>
-            <p className="text-sm font-bold text-red-800">Emergency / High Priority</p>
+            <p className="text-sm font-bold text-red-800">Set as Important</p>
             <p className="text-xs text-red-500 mt-0.5">Highlights this announcement in red for all residents</p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
@@ -333,6 +333,21 @@ const Announcements = () => {
 
   const handleDelete = async (id) => {
     try {
+      // Notifications carry no announcement_id — they were built from this
+      // announcement's title behind one of these fixed prefixes (see
+      // handleAddAnnouncement/handleUpdateAnnouncement below), so matching
+      // on title is how a delete here is made to also clear the
+      // notification it published. Otherwise the mobile app's Notifications
+      // page keeps showing it forever, with nothing left to resolve it against.
+      const title = pendingDeleteItem?.title;
+      if (title) {
+        await supabase.from('notifications').delete().in('title', [
+          title,
+          `Announcement: ${title}`,
+          `New Announcement: ${title}`,
+          `IMPORTANT: ${title}`,
+        ]);
+      }
       const { error } = await supabase.from('announcements').delete().eq('id', id);
       if (error) throw error;
       await logAudit('DELETE_ANNOUNCEMENT', `Deleted announcement ID: ${id}`);
@@ -362,7 +377,7 @@ const Announcements = () => {
       await logAudit('CREATE_ANNOUNCEMENT', `Created: "${newTitle}" → ${status}`);
       if (status === 'published') {
         await supabase.from('notifications').insert([{
-          title:   isEmergency ? `🚨 EMERGENCY: ${newTitle}` : `Announcement: ${newTitle}`,
+          title:   isEmergency ? `IMPORTANT: ${newTitle}` : `Announcement: ${newTitle}`,
           message: newContent.substring(0, 100) + '…',
           is_read: false, created_at: new Date().toISOString(),
         }]);
@@ -386,7 +401,7 @@ const Announcements = () => {
       await logAudit('UPDATE_ANNOUNCEMENT', `Updated: "${newTitle}" → ${status}`);
       if (status === 'published') {
         await supabase.from('notifications').insert([{
-          title:   isEmergency ? `🚨 EMERGENCY: ${newTitle}` : `New Announcement: ${newTitle}`,
+          title:   isEmergency ? `IMPORTANT: ${newTitle}` : `New Announcement: ${newTitle}`,
           message: newContent.substring(0, 100) + '…',
           is_read: false, created_at: new Date().toISOString(),
         }]);
