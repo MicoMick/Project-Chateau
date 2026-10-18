@@ -131,9 +131,9 @@ const LandingPage = () => (
     <main>
       <Mainpage />
       <Team />
+      <AboutUs />
       <HowItWorks />
       <DownloadPage />
-      <AboutUs />
       <FAQs />
       <Footer />
     </main>
