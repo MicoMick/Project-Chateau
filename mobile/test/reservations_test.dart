@@ -26,6 +26,7 @@ class FakeReservationsSource implements ReservationsSource {
     askedStatuses = statuses;
     return datedRows;
   }
+
   @override
   Future<String?> fetchQrCodeUrl() async => qr;
   @override
@@ -106,14 +107,11 @@ void main() {
       expect(ReservationStatus.parse(null), ReservationStatus.pending);
     });
 
-    test('Pending, Approved and Approved and paid block a time slot', () {
-      expect(
-          ReservationStatus.values.where((s) => s.blocksSlot),
-          [
-            ReservationStatus.pending,
-            ReservationStatus.approved,
-            ReservationStatus.approvedAndPaid,
-          ]);
+    test('only Approved and Approved and paid block a time slot', () {
+      expect(ReservationStatus.values.where((s) => s.blocksSlot), [
+        ReservationStatus.approved,
+        ReservationStatus.approvedAndPaid,
+      ]);
     });
   });
 
@@ -130,26 +128,28 @@ void main() {
     });
 
     test('a start time already past today is refused', () {
-      expect(check(hall, t(9), t(10), now: DateTime(2026, 3, 10, 9, 30)).problem,
+      expect(
+          check(hall, t(9), t(10), now: DateTime(2026, 3, 10, 9, 30)).problem,
           'Start time has already passed for today.');
-      expect(check(hall, t(10), t(11), now: DateTime(2026, 3, 10, 9, 30)).problem,
+      expect(
+          check(hall, t(10), t(11), now: DateTime(2026, 3, 10, 9, 30)).problem,
           isNull);
     });
 
-    test('overlapping a Pending, Approved or Approved and paid booking is refused',
-        () {
-      for (final status in ['Pending', 'Approved', 'Approved and Paid']) {
+    test('overlapping an Approved or Approved and paid booking is refused', () {
+      for (final status in ['Approved', 'Approved and Paid']) {
         expect(
-            check(court, t(9), t(11), existing: [booked(status, '10:00', '12:00')])
-                .problem,
+            check(court, t(9), t(11),
+                existing: [booked(status, '10:00', '12:00')]).problem,
             'This slot overlaps an existing booking.',
             reason: status);
       }
     });
 
-    test('Rejected or Cancelled bookings free the slot', () {
+    test('Pending, Rejected or Cancelled requests do not block the slot', () {
       expect(
           check(court, t(9), t(11), existing: [
+            booked('Pending', '07:00', '11:00'),
             booked('Rejected', '10:00', '12:00'),
             booked('Cancelled', '09:00', '11:00'),
           ]).problem,
@@ -158,8 +158,8 @@ void main() {
 
     test('back-to-back bookings do not overlap', () {
       expect(
-          check(court, t(11), t(12), existing: [booked('Approved', '09:00', '11:00')])
-              .problem,
+          check(court, t(11), t(12),
+              existing: [booked('Approved', '09:00', '11:00')]).problem,
           isNull);
     });
   });
@@ -209,8 +209,7 @@ void main() {
     });
 
     test('a pick-up time already past today is refused', () {
-      expect(
-          check(chairs, t(9), t(17), now: DateTime(2026, 3, 10, 10)).problem,
+      expect(check(chairs, t(9), t(17), now: DateTime(2026, 3, 10, 10)).problem,
           'Pick-up time has already passed for today.');
     });
 
@@ -223,8 +222,12 @@ void main() {
     });
 
     test('nothing available is refused', () {
-      final none = Facility.fromRow(
-          {'id': 'tents', 'name': 'Tents', 'category': 'Amenity Item', 'amount': 0});
+      final none = Facility.fromRow({
+        'id': 'tents',
+        'name': 'Tents',
+        'category': 'Amenity Item',
+        'amount': 0
+      });
       expect(check(none, t(9), t(17)).problem,
           'None of Tents are currently available.');
     });
@@ -238,12 +241,11 @@ void main() {
       reservations = module(source: source);
     });
 
-    test('booking the court stores a Pending Reservation with the fee', () async {
+    test('booking the court stores a Pending Reservation with the fee',
+        () async {
       await reservations.book(
         BookingRequest(facility: court, date: day, start: t(9, 5), end: t(11)),
         fee: 200,
-        reference: 'GC123',
-        proofUrl: 'https://x/proof.png',
       );
 
       expect(source.inserted.single, {
@@ -254,9 +256,7 @@ void main() {
         'end_time': '11:00',
         'status': 'Pending',
         'fee': 200.0,
-        'payment_status': 'pending_verification',
-        'reference_no': 'GC123',
-        'proof_url': 'https://x/proof.png',
+        'payment_status': 'Unpaid',
       });
     });
 
@@ -286,6 +286,72 @@ void main() {
       });
     });
 
+    Reservation payable(
+            {String status = 'Approved',
+            String paymentStatus = 'Unpaid',
+            String userId = 'u1'}) =>
+        Reservation.fromRow({
+          'id': 'pay',
+          'facility_id': 'court',
+          'user_id': userId,
+          'date': '2026-03-10',
+          'status': status,
+          'fee': 200,
+          'payment_status': paymentStatus
+        });
+
+    test('GCash is submitted only after approval for Admin verification',
+        () async {
+      await reservations.submitPayment(payable(),
+          reference: '  GC123  ', proofUrl: 'https://x/proof.png');
+      expect(source.updated['pay'], {
+        'payment_status': 'Pending',
+        'reference_no': 'GC123',
+        'proof_url': 'https://x/proof.png'
+      });
+    });
+
+    test('pending, rejected, paid and already submitted payments cannot pay',
+        () {
+      for (final status in [
+        'Pending',
+        'Rejected',
+        'Cancelled',
+        'Approved and Paid'
+      ]) {
+        expect(
+            () => reservations.submitPayment(payable(status: status),
+                reference: 'GC123', proofUrl: 'https://x/proof.png'),
+            throwsStateError);
+      }
+      for (final payment in ['Pending', 'pending_verification', 'Paid']) {
+        expect(
+            () => reservations.submitPayment(payable(paymentStatus: payment),
+                reference: 'GC123', proofUrl: 'https://x/proof.png'),
+            throwsStateError);
+      }
+      expect(source.updated, isEmpty);
+    });
+
+    test('rejected payment can be resubmitted while reservation stays approved',
+        () async {
+      await reservations.submitPayment(payable(paymentStatus: 'Rejected'),
+          reference: 'GC123', proofUrl: 'https://x/proof.png');
+      expect(source.updated['pay']!['payment_status'], 'Pending');
+    });
+
+    test('payment validates ownership and GCash evidence', () {
+      expect(
+          () => reservations.submitPayment(payable(userId: 'someone'),
+              reference: 'GC123', proofUrl: 'https://x/proof.png'),
+          throwsStateError);
+      expect(() => reservations.submitPayment(payable(), reference: '  '),
+          throwsArgumentError);
+      expect(() => reservations.submitPayment(payable(), reference: 'GC123'),
+          throwsArgumentError);
+      expect(source.updated, isEmpty);
+    });
+
     test('cancelling writes the web app spelling', () async {
       await reservations.cancel(booked('Pending', '09:00', '10:00'));
 
@@ -296,7 +362,8 @@ void main() {
         () async {
       await reservations.reportReturn('r1', {'return_notes': 'ok'});
 
-      expect(source.updated['r1'], {'status': 'Return Pending', 'return_notes': 'ok'});
+      expect(source.updated['r1'],
+          {'status': 'Return Pending', 'return_notes': 'ok'});
     });
   });
 
@@ -308,7 +375,8 @@ void main() {
   });
 
   test('only an Approved, unreturned Amenity can be returned', () {
-    Reservation borrow(String status, {String? returnedAt}) => Reservation.fromRow({
+    Reservation borrow(String status, {String? returnedAt}) =>
+        Reservation.fromRow({
           'id': 'b',
           'facility_id': 'chairs',
           'date': '2026-03-10',
@@ -319,22 +387,34 @@ void main() {
 
     expect(borrow('Approved').canReturn, isTrue);
     expect(borrow('approved').canReturn, isTrue);
-    expect(borrow('Approved', returnedAt: '2026-03-11T10:00:00').canReturn, isFalse);
+    expect(borrow('Approved', returnedAt: '2026-03-11T10:00:00').canReturn,
+        isFalse);
     expect(borrow('Pending').canReturn, isFalse);
     expect(booked('Approved', '09:00', '10:00').canReturn, isFalse);
   });
 
   group('reads', () {
-    test('load gathers Facilities, bookings from today, mine and the QR', () async {
+    test('load gathers Facilities, bookings from today, mine and the QR',
+        () async {
       final source = FakeReservationsSource()
         ..facilities = [
           {'id': 'court', 'name': 'Covered Court'}
         ]
         ..upcoming = [
-          {'id': 'a', 'facility_id': 'court', 'date': '2026-03-10', 'status': 'approved'}
+          {
+            'id': 'a',
+            'facility_id': 'court',
+            'date': '2026-03-10',
+            'status': 'approved'
+          }
         ]
         ..mine = [
-          {'id': 'b', 'facility_id': 'court', 'date': '2026-03-11', 'status': 'Pending'}
+          {
+            'id': 'b',
+            'facility_id': 'court',
+            'date': '2026-03-11',
+            'status': 'Pending'
+          }
         ]
         ..qr = 'https://x/qr.png';
 

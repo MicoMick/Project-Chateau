@@ -97,7 +97,8 @@ class _ReservePageState extends State<ReservePage> {
 
     try {
       await _module.cancel(r);
-      await logAudit('CANCEL_RESERVATION', 'Cancelled reservation for ${_facilityName(r.facilityId) ?? 'an amenity'}.');
+      await logAudit('CANCEL_RESERVATION',
+          'Cancelled reservation for ${_facilityName(r.facilityId) ?? 'an amenity'}.');
       if (!mounted) return;
       await _loadData();
       if (mounted) _showSnack('Reservation cancelled.', isError: true);
@@ -139,6 +140,7 @@ class _ReservePageState extends State<ReservePage> {
       };
 
   String _statusLabel(ReservationStatus s) => switch (s) {
+        ReservationStatus.pending => 'Pending Approval',
         ReservationStatus.approvedAndPaid => 'Approved & Paid',
         ReservationStatus.returnPending =>
           'Return Pending — Awaiting Verification',
@@ -178,9 +180,22 @@ class _ReservePageState extends State<ReservePage> {
         existingReservations: _reservationsForDay(_selectedDay)
             .where((r) => r.facilityId == facility.id)
             .toList(),
-        qrImageUrl: _qrImageUrl,
         reservations: _module,
         onBooked: _loadData,
+      ),
+    );
+  }
+
+  void _showPaymentSheet(Reservation r) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: chateuSurface,
+      builder: (_) => _ReservationPaymentSheet(
+        reservation: r,
+        qrImageUrl: _qrImageUrl,
+        reservations: _module,
+        onSubmitted: _loadData,
       ),
     );
   }
@@ -226,8 +241,7 @@ class _ReservePageState extends State<ReservePage> {
                 const AppSectionHeader(title: "Reserve a Facility"),
                 const SizedBox(height: AppSpacing.xs),
                 Text("Pick a date and book your slot",
-                    style:
-                        AppText.bodyMedium.copyWith(color: chateuTextMuted)),
+                    style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
                 const SizedBox(height: AppSpacing.lg),
 
                 Container(
@@ -257,10 +271,10 @@ class _ReservePageState extends State<ReservePage> {
                           color: chateuPrimary, semanticLabel: 'Next month'),
                     ),
                     daysOfWeekStyle: DaysOfWeekStyle(
-                      weekdayStyle: AppText.caption
-                          .copyWith(fontWeight: FontWeight.w600),
-                      weekendStyle: AppText.caption
-                          .copyWith(fontWeight: FontWeight.w600),
+                      weekdayStyle:
+                          AppText.caption.copyWith(fontWeight: FontWeight.w600),
+                      weekendStyle:
+                          AppText.caption.copyWith(fontWeight: FontWeight.w600),
                     ),
                     calendarStyle: CalendarStyle(
                       defaultTextStyle: AppText.bodyMedium,
@@ -302,6 +316,9 @@ class _ReservePageState extends State<ReservePage> {
                       isOwn: r.userId == currentId,
                       statusLabel: _statusLabel(r.status),
                       formatTime: time12,
+                      onPay: r.userId == currentId && r.canPay
+                          ? () => _showPaymentSheet(r)
+                          : null,
                       onCancel: r.userId == currentId && r.canCancel
                           ? () => _cancelReservation(r)
                           : null,
@@ -340,12 +357,8 @@ class _ReservePageState extends State<ReservePage> {
                       final booked = dayRes
                           .where((r) => r.facilityId == facility.id)
                           .toList();
-                      final isFull = facility.isQuantityBased
-                          ? (facility.availableQuantity ?? 0) <= 0
-                          : booked
-                                  .where((r) => r.status.blocksSlot)
-                                  .length >=
-                              3;
+                      final isFull = facility.isQuantityBased &&
+                          (facility.availableQuantity ?? 0) <= 0;
                       return _FacilityCard(
                         facility: facility,
                         bookedCount: booked.length,
@@ -397,6 +410,7 @@ class _ReservationTile extends StatelessWidget {
   final String statusLabel;
   final String Function(TimeOfDay) formatTime;
   final VoidCallback? onCancel;
+  final VoidCallback? onPay;
 
   const _ReservationTile({
     required this.r,
@@ -406,6 +420,7 @@ class _ReservationTile extends StatelessWidget {
     required this.statusLabel,
     required this.formatTime,
     required this.onCancel,
+    this.onPay,
   });
 
   @override
@@ -428,9 +443,18 @@ class _ReservationTile extends StatelessWidget {
                 Text(facilityName ?? 'Unknown Facility',
                     style: AppText.bodyMedium
                         .copyWith(fontWeight: FontWeight.w600)),
+                if (isOwn &&
+                    (r.fee ?? 0) > 0 &&
+                    r.status != ReservationStatus.pending)
+                  Text(
+                    r.paymentStatus == 'pending' ||
+                            r.paymentStatus == 'pending_verification'
+                        ? 'GCash — awaiting Admin payment verification'
+                        : '${peso(r.fee!)} — ${r.paymentStatus.isEmpty ? 'Unpaid' : r.paymentStatus}',
+                    style: AppText.caption,
+                  ),
                 if (!isOwn)
-                  Text('Reserved by another resident',
-                      style: AppText.caption),
+                  Text('Reserved by another resident', style: AppText.caption),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: AppSpacing.sm,
@@ -446,6 +470,8 @@ class _ReservationTile extends StatelessWidget {
               ],
             ),
           ),
+          if (onPay != null)
+            FilledButton(onPressed: onPay, child: const Text('Pay')),
           if (onCancel != null)
             IconButton(
               tooltip: 'Cancel reservation',
@@ -636,87 +662,82 @@ class _FacilityCard extends StatelessWidget {
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Icon(_icon,
-                          color: muted ? chateuTextMuted : chateuPrimary,
-                          size: 24),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                          Text(facility.name,
-                              style: AppText.titleMedium.copyWith(
-                                  color:
-                                      muted ? chateuTextMuted : chateuText)),
-                          const SizedBox(height: 2),
-                          Text(facility.description,
-                              style: AppText.caption,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis),
-                          const SizedBox(height: AppSpacing.sm),
-                          AppStatusBadge(
-                              label: facility.category,
-                              color: muted ? chateuTextMuted : chateuPrimary),
-                        ])),
-                    if (onImageTap != null)
-                      TextButton.icon(
-                        onPressed: onImageTap,
-                        icon: Icon(
-                            facility.is360
-                                ? Icons.view_in_ar_rounded
-                                : Icons.image_rounded,
-                            size: 18),
-                        label: Text(facility.is360 ? '360°' : 'Photo'),
-                      ),
-                  ]),
-                  if (facility.isQuantityBased ||
-                      facility.capacity.isNotEmpty ||
-                      facility.rate.isNotEmpty ||
-                      facility.hours.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    const Divider(height: 1),
-                    const SizedBox(height: AppSpacing.sm),
-                    Wrap(
-                      spacing: AppSpacing.md,
-                      runSpacing: AppSpacing.xs,
-                      children: [
-                        if (facility.isQuantityBased)
-                          _Chip(
-                              icon: Icons.inventory_2_outlined,
-                              label:
-                                  '${facility.availableQuantity ?? 0} of ${facility.totalQuantity ?? 0} available'),
-                        if (facility.capacity.isNotEmpty)
-                          _Chip(
-                              icon: Icons.people_outline_rounded,
-                              label: facility.capacity),
-                        if (facility.rate.isNotEmpty)
-                          _Chip(
-                              icon: Icons.payments_outlined,
-                              label: facility.rate),
-                        if (facility.hours.isNotEmpty)
-                          _Chip(
-                              icon: Icons.schedule_rounded,
-                              label: facility.hours),
-                      ],
-                    ),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(_icon,
+                      color: muted ? chateuTextMuted : chateuPrimary, size: 24),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(facility.name,
+                          style: AppText.titleMedium.copyWith(
+                              color: muted ? chateuTextMuted : chateuText)),
+                      const SizedBox(height: 2),
+                      Text(facility.description,
+                          style: AppText.caption,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: AppSpacing.sm),
+                      AppStatusBadge(
+                          label: facility.category,
+                          color: muted ? chateuTextMuted : chateuPrimary),
+                    ])),
+                if (onImageTap != null)
+                  TextButton.icon(
+                    onPressed: onImageTap,
+                    icon: Icon(
+                        facility.is360
+                            ? Icons.view_in_ar_rounded
+                            : Icons.image_rounded,
+                        size: 18),
+                    label: Text(facility.is360 ? '360°' : 'Photo'),
+                  ),
+              ]),
+              if (facility.isQuantityBased ||
+                  facility.capacity.isNotEmpty ||
+                  facility.rate.isNotEmpty ||
+                  facility.hours.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.md),
+                const Divider(height: 1),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: AppSpacing.md,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    if (facility.isQuantityBased)
+                      _Chip(
+                          icon: Icons.inventory_2_outlined,
+                          label:
+                              '${facility.availableQuantity ?? 0} of ${facility.totalQuantity ?? 0} available'),
+                    if (facility.capacity.isNotEmpty)
+                      _Chip(
+                          icon: Icons.people_outline_rounded,
+                          label: facility.capacity),
+                    if (facility.rate.isNotEmpty)
+                      _Chip(
+                          icon: Icons.payments_outlined, label: facility.rate),
+                    if (facility.hours.isNotEmpty)
+                      _Chip(
+                          icon: Icons.schedule_rounded, label: facility.hours),
                   ],
-                  if (isFullyBooked) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                        facility.isQuantityBased
-                            ? 'None currently available'
-                            : 'Fully booked for this day',
-                        style: AppText.caption.copyWith(
-                            color: chateuError, fontWeight: FontWeight.w600)),
-                  ],
-                ]),
+                ),
+              ],
+              if (isFullyBooked) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                    facility.isQuantityBased
+                        ? 'None currently available'
+                        : 'Fully booked for this day',
+                    style: AppText.caption.copyWith(
+                        color: chateuError, fontWeight: FontWeight.w600)),
+              ],
+            ]),
           ),
         ),
       ),
@@ -746,7 +767,6 @@ class _BookSheet extends StatefulWidget {
   final Facility facility;
   final DateTime selectedDate;
   final List<Reservation> existingReservations;
-  final String? qrImageUrl;
   final Reservations reservations;
   final VoidCallback onBooked;
 
@@ -754,7 +774,6 @@ class _BookSheet extends StatefulWidget {
     required this.facility,
     required this.selectedDate,
     required this.existingReservations,
-    this.qrImageUrl,
     required this.reservations,
     required this.onBooked,
   });
@@ -766,7 +785,6 @@ class _BookSheet extends StatefulWidget {
 class _BookSheetState extends State<_BookSheet> {
   final _supabase = Supabase.instance.client;
   final _picker = ImagePicker();
-  final _referenceCtrl = TextEditingController();
   TimeOfDay _startTime = const TimeOfDay(hour: 8, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 9, minute: 0);
   bool _isSubmitting = false;
@@ -775,8 +793,6 @@ class _BookSheetState extends State<_BookSheet> {
   // Expected return date for borrowed (quantity-based) items — defaults to
   // the booking day itself; residents can push it out for multi-day events.
   late DateTime _returnDate;
-
-  XFile? _proofFile;
 
   XFile? _conditionPhotoFile;
 
@@ -788,20 +804,9 @@ class _BookSheetState extends State<_BookSheet> {
     _returnDate = widget.selectedDate;
   }
 
-  @override
-  void dispose() {
-    _referenceCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickProof() async {
-    final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (file == null || !mounted) return;
-    setState(() => _proofFile = file);
-  }
-
   Future<void> _pickConditionPhoto() async {
-    final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final file =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (file == null || !mounted) return;
     setState(() => _conditionPhotoFile = file);
   }
@@ -817,8 +822,8 @@ class _BookSheetState extends State<_BookSheet> {
         returnDate: _returnDate,
       );
 
-  BookingCheck get _check =>
-      widget.reservations.check(_request, existing: widget.existingReservations);
+  BookingCheck get _check => widget.reservations
+      .check(_request, existing: widget.existingReservations);
 
   String? get conflictReason => _check.problem;
   bool get _hasConflict => conflictReason != null;
@@ -832,21 +837,6 @@ class _BookSheetState extends State<_BookSheet> {
 
   Future<void> _submit() async {
     final fee = _courtFee;
-    final reference = _referenceCtrl.text.trim();
-
-    if (fee != null) {
-      if (reference.isEmpty) {
-        showAppSnack(context, 'Transaction Reference Number is required.',
-            type: SnackType.error);
-        return;
-      }
-      if (_proofFile == null) {
-        showAppSnack(context, 'Please upload your GCash proof of payment.',
-            type: SnackType.error);
-        return;
-      }
-    }
-
     if (widget.facility.isQuantityBased) {
       if (_conditionPhotoFile == null) {
         showAppSnack(context,
@@ -861,12 +851,6 @@ class _BookSheetState extends State<_BookSheet> {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) throw Exception('Not authenticated');
 
-      String? proofUrl;
-      if (fee != null && _proofFile != null) {
-        proofUrl = await uploads.store(
-            const Evidence.reservationFeeProof(), _proofFile!);
-      }
-
       String? conditionPhotoUrl;
       if (widget.facility.isQuantityBased && _conditionPhotoFile != null) {
         conditionPhotoUrl = await uploads.store(
@@ -876,25 +860,19 @@ class _BookSheetState extends State<_BookSheet> {
       await widget.reservations.book(
         _request,
         fee: fee,
-        reference: fee != null ? reference : null,
-        proofUrl: proofUrl,
         conditionPhotoUrl: conditionPhotoUrl,
       );
 
       await logAudit(
         'NEW_RESERVATION',
         'Reserved ${widget.facility.name} for ${widget.selectedDate.toIso8601String().split('T').first}'
-        '${widget.facility.isQuantityBased ? ' — $_quantity unit(s)' : ''}.',
+            '${widget.facility.isQuantityBased ? ' — $_quantity unit(s)' : ''}.',
       );
 
       if (mounted) {
         Navigator.of(context).pop();
         widget.onBooked();
-        showAppSnack(
-            context,
-            fee != null
-                ? 'Reservation submitted! GCash payment of ${peso(fee)} is awaiting verification.'
-                : 'Reservation submitted! Awaiting admin approval.',
+        showAppSnack(context, 'Reservation submitted! Awaiting Admin approval.',
             type: SnackType.success);
       }
     } catch (e) {
@@ -908,9 +886,8 @@ class _BookSheetState extends State<_BookSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final approvedSlots = widget.existingReservations
-        .where((r) => r.status.blocksSlot)
-        .toList();
+    final approvedSlots =
+        widget.existingReservations.where((r) => r.status.blocksSlot).toList();
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
@@ -924,8 +901,7 @@ class _BookSheetState extends State<_BookSheet> {
               left: AppSpacing.xl,
               right: AppSpacing.xl,
               top: AppSpacing.sm,
-              bottom:
-                  MediaQuery.of(context).viewInsets.bottom +
+              bottom: MediaQuery.of(context).viewInsets.bottom +
                   MediaQuery.paddingOf(context).bottom +
                   AppSpacing.xxl),
           child:
@@ -936,8 +912,7 @@ class _BookSheetState extends State<_BookSheet> {
             Text(widget.facility.name, style: AppText.titleLarge),
             const SizedBox(height: AppSpacing.xs),
             Text(widget.facility.description,
-                style:
-                    AppText.bodyMedium.copyWith(color: chateuTextMuted)),
+                style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
 
             const SizedBox(height: AppSpacing.lg),
 
@@ -1028,10 +1003,7 @@ class _BookSheetState extends State<_BookSheet> {
                       ? '$_maxQuantity of ${widget.facility.totalQuantity ?? 0} currently available'
                       : 'None currently available',
                   style: AppText.caption.copyWith(
-                      color: _maxQuantity > 0
-                          ? chateuTextMuted
-                          : chateuError)),
-
+                      color: _maxQuantity > 0 ? chateuTextMuted : chateuError)),
               const SizedBox(height: AppSpacing.lg),
               Text('Item Condition Photo *',
                   style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
@@ -1049,7 +1021,6 @@ class _BookSheetState extends State<_BookSheet> {
                     ? _conditionPhotoFile!.name
                     : 'Upload a photo of the item\'s condition',
               ),
-
               const SizedBox(height: AppSpacing.lg),
               Text("When Will You Return It?",
                   style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
@@ -1089,8 +1060,7 @@ class _BookSheetState extends State<_BookSheet> {
                         context: context,
                         initialDate: _returnDate.isAfter(widget.selectedDate)
                             ? _returnDate
-                            : widget.selectedDate
-                                .add(const Duration(days: 2)),
+                            : widget.selectedDate.add(const Duration(days: 2)),
                         firstDate: widget.selectedDate,
                         lastDate:
                             widget.selectedDate.add(const Duration(days: 30)),
@@ -1125,9 +1095,12 @@ class _BookSheetState extends State<_BookSheet> {
                       time: _startTime,
                       onTap: () async {
                         final t = await showTimePicker(
-                            context: context,
-                            initialTime: _startTime,);
-                        if (t != null && mounted) setState(() => _startTime = t);
+                          context: context,
+                          initialTime: _startTime,
+                        );
+                        if (t != null && mounted) {
+                          setState(() => _startTime = t);
+                        }
                       })),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -1138,8 +1111,9 @@ class _BookSheetState extends State<_BookSheet> {
                       time: _endTime,
                       onTap: () async {
                         final t = await showTimePicker(
-                            context: context,
-                            initialTime: _endTime,);
+                          context: context,
+                          initialTime: _endTime,
+                        );
                         if (t != null && mounted) setState(() => _endTime = t);
                       })),
             ]),
@@ -1156,8 +1130,7 @@ class _BookSheetState extends State<_BookSheet> {
             if (approvedSlots.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.lg),
               Text("Already booked on this day",
-                  style: AppText.labelMedium
-                      .copyWith(color: chateuTextMuted)),
+                  style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
               const SizedBox(height: AppSpacing.sm),
               ...approvedSlots.map((r) => Container(
                     margin: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -1171,8 +1144,8 @@ class _BookSheetState extends State<_BookSheet> {
                           size: 14, color: chateuPrimary),
                       const SizedBox(width: AppSpacing.sm),
                       Text('${time12(r.startTime)} – ${time12(r.endTime)}',
-                          style: AppText.caption
-                              .copyWith(color: chateuTextMuted)),
+                          style:
+                              AppText.caption.copyWith(color: chateuTextMuted)),
                       const Spacer(),
                       Text('Approved — Taken',
                           style: AppText.caption.copyWith(
@@ -1192,101 +1165,37 @@ class _BookSheetState extends State<_BookSheet> {
                     color: chateuPrimary.withAlpha(12),
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                     border: Border.all(color: chateuPrimary.withAlpha(50))),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Icon(Icons.payments_rounded,
-                        color: chateuPrimary, size: 16),
-                    const SizedBox(width: AppSpacing.sm),
-                    Text('Court Fee',
-                        style: AppText.labelMedium.copyWith(color: chateuPrimary)),
-                    const Spacer(),
-                    Text(peso(_courtFee!),
-                        style: AppText.titleMedium.copyWith(color: chateuPrimary)),
-                  ]),
-                  const SizedBox(height: 4),
-                  Text(
-                    '₱150 for the first hour, +₱50 for each additional hour '
-                    '(${(_durationMinutes / 60).ceil()} hr${(_durationMinutes / 60).ceil() > 1 ? 's' : ''} booked)',
-                    style: AppText.caption.copyWith(color: chateuTextMuted),
-                  ),
-                ]),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Icon(Icons.payments_rounded,
+                            color: chateuPrimary, size: 16),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text('Court Fee',
+                            style: AppText.labelMedium
+                                .copyWith(color: chateuPrimary)),
+                        const Spacer(),
+                        Text(peso(_courtFee!),
+                            style: AppText.titleMedium
+                                .copyWith(color: chateuPrimary)),
+                      ]),
+                      const SizedBox(height: 4),
+                      Text(
+                        '₱150 for the first hour, +₱50 for each additional hour '
+                        '(${(_durationMinutes / 60).ceil()} hr${(_durationMinutes / 60).ceil() > 1 ? 's' : ''} booked)',
+                        style: AppText.caption.copyWith(color: chateuTextMuted),
+                      ),
+                    ]),
               ),
               const SizedBox(height: AppSpacing.md),
             ],
 
-            // ── GCash QR payment (facilities with a fee, e.g. the court) ──────
-            if (_courtFee != null) ...[
-              Text('Pay via GCash',
-                  style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
-              const SizedBox(height: AppSpacing.sm),
-
-              Center(
-                child: Container(
-                  width: 200,
-                  height: 200,
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  // Always white: QR scanners need a light quiet zone.
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(color: chateuBorder),
-                  ),
-                  child: widget.qrImageUrl == null || widget.qrImageUrl!.isEmpty
-                      ? _qrPlaceholder()
-                      : Image.network(
-                          widget.qrImageUrl!,
-                          fit: BoxFit.contain,
-                          cacheWidth: 600,
-                          semanticLabel: 'GCash QR code',
-                          errorBuilder: (_, __, ___) => _qrPlaceholder(),
-                        ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Center(
-                child: Text('Scan with your GCash app to pay ${peso(_courtFee!)}',
-                    style:
-                        AppText.caption.copyWith(color: chateuTextMuted)),
-              ),
-
-              const SizedBox(height: AppSpacing.lg),
-
-              Text('Proof of Payment *',
-                  style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
-              const SizedBox(height: AppSpacing.sm),
-              AppUploadTile(
-                onTap: _pickProof,
-                hasFile: _proofFile != null,
-                label: _proofFile != null
-                    ? _proofFile!.name
-                    : 'Upload screenshot of payment confirmation',
-              ),
-
-              const SizedBox(height: AppSpacing.lg),
-
-              TextField(
-                controller: _referenceCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Transaction Reference Number *',
-                  hintText: 'e.g. 1234567890123',
-                  prefixIcon:
-                      Icon(Icons.confirmation_number_rounded, size: 18),
-                ),
-              ),
-
-              const SizedBox(height: AppSpacing.lg),
-
-              AppNoticeBanner(
-                icon: Icons.info_outline_rounded,
-                text:
-                    'Your reservation and GCash payment will be reviewed by the HOA admin. You\'ll be notified once both are verified.',
-              ),
-            ] else
-              AppNoticeBanner(
-                icon: Icons.info_outline_rounded,
-                text: 'Your reservation will be reviewed by the HOA admin before it is approved.',
-              ),
+            const AppNoticeBanner(
+              icon: Icons.info_outline_rounded,
+              text:
+                  'Submit your request for Admin approval. Pending requests may overlap; the Admin chooses which to approve. Pay by GCash after approval.',
+            ),
 
             const SizedBox(height: AppSpacing.xl),
 
@@ -1300,17 +1209,6 @@ class _BookSheetState extends State<_BookSheet> {
       ),
     );
   }
-
-  Widget _qrPlaceholder() => Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.qr_code_2_rounded, size: 88, color: Colors.black26),
-          const SizedBox(height: AppSpacing.sm),
-          const Text('GCash QR not yet added',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Color(0xFF5B6B61))),
-        ],
-      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1353,7 +1251,8 @@ class _ReturnSheetState extends State<_ReturnSheet> {
   }
 
   Future<void> _pickPhoto() async {
-    final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final file =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (file == null || !mounted) return;
     setState(() => _photoFile = file);
   }
@@ -1380,9 +1279,8 @@ class _ReturnSheetState extends State<_ReturnSheet> {
         'returned_at': DateTime.now().toIso8601String(),
         'return_condition': _condition,
         'return_missing_qty': _missingQty,
-        'return_notes': _notesCtrl.text.trim().isEmpty
-            ? null
-            : _notesCtrl.text.trim(),
+        'return_notes':
+            _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         'return_condition_photo_url': photoUrl,
       });
 
@@ -1394,8 +1292,7 @@ class _ReturnSheetState extends State<_ReturnSheet> {
       if (!mounted) return;
       Navigator.of(context).pop();
       widget.onReturned();
-      showAppSnack(context,
-          'Return submitted — awaiting admin verification.',
+      showAppSnack(context, 'Return submitted — awaiting admin verification.',
           type: SnackType.success);
     } catch (e) {
       if (mounted) {
@@ -1432,7 +1329,6 @@ class _ReturnSheetState extends State<_ReturnSheet> {
               const SizedBox(height: AppSpacing.xs),
               Text('${widget.facilityName} • Borrowed qty: $_borrowedQty',
                   style: AppText.bodyMedium.copyWith(color: chateuTextMuted)),
-
               const SizedBox(height: AppSpacing.lg),
               Text('Condition',
                   style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
@@ -1456,7 +1352,6 @@ class _ReturnSheetState extends State<_ReturnSheet> {
                   ),
                 ),
               ]),
-
               const SizedBox(height: AppSpacing.lg),
               Text('Missing Quantity',
                   style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
@@ -1490,7 +1385,6 @@ class _ReturnSheetState extends State<_ReturnSheet> {
                   ),
                 ]),
               ),
-
               const SizedBox(height: AppSpacing.lg),
               Text('Condition Photo *',
                   style: AppText.labelMedium.copyWith(color: chateuTextMuted)),
@@ -1507,7 +1401,6 @@ class _ReturnSheetState extends State<_ReturnSheet> {
                     ? _photoFile!.name
                     : 'Upload a photo of the item\'s condition',
               ),
-
               const SizedBox(height: AppSpacing.lg),
               TextField(
                 controller: _notesCtrl,
@@ -1520,14 +1413,12 @@ class _ReturnSheetState extends State<_ReturnSheet> {
                   alignLabelWithHint: true,
                 ),
               ),
-
               const SizedBox(height: AppSpacing.lg),
               AppNoticeBanner(
                 icon: Icons.info_outline_rounded,
                 text:
                     'An HOA admin will verify this return before it\'s marked complete.',
               ),
-
               const SizedBox(height: AppSpacing.xl),
               AppPrimaryButton(
                 label: 'Submit Return',
@@ -1594,7 +1485,6 @@ class _TimePicker extends StatelessWidget {
   const _TimePicker(
       {required this.label, required this.time, required this.onTap});
 
-
   @override
   Widget build(BuildContext context) => InkWell(
         onTap: onTap,
@@ -1606,5 +1496,160 @@ class _TimePicker extends StatelessWidget {
           ),
           child: Text(time12(time), style: AppText.titleMedium),
         ),
+      );
+}
+
+class _ReservationPaymentSheet extends StatefulWidget {
+  const _ReservationPaymentSheet(
+      {required this.reservation,
+      required this.reservations,
+      required this.onSubmitted,
+      this.qrImageUrl});
+  final Reservation reservation;
+  final Reservations reservations;
+  final VoidCallback onSubmitted;
+  final String? qrImageUrl;
+
+  @override
+  State<_ReservationPaymentSheet> createState() =>
+      _ReservationPaymentSheetState();
+}
+
+class _ReservationPaymentSheetState extends State<_ReservationPaymentSheet> {
+  final _referenceCtrl = TextEditingController();
+  XFile? _proofFile;
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _referenceCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickProof() async {
+    final file = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (file != null && mounted) setState(() => _proofFile = file);
+  }
+
+  Future<void> _submit() async {
+    if (_proofFile == null || _referenceCtrl.text.trim().isEmpty) {
+      showAppSnack(context, 'Add your GCash proof and reference number.',
+          type: SnackType.error);
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    try {
+      final proof = await uploads.store(
+          const Evidence.reservationFeeProof(), _proofFile!);
+      await widget.reservations.submitPayment(widget.reservation,
+          reference: _referenceCtrl.text, proofUrl: proof);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      widget.onSubmitted();
+      showAppSnack(context, 'Payment submitted for Admin verification.',
+          type: SnackType.success);
+    } catch (e) {
+      if (mounted) {
+        showAppSnack(context, 'Payment could not be submitted: $e',
+            type: SnackType.error);
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.xl,
+              AppSpacing.xl,
+              AppSpacing.xl + MediaQuery.viewInsetsOf(context).bottom),
+          child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Reservation payment', style: AppText.titleLarge),
+                const SizedBox(height: AppSpacing.md),
+                Text('Approved — ${peso(widget.reservation.fee!)}',
+                    style: AppText.titleMedium),
+                const SizedBox(height: AppSpacing.md),
+                Text('Pay via GCash',
+                    style:
+                        AppText.labelMedium.copyWith(color: chateuTextMuted)),
+                const SizedBox(height: AppSpacing.sm),
+                Center(
+                  child: Container(
+                    width: 200,
+                    height: 200,
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    // Always white: QR scanners need a light quiet zone.
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: chateuBorder),
+                    ),
+                    child:
+                        widget.qrImageUrl == null || widget.qrImageUrl!.isEmpty
+                            ? _qrPlaceholder()
+                            : Image.network(
+                                widget.qrImageUrl!,
+                                fit: BoxFit.contain,
+                                cacheWidth: 600,
+                                semanticLabel: 'GCash QR code',
+                                errorBuilder: (_, __, ___) => _qrPlaceholder(),
+                              ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Center(
+                  child: Text(
+                      'Scan with your GCash app to pay ${peso(widget.reservation.fee!)}',
+                      style: AppText.caption.copyWith(color: chateuTextMuted)),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Text('Proof of Payment *',
+                    style:
+                        AppText.labelMedium.copyWith(color: chateuTextMuted)),
+                const SizedBox(height: AppSpacing.sm),
+                AppUploadTile(
+                  onTap: _pickProof,
+                  hasFile: _proofFile != null,
+                  label: _proofFile != null
+                      ? _proofFile!.name
+                      : 'Upload screenshot of payment confirmation',
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                TextField(
+                  controller: _referenceCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Transaction Reference Number *',
+                    hintText: 'e.g. 1234567890123',
+                    prefixIcon:
+                        Icon(Icons.confirmation_number_rounded, size: 18),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                const SizedBox(height: AppSpacing.lg),
+                AppPrimaryButton(
+                    label: 'Submit GCash payment',
+                    isLoading: _isSubmitting,
+                    onPressed: _isSubmitting ? null : _submit),
+              ]),
+        ),
+      );
+
+  Widget _qrPlaceholder() => Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.qr_code_2_rounded, size: 88, color: Colors.black26),
+          const SizedBox(height: AppSpacing.sm),
+          const Text('GCash QR not yet added',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Color(0xFF5B6B61))),
+        ],
       );
 }

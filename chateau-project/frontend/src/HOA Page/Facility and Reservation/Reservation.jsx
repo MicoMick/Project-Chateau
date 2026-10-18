@@ -106,7 +106,9 @@ const StatusPill = ({ status }) => {
 // ─── Payment status config (fee / proof-of-payment workflow) ─────────────────
 const PAYMENT_STATUS = {
   paid:     { label: 'Paid',     pill: 'bg-emerald-50 text-[#006837] border-emerald-200' },
-  pending:  { label: 'Pending',  pill: 'bg-amber-50 text-amber-700 border-amber-200'      },
+  unpaid: { label: 'Unpaid', pill: 'bg-slate-100 text-slate-500 border-slate-200' },
+  pending_verification: { label: 'Pending verification', pill: 'bg-amber-50 text-amber-700 border-amber-200' },
+  pending:  { label: 'Pending verification',  pill: 'bg-amber-50 text-amber-700 border-amber-200'      },
   rejected: { label: 'Rejected', pill: 'bg-red-50 text-red-600 border-red-200'            },
 };
 const getPaymentStatus = (s) => PAYMENT_STATUS[(s || '').toLowerCase()] || null;
@@ -236,7 +238,7 @@ const ReservationsTable = ({
                   <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <StatusPill status={res.status} />
-                      {res.proof_url && (res.payment_status || '').toLowerCase() === 'pending' && (
+                      {res.proof_url && ['pending', 'pending_verification'].includes((res.payment_status || '').toLowerCase()) && (
                         <span title="Proof of payment awaiting review"
                           className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200 uppercase tracking-wide">
                           <DollarSign size={9} /> Review
@@ -283,7 +285,7 @@ const ReservationsTable = ({
                       {/* Confirm Cash Payment — facility rentals only; items are borrowed, not rented, so no rental payment to confirm */}
                       {!isItem && (
                         <RequireRole userRole={currentUserRole} allowedRoles={['treasurer','president','board_member']}>
-                          {res.status === 'Approved' && (
+                          {res.status === 'Approved' && !res.proof_url && (
                             <button onClick={() => updateStatus(res.id, 'Approved and Paid')} title="Confirm Cash Payment"
                               className="p-2 hover:bg-teal-50 text-slate-400 hover:text-teal-600 rounded-lg transition-all cursor-pointer">
                               <DollarSign size={15} />
@@ -355,7 +357,18 @@ const Reservation = () => {
         return false;
       }
 
-      const { error } = await supabase.from('reservations').update({ status: newStatus }).eq('id', id);
+      if (!isItemReservation && newStatus === 'Approved') {
+        const { data: conflicts, error: conflictError } = await supabase.from('reservations')
+          .select('id').eq('facility_id', res.facility_id).eq('date', res.date)
+          .in('status', ['Approved', 'Approved and Paid'])
+          .lt('start_time', res.end_time).gt('end_time', res.start_time).neq('id', id);
+        if (conflictError) throw conflictError;
+        if (conflicts.length) throw new Error('This slot already has an approved reservation. Reject or cancel it before choosing another request.');
+      }
+      const updates = newStatus === 'Approved and Paid'
+        ? { status: newStatus, payment_status: 'Paid', paid_at: new Date().toISOString() }
+        : { status: newStatus };
+      const { error } = await supabase.from('reservations').update(updates).eq('id', id);
       if (error) throw error;
 
       // ── Stock management for Amenity Items ──────────────────────────────
@@ -384,7 +397,7 @@ const Reservation = () => {
       // ──────────────────────────────────────────────────────────────────────
 
       await fetchAll();
-      if (selectedRes?.id === id) setSelectedRes(prev => ({ ...prev, status: newStatus }));
+      if (selectedRes?.id === id) setSelectedRes(prev => ({ ...prev, ...updates }));
       logAudit('RESERVATION_STATUS_UPDATE',
         `${res?.profiles?.full_name || 'Resident'} — ${res?.facilities?.name || 'reservation'} → ${newStatus}.`);
       return true;
@@ -400,6 +413,7 @@ const Reservation = () => {
     setPayingId(id);
     try {
       const res = reservations.find(r => r.id === id);
+      if (res?.status !== 'Approved') throw new Error('Approve the reservation before reviewing payment.');
       const updates = decision === 'Paid'
         ? { payment_status: 'Paid', paid_at: new Date().toISOString(), status: 'Approved and Paid' }
         : { payment_status: 'Rejected' };
@@ -710,7 +724,7 @@ const Reservation = () => {
 
                   {/* Accept / reject the submitted proof — treasurer/president only, while pending */}
                   <RequireRole userRole={currentUserRole} allowedRoles={['treasurer','president','board_member']}>
-                    {selectedRes.proof_url && (selectedRes.payment_status || '').toLowerCase() === 'pending' && (
+                    {selectedRes.status === 'Approved' && selectedRes.proof_url && ['pending', 'pending_verification'].includes((selectedRes.payment_status || '').toLowerCase()) && (
                       <div className="flex gap-2.5 mt-3">
                         <button
                           onClick={() => handlePaymentDecision(selectedRes.id, 'Paid')}
@@ -730,6 +744,20 @@ const Reservation = () => {
                 </div>
               )}
             </div>
+
+            {selectedRes.status === 'Pending' && selectedRes.facilities?.category !== 'Amenity Item' && (
+              <div className="px-6 pb-4 text-sm text-slate-600">
+                <p>Review overlapping requests before approving. Only the approved request can proceed to payment.</p>
+                {reservations.filter(r => r.id !== selectedRes.id && r.facility_id === selectedRes.facility_id &&
+                  r.date === selectedRes.date && ['Pending', 'Approved', 'Approved and Paid'].includes(r.status) &&
+                  r.start_time < selectedRes.end_time && r.end_time > selectedRes.start_time).map(r => (
+                  <button key={r.id} onClick={() => setSelectedRes(r)}
+                    className="block w-full text-left border border-slate-200 rounded-lg p-3 mt-2 cursor-pointer hover:bg-slate-50">
+                    {r.profiles?.full_name || 'Resident'} — {fmt12(r.start_time)} – {fmt12(r.end_time)} ({r.status})
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Action buttons */}
             <div className="px-6 pb-6 pt-4 flex flex-col gap-2.5">
@@ -759,7 +787,7 @@ const Reservation = () => {
               {/* Confirm Cash Payment — facility rentals only; items are borrowed, not rented */}
               {selectedRes.facilities?.category !== 'Amenity Item' && (
                 <RequireRole userRole={currentUserRole} allowedRoles={['treasurer','president','board_member']}>
-                  {selectedRes.status === 'Approved' && (
+                  {selectedRes.status === 'Approved' && !selectedRes.proof_url && (
                     <button onClick={() => updateStatus(selectedRes.id, 'Approved and Paid')}
                       className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-teal-600/20 transition-all">
                       <DollarSign size={15} /> Confirm Cash Payment Received

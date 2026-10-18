@@ -68,7 +68,7 @@ A Resident's request to use a Facility for a time slot or to borrow Amenity item
 _Avoid_: Booking
 
 **Reservation status**:
-One of Pending, Approved, Approved and paid, Rejected, Cancelled, Return pending or Completed. Pending and Approved Reservations of a Facility block its time slot.
+One of Pending, Approved, Approved and paid, Rejected, Cancelled, Return pending or Completed. Pending Reservations may overlap so an Admin can choose which to approve. Approved and Approved and paid Reservations of a Facility block its time slot; payment follows approval.
 
 **Facility**:
 A place reserved by time slot, such as the covered court (₱150 for the first hour, then ₱50 for each extra hour).

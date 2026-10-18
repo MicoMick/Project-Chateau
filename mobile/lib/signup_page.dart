@@ -569,59 +569,63 @@ class _SignupPageState extends State<SignupPage> {
     return Semantics(
       label: 'Step ${_currentStep + 1} of 4: ${_stepLabels[_currentStep]}',
       child: ExcludeSemantics(
-        child: Wrap(
-          alignment: WrapAlignment.center,
-          children: List.generate(4, (i) {
-            final isDone = i < _currentStep;
-            final isActive = i == _currentStep;
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Column(
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isDone
-                            ? const Color(0xFF006837)
-                            : isActive
-                                ? chateuAccent
-                                : Colors.white.withAlpha(40),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(4, (i) {
+              final isDone = i < _currentStep;
+              final isActive = i == _currentStep;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDone
+                              ? const Color(0xFF006837)
+                              : isActive
+                                  ? chateuAccent
+                                  : Colors.white.withAlpha(40),
+                        ),
+                        child: Center(
+                          child: isDone
+                              ? const Icon(Icons.check_rounded,
+                                  color: Colors.white, size: 16)
+                              : Text('${i + 1}',
+                                  style: TextStyle(
+                                      color: isActive
+                                          ? const Color(0xFF1A1A1A)
+                                          : Colors.white70,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14)),
+                        ),
                       ),
-                      child: Center(
-                        child: isDone
-                            ? const Icon(Icons.check_rounded,
-                                color: Colors.white, size: 16)
-                            : Text('${i + 1}',
-                                style: TextStyle(
-                                    color: isActive
-                                        ? const Color(0xFF1A1A1A)
-                                        : Colors.white70,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14)),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(_stepLabels[i],
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: isActive ? chateuAccent : Colors.white70,
-                            fontWeight:
-                                isActive ? FontWeight.w700 : FontWeight.w400)),
-                  ],
-                ),
-                if (i < 3)
-                  Container(
-                    width: 20,
-                    height: 1,
-                    margin: const EdgeInsets.fromLTRB(4, 14, 4, 0),
-                    color: Colors.white.withAlpha(i < _currentStep ? 160 : 60),
+                      const SizedBox(height: 4),
+                      Text(_stepLabels[i],
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: isActive ? chateuAccent : Colors.white70,
+                              fontWeight:
+                                  isActive ? FontWeight.w700 : FontWeight.w400)),
+                    ],
                   ),
-              ],
-            );
-          }),
+                  if (i < 3)
+                    Container(
+                      width: 20,
+                      height: 1,
+                      margin: const EdgeInsets.fromLTRB(4, 14, 4, 0),
+                      color: Colors.white.withAlpha(i < _currentStep ? 160 : 60),
+                    ),
+                ],
+              );
+            }),
+          ),
         ),
       ),
     );

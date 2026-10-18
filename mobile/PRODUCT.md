@@ -21,7 +21,7 @@ The residents' companion to the HOA's web admin system: one place to see what th
 ## Operating Context
 
 - **Payments:** GCash via the HOA's QR code; the resident uploads a screenshot and the transaction reference number, then an admin verifies it ("Pending" until then). Advance payments of up to 12 months. Downloadable Statement of Account PDF that mirrors the web app's.
-- **Reservations:** facilities by time slot (the covered court: ₱150 first hour, +₱50 per extra hour, paid by GCash) and quantity-based amenity items (chairs, tents) with condition photos at pick-up and return; admins approve and verify returns.
+- **Reservations:** facilities by time slot (the covered court: ₱150 first hour, +₱50 per extra hour, paid by GCash after Admin approval) and quantity-based amenity items (chairs, tents) with condition photos at pick-up and return; admins approve and verify returns.
 - **Registration:** homeowners self-register in four steps (account, personal, lot, move-in clearance documents) and stay pending until admin approval plus a mandatory orientation with the HOA Treasurer or President. One homeowner per lot.
 - **Community:** announcements (with emergency pinning) and an HOA calendar, maintenance/incident reports with photo or video, HOA elections, a map of every lot and landmark with Mapbox directions, push notifications (Android only).
 - Backend is Supabase, shared with the web app; row-level security scopes the data.

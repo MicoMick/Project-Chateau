@@ -27,8 +27,7 @@ enum ReservationStatus {
 
   /// A Facility time slot held by a Reservation in this status can't be
   /// booked again, so two Residents never both pay for the same hour.
-  bool get blocksSlot =>
-      this == pending || this == approved || this == approvedAndPaid;
+  bool get blocksSlot => this == approved || this == approvedAndPaid;
 }
 
 /// Where Facilities and Reservations are read from and written to.
@@ -105,6 +104,8 @@ class Reservation {
         endTime = _time(r['end_time']),
         status = ReservationStatus.parse(r['status'] as String?),
         quantity = r['quantity'] as int?,
+        fee = (r['fee'] as num?)?.toDouble(),
+        paymentStatus = (r['payment_status'] as String? ?? '').toLowerCase(),
         returnedAt = _date(r['returned_at']),
         returnDate = _date(r['return_date']);
 
@@ -113,6 +114,13 @@ class Reservation {
   final TimeOfDay startTime, endTime;
   final ReservationStatus status;
   final int? quantity;
+  final double? fee;
+  final String paymentStatus;
+
+  bool get canPay =>
+      status == ReservationStatus.approved &&
+      (fee ?? 0) > 0 &&
+      !['pending', 'pending_verification', 'paid'].contains(paymentStatus);
   final DateTime? returnedAt;
 
   /// When a borrowed Amenity is due back; null means the same day.
@@ -220,14 +228,9 @@ class Reservations {
     };
   }
 
-  /// Stores [request] as a Pending Reservation. A court booking carries its
-  /// [fee] with the GCash [reference] and [proofUrl]; an Amenity carries
-  /// its quantity, return date and [conditionPhotoUrl].
+  /// Requests Admin approval before any payment is submitted.
   Future<void> book(BookingRequest request,
-      {double? fee,
-      String? reference,
-      String? proofUrl,
-      String? conditionPhotoUrl}) {
+      {double? fee, String? conditionPhotoUrl}) {
     final userId = _currentUserId();
     if (userId == null) throw StateError('Not signed in');
     final amenity = request.facility.isQuantityBased;
@@ -239,13 +242,28 @@ class Reservations {
       'end_time': dbTime(request.end),
       'status': ReservationStatus.pending.stored,
       if (fee != null) 'fee': fee,
-      if (fee != null) 'payment_status': 'pending_verification',
-      if (fee != null) 'reference_no': reference,
-      if (proofUrl != null) 'proof_url': proofUrl,
+      if (fee != null) 'payment_status': 'Unpaid',
       if (amenity) 'quantity': request.quantity,
       if (amenity) 'return_date': dateKey(request.returnDate),
       if (conditionPhotoUrl != null)
         'borrow_condition_photo_url': conditionPhotoUrl,
+    });
+  }
+
+  Future<void> submitPayment(Reservation r,
+      {String? reference, String? proofUrl}) {
+    if (_currentUserId() != r.userId) throw StateError('Not your reservation');
+    if (!r.canPay) {
+      throw StateError('Payment requires an approved, unpaid reservation');
+    }
+    if ((reference?.trim().isEmpty ?? true) || (proofUrl?.isEmpty ?? true)) {
+      throw ArgumentError(
+          'GCash requires a reference number and proof of payment');
+    }
+    return _source.update(r.id, {
+      'payment_status': 'Pending',
+      'reference_no': reference!.trim(),
+      'proof_url': proofUrl,
     });
   }
 
@@ -280,7 +298,11 @@ class Reservations {
           problem: 'Start time has already passed for today.', fee: fee);
     }
     for (final r in existing) {
-      if (!r.status.blocksSlot) continue;
+      if (r.facilityId != request.facility.id ||
+          !_sameDay(r.date, request.date) ||
+          !r.status.blocksSlot) {
+        continue;
+      }
       if (s < _minutes(r.endTime) && e > _minutes(r.startTime)) {
         return BookingCheck(
             problem: 'This slot overlaps an existing booking.', fee: fee);
