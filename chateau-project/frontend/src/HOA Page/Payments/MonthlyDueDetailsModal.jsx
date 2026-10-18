@@ -37,9 +37,13 @@ import { monthsCoveredBy, formatMonthCoverage } from './paymentUtils';
  *      months a given payment's amount covers (advance payments).
  *  - onEditMonth(payment): open Edit Transaction for this one month.
  *  - onVoidMonth(payment): open the Void confirmation for this one month.
- *  - onRequestSettlement(payment): open the historical-settlement request
- *      form for this one month (only ever offered for 'pending' — i.e.
- *      back-filled pre-app — months).
+ *  - onRequestSettlement(payment): open the manual-settlement request form
+ *      for this one month — offered for any not-yet-paid status (unpaid,
+ *      overdue, or 'pending' back-filled pre-app dues): covers a resident
+ *      who already paid the Treasurer directly outside the app, whether
+ *      that's a historical pre-app due or a current/future month paid in
+ *      advance by cash or GCash. Not offered for 'pending_verification' —
+ *      that already has real in-app proof to review via Review Proof.
  *  - onReviewProof(pendingPayment): open Review Proof for the month currently
  *      awaiting the resident's submitted proof, if any.
  */
@@ -172,10 +176,10 @@ const MonthlyDueDetailsModal = ({
                     className="text-red-500 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-all cursor-pointer" title="Void this month only">
                     <Trash2 size={13} />
                   </button>
-                  {st === 'pending' && (
+                  {['pending', 'unpaid', 'overdue'].includes(st) && (
                     <button onClick={() => onRequestSettlement(p)}
                       className="text-amber-600 bg-amber-50 hover:bg-amber-100 p-1.5 rounded-lg transition-all cursor-pointer"
-                      title="Already paid in real life, before the app — request historical settlement">
+                      title="Resident already paid you directly — cash, GCash, in advance, or before the app — request settlement">
                       <History size={13} />
                     </button>
                   )}

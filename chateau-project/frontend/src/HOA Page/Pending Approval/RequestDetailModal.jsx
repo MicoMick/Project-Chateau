@@ -14,7 +14,14 @@ const FIELD_LABELS = {
   paid_at:              'Paid At',
   payer_reference_no:  'Payer Reference No.',
   due_date:             'Due Date',
+  absorb_ids:           'Combines With',
 };
+
+// line_items is the per-category billing breakdown (or the mobile app's
+// advance-payment tag) — internal bookkeeping, not something a President
+// reviewing this request needs to see; `details` already has the
+// human-readable summary of what's being settled and why.
+const SKIPPED_FIELDS = new Set(['details', 'line_items']);
 
 const formatFieldValue = (key, value) => {
   if (value == null || value === '') return '—';
@@ -22,6 +29,13 @@ const formatFieldValue = (key, value) => {
   if (key === 'paid_at' || key === 'due_date') {
     const d = new Date(value);
     return isNaN(d) ? String(value) : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  }
+  // absorb_ids: raw UUIDs of the other rows this settlement folds in — not
+  // meaningful to a reviewer, so show the count instead.
+  if (key === 'absorb_ids') {
+    return Array.isArray(value) && value.length
+      ? `${value.length} other month row${value.length !== 1 ? 's' : ''} (deleted once approved)`
+      : '—';
   }
   return String(value);
 };
@@ -55,8 +69,9 @@ const RequestDetailModal = ({ request, onClose, onApprove, onReject }) => {
   // return nothing whenever the reviewer isn't the requester themself.
   const isPending = request.status === 'PENDING';
   const data = request.requested_data || {};
-  const knownEntries  = Object.entries(data).filter(([k]) => k !== 'details' && FIELD_LABELS[k] !== undefined);
-  const otherEntries  = Object.entries(data).filter(([k]) => k !== 'details' && FIELD_LABELS[k] === undefined);
+  const isEmptyValue = (k, v) => k === 'absorb_ids' && (!Array.isArray(v) || v.length === 0);
+  const knownEntries  = Object.entries(data).filter(([k, v]) => !SKIPPED_FIELDS.has(k) && FIELD_LABELS[k] !== undefined && !isEmptyValue(k, v));
+  const otherEntries  = Object.entries(data).filter(([k, v]) => !SKIPPED_FIELDS.has(k) && FIELD_LABELS[k] === undefined && !isEmptyValue(k, v));
 
   return createPortal(
     <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>

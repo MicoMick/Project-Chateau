@@ -195,16 +195,27 @@ const PendingApproval = () => {
       } else if (request.action_type === 'UPDATE' && request.requested_data) {
         // Generic UPDATE — applies to profiles (profile edits) and payments
         // (e.g. a Treasurer's "historical settlement" request, marking a
-        // pre-app due paid once the President confirms it). `details` is a
-        // display-only field for this review table (see the Details column
-        // below) — it isn't a real column on either table, so it must never
-        // be sent in the actual update or Postgrest rejects the whole request.
-        const { details, ...updateFields } = request.requested_data;
+        // pre-app due paid once the President confirms it). `details` and
+        // `absorb_ids` are both display/control fields for this review flow,
+        // not real columns on either table, so neither must ever be sent in
+        // the actual update or Postgrest rejects the whole request.
+        const { details, absorb_ids: absorbIds, ...updateFields } = request.requested_data;
         const { error: upErr } = await supabase
           .from(request.target_table)
           .update(updateFields)
           .eq('id', request.target_id);
         if (upErr) throw upErr;
+
+        // A multi-month manual settlement (see Payment.jsx's requestHistoricalSettlement)
+        // folds several of a resident's older unpaid rows into the one row
+        // just updated above — those older rows are now redundant (their
+        // amount/coverage is already counted in the updated row's summed
+        // amount) and must be removed, or the resident would still show
+        // them as separately unpaid on top of the newly-settled total.
+        if (request.target_table === 'payments' && Array.isArray(absorbIds) && absorbIds.length) {
+          const { error: absorbErr } = await supabase.from('payments').delete().in('id', absorbIds);
+          if (absorbErr) throw absorbErr;
+        }
 
         // Marking a payment 'paid' here (historical settlement) bypasses the
         // normal Edit Transaction flow, which also auto-reactivates a
