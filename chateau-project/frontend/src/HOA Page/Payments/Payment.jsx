@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Search, CreditCard, AlertCircle, CheckCircle2, DollarSign,
+  Search, CreditCard, Receipt, AlertCircle, CheckCircle2, DollarSign,
   Edit2, X, Loader2,
   LayoutList, TableProperties, Printer, Mail,
   Eye, FileText, XCircle, QrCode, Upload, RefreshCw, ZoomIn, ZoomOut, History,
@@ -50,6 +50,22 @@ const generateRefNo = (month, year, userId) => {
   const mm = String(month + 1).padStart(2, '0');
   const uid = (userId || 'XXXXXX').slice(0, 6).toUpperCase();
   return `SOA-${year}${mm}-${uid}`;
+};
+
+// Last day of the month N months after `dateStr`'s month — used to push a
+// settlement's due_date forward when it's covering months beyond whatever
+// already exists as a real row (e.g. resident pays October through next
+// January, but only October has actually been billed yet). N can cross a
+// year boundary (Date's month overflow normalizes that automatically) and
+// doesn't assume every month is 30/31 days — Date(year, month+1, 0) always
+// lands on the last real day of `month`, whatever that is.
+const addMonthsAsLastDay = (dateStr, n) => {
+  const d = new Date(dateStr);
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + n + 1, 0);
+  const yyyy = lastDay.getFullYear();
+  const mm = String(lastDay.getMonth() + 1).padStart(2, '0');
+  const dd = String(lastDay.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 };
 
 // stripLabel, normalizeName, buildNameCounts, buildFullAddress moved to
@@ -188,6 +204,13 @@ const Payment = () => {
   // in Pending Approval — same two-step pattern already used for Void.
   const [historicalSettlementPayment, setHistoricalSettlementPayment] = useState(null);
   const [historicalNote,              setHistoricalNote]              = useState('');
+  // How many of this resident's oldest not-yet-paid months to combine into
+  // one settlement — 1 behaves exactly as before (settles just the clicked
+  // month); >1 is the "resident paid several months in advance, outside the
+  // app" case, consolidating them into a single paid row the same way the
+  // mobile app's own advance-pay flow does (one row, summed amount, tagged
+  // as covering N months) instead of requiring N separate requests.
+  const [settleMonths,                setSettleMonths]                = useState(1);
 
   const [transaction,          setTransaction]          = useState({ status: null, message: '' });
   const [editFormData,         setEditFormData]         = useState({ amount: '', status: '', due_date: '', reference_no: '', paid_at: '', payer_reference_no: '' });
@@ -399,81 +422,6 @@ const Payment = () => {
     return () => clearInterval(interval);
   }, [isApproveConfirmOpen]);
 
-  // ── Extracted: generate dues for current month ──────────────────────────────
-  // Called automatically on the 1st, OR manually via the demo test button.
-  // force=true skips the "already generated this month" check.
-  //
-  // statement_date = the day the bill is issued (today, when this runs)
-  // due_date       = the deadline to pay — last day of the SAME month
-  // This keeps "when was I billed" clearly separate from "when must I pay".
-  const runGenerateDues = async (force = false) => {
-    const today          = new Date();
-    today.setHours(0, 0, 0, 0);
-    const month          = today.getMonth();
-    const year           = today.getFullYear();
-    const statementDate  = localToday();                                   // today — when the bill is issued
-    const monthEnd        = new Date(year, month + 1, 0).toISOString().split('T')[0]; // due date — end of month
-    const monthStart      = new Date(year, month,     1).toISOString().split('T')[0];
-
-    const { data: residentsRaw } = await supabase
-      .from('profiles').select('id, full_name, resident_type')
-      .eq('account_status', 'active').order('full_name');
-    // Tenants aren't billed for HOA dues — only owners/residents are (see fetchResidentsList above).
-    const residents = (residentsRaw || []).filter(r => (r.resident_type || '').toLowerCase() !== 'tenant');
-    if (!residents?.length) return { skipped: true, reason: 'No active residents found.' };
-
-    // Per-resident idempotency — a resident who already has a payment row for
-    // this month (e.g. paid in advance, or back-filled as 'pending' on
-    // approval) must be skipped individually, not used to bail out of billing
-    // everyone else. This used to check "does ANY row exist this month" and
-    // skip the WHOLE batch if so, which silently left every other resident
-    // unbilled for the month whenever even one resident already had a row.
-    let residentsNeeding = residents;
-    if (!force) {
-      // Lower bound only — a row's due_date is the LAST month an advance
-      // payment covers (see monthsCoveredBy/formatMonthCoverage further down
-      // this component), so a resident who prepaid Aug+Sep in July has ONE
-      // row with due_date = Sep 30. Adding an upper bound of monthEnd would
-      // put that row outside August's window and wrongly bill them again for
-      // a month they already paid for.
-      const { data: existingFromThisMonthOn } = await supabase
-        .from('payments').select('user_id, amount, due_date')
-        .gte('due_date', monthStart);
-      const currentIdx = year * 12 + month;
-      const alreadyBilled = new Set();
-      (existingFromThisMonthOn || []).forEach(p => {
-        if (!p.due_date) return;
-        const d = new Date(p.due_date);
-        const dueIdx = d.getFullYear() * 12 + d.getMonth();
-        const covered = monthsCoveredBy(p.amount, monthlyDue);
-        const startIdx = dueIdx - (covered - 1);
-        if (startIdx <= currentIdx && currentIdx <= dueIdx) alreadyBilled.add(p.user_id);
-      });
-      residentsNeeding = residents.filter(r => !alreadyBilled.has(r.id));
-      if (!residentsNeeding.length) return { skipped: true, reason: 'Already generated for this month.' };
-    }
-
-    const lineItems = buildLineItemBreakdown(monthlyDue);
-
-    const rows = residentsNeeding.map(r => ({
-      user_id:        r.id,
-      amount:         monthlyDue,
-      statement_date: statementDate,
-      due_date:       monthEnd,
-      status:         'unpaid',
-      reference_no:   generateRefNo(month, year, r.id),
-      line_items:     lineItems,
-    }));
-
-    const { error } = await supabase.from('payments').insert(rows);
-    if (error) return { success: false, error: error.message };
-
-    await logAudit('AUTO_MONTHLY_DUE',
-      `Generated ₱${monthlyDue} monthly dues for ${rows.length} residents — ${MONTHS[month]} ${year}. Statement: ${statementDate}, Due: ${monthEnd}.`);
-    fetchPayments();
-    return { success: true, count: rows.length, month: MONTHS[month], year };
-  };
-
   // ── Back-fill past dues for a resident with NO payment records at all ────────
   // Mirrors AccountApproval.jsx's backfillPastDues, but callable on-demand
   // from this page. A brand-new resident normally gets Jan→current-month dues
@@ -574,11 +522,10 @@ const Payment = () => {
   };
 
   // NOTE: Monthly dues generation + delinquency checks used to auto-run here
-  // on every Payments page load. That's now handled server-side by the
-  // `generate-monthly-dues` Edge Function, scheduled via Supabase Cron to run
-  // every midnight (PHT) — independent of whether anyone opens this page.
-  // runGenerateDues() and runDelinquencyCheck() below are kept for the manual
-  // "force generate" test button and other UI actions that still call them directly.
+  // on every Payments page load. That's now handled entirely server-side by
+  // the `generate-monthly-dues` Edge Function, scheduled via Supabase Cron to
+  // run every midnight (PHT) — independent of whether anyone opens this page,
+  // and not duplicated client-side here anymore.
 
   const fetchResidentsList = async () => {
     try {
@@ -747,17 +694,61 @@ const Payment = () => {
     }
   };
 
-  // ── Historical settlement request ─────────────────────────────────────────
-  // For a 'pending' due (back-filled — see backfillPastDuesForResident above)
-  // that the resident actually already paid in real life before the app
-  // existed. There's no in-app proof to submit for a month that already
-  // happened, so this can't go through the normal proof-of-payment flow — but
-  // a Treasurer also can't just flip it to 'paid' directly (that's exactly the
-  // one-click abuse risk the Edit Transaction form already refuses to allow).
-  // Instead this sends a request to approval_requests; it only takes effect
-  // once the President reviews the note and approves it in Pending Approval.
+  // ── Manual settlement request ─────────────────────────────────────────────
+  // For any not-yet-paid due (unpaid, overdue, or a 'pending' back-filled
+  // pre-app due — see backfillPastDuesForResident above) that the resident
+  // already paid the Treasurer directly, outside the app's normal
+  // proof-of-payment flow: a historical pre-app payment with nothing to
+  // submit proof for, OR a current/future month paid in advance by cash or
+  // GCash straight to the Treasurer. Either way there's no in-app proof to
+  // review — but a Treasurer also can't just flip it to 'paid' directly
+  // (that's exactly the one-click abuse risk the Edit Transaction form
+  // already refuses to allow). Instead this sends a request to
+  // approval_requests; it only takes effect once the President reviews the
+  // note and approves it in Pending Approval.
+  // The resident's full not-yet-paid row set, oldest due_date first — the
+  // pool `settleMonths` picks from. Always anchored on this resident's
+  // oldest unsettled months regardless of which row's button was clicked,
+  // since settling out of order (skipping an older unpaid month to settle a
+  // newer one) isn't a real scenario here.
+  const settlementEligibleRows = useMemo(() => {
+    if (!historicalSettlementPayment) return [];
+    return payments
+      .filter(x => x.user_id === historicalSettlementPayment.user_id
+        && ['unpaid', 'overdue', 'pending'].includes((x.status || '').toLowerCase()))
+      .sort((a, b) => new Date(a.due_date || 0) - new Date(b.due_date || 0));
+  }, [historicalSettlementPayment, payments]);
+
+  // Not capped at how many months are already billed — a resident can pay
+  // further ahead than what's actually been generated yet (e.g. only
+  // October exists as a real row, but they paid October through next
+  // January). 24 is just a sanity ceiling, not a real constraint.
+  const MAX_SETTLE_MONTHS = 24;
+  const clampedSettleMonths = Math.min(Math.max(1, settleMonths), MAX_SETTLE_MONTHS);
+  // The trigger row's button only ever renders on an existing unpaid/
+  // overdue/pending row, so settlementEligibleRows always has at least that
+  // one entry — settlementBaseRow is never null in practice.
+  const settlementSelectedRows = settlementEligibleRows.slice(0, clampedSettleMonths);
+  const settlementBaseRow      = settlementSelectedRows[settlementSelectedRows.length - 1] || null;
+  const settlementAbsorbedRows = settlementSelectedRows.slice(0, -1);
+  // Months beyond whatever already exists as a real row — covered by
+  // pushing settlementBaseRow's own due_date forward rather than requiring
+  // those future months' rows to exist first. generate-monthly-dues already
+  // treats ANY existing row's [due_date - (months-1), due_date] span as
+  // "already billed" for a resident regardless of status (see its
+  // alreadyBilled check) — once this settlement is approved and the row's
+  // due_date/amount reflect the extended coverage, the generator will
+  // correctly skip those future months on its own, same as it already does
+  // for a resident's own in-app advance payment.
+  const settlementExtraMonths = Math.max(0, clampedSettleMonths - settlementEligibleRows.length);
+  const settlementPrimaryDueDate = settlementBaseRow
+    ? (settlementExtraMonths > 0 ? addMonthsAsLastDay(settlementBaseRow.due_date, settlementExtraMonths) : settlementBaseRow.due_date)
+    : null;
+  const settlementTotalAmount = settlementSelectedRows.reduce((s, r) => s + Number(r.amount || 0), 0)
+    + settlementExtraMonths * monthlyDue;
+
   const requestHistoricalSettlement = async () => {
-    if (!historicalSettlementPayment) return;
+    if (!historicalSettlementPayment || !settlementBaseRow) return;
     const note = historicalNote.trim();
     if (note.length < 10) {
       setTransaction({ status: 'error', message: 'Please describe how this was verified (OR#, ledger entry, date paid, etc.) — at least a sentence.' });
@@ -765,10 +756,11 @@ const Payment = () => {
     }
     setTransaction({ status: 'loading', message: 'Submitting settlement request…' });
     try {
-      const p = historicalSettlementPayment;
-      const residentName = (Array.isArray(p.profiles) ? p.profiles[0]?.full_name : p.profiles?.full_name)
-        || residentsList.find(r => r.id === p.user_id)?.full_name || 'Resident';
-      const monthLabel = formatMonthCoverage(p.due_date, monthsCoveredBy(p.amount, monthlyDue));
+      const base = settlementBaseRow;
+      const residentName = (Array.isArray(base.profiles) ? base.profiles[0]?.full_name : base.profiles?.full_name)
+        || residentsList.find(r => r.id === base.user_id)?.full_name || 'Resident';
+      const monthLabel = formatMonthCoverage(settlementPrimaryDueDate, clampedSettleMonths);
+      const { month: dueMonth, year: dueYear } = getMonthYear(settlementPrimaryDueDate);
 
       const { data: { user } } = await supabase.auth.getUser();
       // Self-read of our own admins row — see the matching comment in
@@ -777,13 +769,31 @@ const Payment = () => {
         ? await supabase.from('admins').select('role, display_name').eq('id', user.id).maybeSingle()
         : { data: null };
       const { error } = await supabase.from('approval_requests').insert([{
-        target_table: 'payments', target_id: p.id, action_type: 'UPDATE',
+        target_table: 'payments', target_id: base.id, action_type: 'UPDATE',
         requested_data: {
           status: 'paid',
           paid_at: new Date().toISOString(),
-          payer_reference_no: 'Historical/Manual settlement — pre-app payment',
-          reference_no: p.reference_no,
-          amount: p.amount,
+          payer_reference_no: 'Manual settlement — paid directly, outside the app',
+          // Regenerated against the (possibly pushed-forward) due month so
+          // it still matches the SOA/billing convention for whatever month
+          // this row now actually covers through.
+          reference_no: generateRefNo(dueMonth, dueYear, base.user_id),
+          amount: settlementTotalAmount,
+          due_date: settlementPrimaryDueDate,
+          // Matches the mobile app's own advance-pay tagging (see
+          // _AdvancePaySheet in payment_page.dart) so the resident's ledger
+          // on the mobile side recognizes this as an advance payment too —
+          // only applied when actually combining more than one month, so a
+          // single-month settlement keeps its original per-category
+          // line_items breakdown untouched.
+          line_items: clampedSettleMonths > 1
+            ? [{ label: 'Advance Payment', months: clampedSettleMonths }]
+            : base.line_items,
+          // The other (older) rows being folded into `base` — stripped
+          // before the actual payments update runs, then used to delete
+          // those rows afterward (see PendingApproval.jsx). Empty for a
+          // single-month settlement.
+          absorb_ids: settlementAbsorbedRows.map(r => r.id),
           // Display-only for the Pending Approval review table — stripped
           // before the actual payments update runs (see PendingApproval.jsx).
           details: `${residentName} — ${monthLabel}: ${note}`,
@@ -794,9 +804,10 @@ const Payment = () => {
       if (error) throw error;
 
       await logAudit('REQUEST_HISTORICAL_SETTLEMENT',
-        `Requested historical settlement for ${residentName} — ${monthLabel}: ${note}`);
+        `Requested manual settlement for ${residentName} — ${monthLabel}: ${note}`);
       setHistoricalSettlementPayment(null);
       setHistoricalNote('');
+      setSettleMonths(1);
       setTransaction({ status: 'success', message: 'Sent to the President for approval. It stays Pending until then.' });
     } catch (e) {
       setTransaction({ status: 'error', message: 'Failed: ' + e.message });
@@ -923,6 +934,7 @@ const Payment = () => {
         onRequestSettlement={(p) => {
           setHistoricalSettlementPayment(p);
           setHistoricalNote('');
+          setSettleMonths(1);
           setIsUnpaidBreakdownOpen(false);
         }}
         onReviewProof={(pendingPayment) => {
@@ -947,10 +959,10 @@ const Payment = () => {
         </div>
       </ModalOverlay>
 
-      {/* ── Historical settlement request (pre-app due, paid in real life) ── */}
+      {/* ── Manual settlement request (paid directly outside the app) ── */}
       <ModalOverlay
         isOpen={!!historicalSettlementPayment} onClose={() => setHistoricalSettlementPayment(null)}
-        title="Request Historical Settlement"
+        title="Request Manual Settlement"
         subtitle="This requires President approval before the month is marked Paid."
         actionLabel="Send for Approval"
         onAction={requestHistoricalSettlement}
@@ -958,10 +970,49 @@ const Payment = () => {
         <div className="p-4 bg-amber-50 text-amber-700 rounded-2xl flex items-start gap-3">
           <History size={18} className="shrink-0 mt-0.5" />
           <p className="text-sm font-semibold">
-            Only use this for dues from before the app existed, paid in real life (cash/manual) with no in-app proof to submit.
+            Use this when a resident already paid you directly — cash or GCash straight to the Treasurer, whether a dues-before-the-app payment or a current/future month paid in advance — with no in-app proof to submit.
             The Treasurer can't mark a due Paid directly — the President must confirm it first, the same way Void requests work.
           </p>
         </div>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            Months to settle
+          </label>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => setSettleMonths(m => Math.max(1, m - 1))}
+              disabled={clampedSettleMonths <= 1}
+              className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-lg font-black cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+              −
+            </button>
+            <span className="w-10 text-center text-lg font-black text-slate-800">{clampedSettleMonths}</span>
+            <button type="button" onClick={() => setSettleMonths(m => Math.min(MAX_SETTLE_MONTHS, m + 1))}
+              disabled={clampedSettleMonths >= MAX_SETTLE_MONTHS}
+              className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-lg font-black cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+              +
+            </button>
+            <span className="text-xs text-slate-400">
+              {settlementEligibleRows.length} already billed — go higher to cover months not due yet
+            </span>
+          </div>
+        </div>
+
+        {settlementBaseRow && (
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-600 space-y-1">
+            <p><span className="font-bold">Covers:</span> {formatMonthCoverage(settlementPrimaryDueDate, clampedSettleMonths)}</p>
+            <p><span className="font-bold">Total amount:</span> ₱{settlementTotalAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+            {clampedSettleMonths > 1 && (
+              <p className="font-bold text-purple-600">Will be marked Paid as "{clampedSettleMonths} Months Advance".</p>
+            )}
+            {settlementAbsorbedRows.length > 0 && (
+              <p className="text-purple-600">The other {settlementAbsorbedRows.length} already-billed month row{settlementAbsorbedRows.length !== 1 ? 's' : ''} this combines will be removed, same as a resident's own advance payment.</p>
+            )}
+            {settlementExtraMonths > 0 && (
+              <p className="text-purple-600">{settlementExtraMonths} of these month{settlementExtraMonths !== 1 ? 's' : ''} {settlementExtraMonths !== 1 ? "haven't" : "hasn't"} been billed yet — covered in advance, so the generator won't re-issue {settlementExtraMonths !== 1 ? 'them' : 'it'} once that month comes.</p>
+            )}
+          </div>
+        )}
+
         <div>
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
             How was this verified? <span className="text-red-500">*required</span>
@@ -970,7 +1021,7 @@ const Payment = () => {
             value={historicalNote}
             onChange={e => setHistoricalNote(e.target.value)}
             rows={3}
-            placeholder="e.g. OR#1042, paid cash to the previous Treasurer on Jan 5 2026, confirmed against the physical ledger"
+            placeholder="e.g. OR#1042, resident paid ₱450 cash to the Treasurer on Jan 5 2026 covering Jan–Mar in advance, confirmed against the physical ledger"
             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#006837]/20"
           />
         </div>
@@ -1066,7 +1117,7 @@ const Payment = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <CreditCard size={22} className="text-[#006837]" /> Monthly Dues Management
+            <Receipt size={22} className="text-[#006837]" /> Dues & Billing Management
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">Manage dues, issue bills, and track resident standing</p>
         </div>

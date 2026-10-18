@@ -1,8 +1,11 @@
 // supabase/functions/generate-monthly-dues/index.ts
 //
-// Server-side version of Payment.jsx's runGenerateDues() + runDelinquencyCheck().
-// Meant to be triggered by Supabase Cron (pg_cron), NOT by a logged-in user —
-// so it has no user JWT and instead checks a shared CRON_SECRET.
+// The sole place monthly dues get generated and the delinquency check runs —
+// Payment.jsx used to have its own client-side copies of this logic for a
+// manual "force generate" trigger, but that's been removed in favor of
+// relying on this cron exclusively. Meant to be triggered by Supabase Cron
+// (pg_cron), NOT by a logged-in user — so it has no user JWT and instead
+// checks a shared CRON_SECRET.
 //
 // Idempotent: safe to run multiple times a day. It only actually inserts dues
 // the first time it runs after a new month has started (checked via the
@@ -149,10 +152,19 @@ Deno.serve(async (req: Request) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let duesResult: Record<string, any> = { skipped: true, reason: 'Already generated for this month.' }
 
+    // 'delinquent' is still a current, billable resident — just one who's
+    // behind — not a different category of account like 'deactivated' or
+    // 'pending'. Excluding it here (as 'active'-only used to) meant the
+    // moment a resident crossed the 3-months-unpaid threshold and got
+    // auto-flagged delinquent, their account silently stopped accumulating
+    // ANY further monthly dues — no October, no November, indefinitely —
+    // instead of them owing more each month like they actually do in real
+    // life. Becoming delinquent flags them for attention; it must not also
+    // freeze their bill.
     const { data: residentsRaw, error: residentsErr } = await supabase
       .from('profiles')
       .select('id, full_name, resident_type')
-      .eq('account_status', 'active')
+      .in('account_status', ['active', 'delinquent'])
       .order('full_name')
 
     // Tenants aren't billed for HOA dues — only owners/residents are (mirrors
@@ -379,9 +391,17 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // dues.success === false is a REAL failure (a query/insert actually
+    // errored, not just "already billed, nothing to do" which sets
+    // dues.skipped instead) — this used to always return 200 regardless, so
+    // pg_cron's dashboard showed "Succeeded" even on a run that silently
+    // failed to bill anyone. Residents went unbilled for weeks with nothing
+    // in the cron history pointing at it. A non-2xx status here is what
+    // makes that kind of failure actually visible to cron monitoring.
+    const hardFailure = duesResult.success === false
     return new Response(
       JSON.stringify({ dues: duesResult, delinquency: delinquencyResult, announcement: announcementResult, soa: soaResult }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
+      { status: hardFailure ? 500 : 200, headers: { 'Content-Type': 'application/json' } },
     )
   } catch (err) {
     return new Response(

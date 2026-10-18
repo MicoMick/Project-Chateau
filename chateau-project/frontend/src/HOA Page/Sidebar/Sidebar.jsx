@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'; 
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, CalendarCheck, CreditCard, Vote, Megaphone,
+  LayoutDashboard, Users, UsersRound, CalendarCheck, Receipt, Vote, Megaphone,
   ScrollText, Building2,
-  BarChart3, ChevronLeft, Menu, ChevronDown, ShieldCheck, UserCircle,
+  ChevronLeft, Menu, ChevronDown, ShieldCheck, UserCircle,
   LogOut, ClipboardCheck, PieChart, UserCheck, ListChecks, ClipboardList, Globe,
 } from 'lucide-react';
 import ChateauLogo from '../../assets/ChataueLogo.png';
@@ -183,8 +183,8 @@ const Sidebar = () => {
 
     // ── Payments — president + treasurer only ─────────────────────────────────
     {
-      icon:  <CreditCard size={22} />,
-      label: 'Payments',
+      icon:  <Receipt size={22} />,
+      label: 'Dues & Billing',
       path:  '/hoa/payments',
       allowedRoles: PAYMENTS,
     },
@@ -207,8 +207,8 @@ const Sidebar = () => {
 
     // ── Reports/Issues ────────────────────────────────────────────────────────
     {
-      icon:  <BarChart3 size={22} />,
-      label: 'Residents Reports',
+      icon:  <UsersRound size={22} />,
+      label: 'Community Concerns',
       path:  '/hoa/reports',
       allowedRoles: COMM_OPS,
     },

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Search, Plus, Users, Clock, Eye, Edit, Trash2,
   ChevronDown, X, CheckCircle2, AlertCircle,
-  Loader2, HelpCircle, Layers, Tag, DollarSign,
+  Loader2, HelpCircle, Layers, Tag, PhilippinePeso,
   WifiOff, Wrench, AlertTriangle, Building2, Package,
 } from 'lucide-react';
 import { supabase } from '../supabaseAdmin';
@@ -156,7 +156,7 @@ const FacilityCard = ({ fac, onView, onEdit, onDelete, currentUserRole }) => {
             )}
             {fac.rate && (
               <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-100 px-2 py-1 rounded-lg">
-                <DollarSign size={10} className="text-[#006837]" /> {fac.rate}
+                <PhilippinePeso size={10} className="text-[#006837]" /> {fac.rate}
               </span>
             )}
             {fac.hours && (
@@ -716,7 +716,7 @@ const Facility = () => {
                     {viewingFacility.rate && (
                       <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
                         <div className="w-8 h-8 bg-[#006837]/10 rounded-lg flex items-center justify-center shrink-0">
-                          <DollarSign size={14} className="text-[#006837]" />
+                          <PhilippinePeso size={14} className="text-[#006837]" />
                         </div>
                         <div>
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Rate</p>

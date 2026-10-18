@@ -294,7 +294,7 @@ const Reports = () => {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <FileText size={22} className="text-[#006837]" /> Resident Reports
+            <FileText size={22} className="text-[#006837]" /> Community Concerns
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">Review and respond to resident-submitted issues</p>
         </div>
