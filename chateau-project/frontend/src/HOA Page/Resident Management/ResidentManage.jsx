@@ -284,7 +284,7 @@ const ResidentManage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <Users size={22} className="text-[#006837]" /> Resident Management
+            <Users size={22} className="text-[#006837]" /> Residents Profiles
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">Manage profiles, approvals, and account statuses in one place</p>
         </div>
