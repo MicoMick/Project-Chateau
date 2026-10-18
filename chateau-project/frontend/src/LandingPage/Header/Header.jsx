@@ -53,8 +53,8 @@ const Header = () => {
 
   const navLinks = [
     { name: 'Our Team',     id: 'team'         },
-    { name: 'How it Works', id: 'how-it-works' },
     { name: 'About Us',     id: 'about'        },
+    { name: 'How it Works', id: 'how-it-works' },
     { name: 'Download',     id: 'download'     },
     { name: 'FAQ',          id: 'faqs'         },
   ];
