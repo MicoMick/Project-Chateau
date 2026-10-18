@@ -144,7 +144,7 @@ const Sidebar = () => {
     // ── Resident management — operational roles ────────────────────────────────
     {
       icon:  <Users size={22} />,
-      label: 'Residents',
+      label: 'Residents Profiles',
       path:  '/hoa/residents',
       allowedRoles: OPERATIONS,
     },
@@ -160,7 +160,7 @@ const Sidebar = () => {
     // ── Move In / Move Out Clearances — president + treasurer ─────────────────
     {
       icon:  <ClipboardList size={22} />,
-      label: 'Move In / Out Clearance',
+      label: 'Move In / Move Out Clearance',
       path:  '/hoa/move-in-clearances',
       allowedRoles: CLEARANCES,
     },
