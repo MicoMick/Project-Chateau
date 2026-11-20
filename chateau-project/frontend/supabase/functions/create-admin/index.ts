@@ -52,11 +52,19 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Missing required fields' }, 400)
     }
 
+    // ProfileManage.jsx, Sidebar.jsx and SuperAdProfile.jsx all read the
+    // signed-in user's name from user_metadata.first_name/last_name — split
+    // the single Display Name field into those so a new officer's name shows
+    // up correctly everywhere from their first login, instead of falling
+    // back to a placeholder.
+    const [firstName, ...rest] = displayName.trim().split(/\s+/)
+    const lastName = rest.join(' ')
+
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name: displayName, role },
+      user_metadata: { full_name: displayName, first_name: firstName, last_name: lastName, role },
     })
     if (createErr) return json({ error: createErr.message }, 400)
 

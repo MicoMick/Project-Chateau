@@ -379,7 +379,8 @@ const Payment = () => {
   const [sendingSOA,        setSendingSOA]        = useState(false);
   const [showSendConfirm,   setShowSendConfirm]   = useState(false);
   const [sendSOAResult,     setSendSOAResult]     = useState(null);
-  const [sendSOAViewMode,   setSendSOAViewMode]   = useState('both'); // 'outstanding' | 'history' | 'both' — applied to bulk email
+  const [sendSOAViewMode,   setSendSOAViewMode]   = useState('both'); // 'outstanding' | 'history' | 'both' — applied to the email
+  const [sendSOATargetId,   setSendSOATargetId]   = useState('All'); // 'All' = bulk send, or a resident's id for a single send
 
   // ── Per-resident SOA print — content filter modal ──────────────────────────
   // Lets the treasurer choose, right before printing, whether the statement
@@ -387,16 +388,24 @@ const Payment = () => {
   const [soaPrintTarget, setSoaPrintTarget] = useState(null); // { resident, paidHistory } | null
   const [soaPrintChoice, setSoaPrintChoice] = useState('outstanding'); // 'outstanding' | 'history' | 'both'
 
-  const handleSendAllSOA = async () => {
+  const handleSendSOA = async () => {
+    const isSingleTarget = sendSOATargetId && sendSOATargetId !== 'All';
     setSendingSOA(true);
     setSendSOAResult(null);
     try {
       const { data, error } = await supabase.functions.invoke('send-soa-emails', {
-        body: { viewMode: sendSOAViewMode },
+        body: isSingleTarget
+          ? { viewMode: sendSOAViewMode, userId: sendSOATargetId }
+          : { viewMode: sendSOAViewMode },
       });
       if (error) throw error;
       setSendSOAResult({ type: 'success', ...data });
-      await logAudit('BULK_SEND_SOA', `Sent ${data.sent || 0} SOA email(s), ${data.failed || 0} failed.`);
+      if (isSingleTarget) {
+        const name = residentsList.find(r => r.id === sendSOATargetId)?.full_name || 'a resident';
+        await logAudit('SEND_SOA', `Sent SOA email to ${name}.`);
+      } else {
+        await logAudit('BULK_SEND_SOA', `Sent ${data.sent || 0} SOA email(s), ${data.failed || 0} failed.`);
+      }
     } catch (e) {
       setSendSOAResult({ type: 'error', error: e.message });
     } finally {
@@ -1149,7 +1158,7 @@ const Payment = () => {
           <RequireRole userRole={currentUserRole} allowedRoles={['treasurer']}>
             <button onClick={() => setShowSendConfirm(true)}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition-all cursor-pointer">
-              <Mail size={13} /> Send SOA to All
+              <Mail size={13} /> Send SOA
             </button>
           </RequireRole>
           {/* View toggle */}
@@ -1194,7 +1203,10 @@ const Payment = () => {
       </ModalOverlay>
 
       {/* ── GCash QR Code modal — view for everyone, upload for Treasurer/President ── */}
-      {isQrModalOpen && (
+      {/* Portaled to <body>, same as ModalOverlay above — otherwise the backdrop
+          is confined short of the real viewport by the scrollable <main> this
+          page's layout nests everything inside. */}
+      {isQrModalOpen && createPortal(
         <div className="fixed inset-0 z-[10700] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setIsQrModalOpen(false)} />
           <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm z-10 overflow-hidden">
@@ -1235,7 +1247,8 @@ const Payment = () => {
               </RequireRole>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Proof of payment review modal (Treasurer/President only) ── */}
@@ -1402,12 +1415,15 @@ const Payment = () => {
       {/* ── Send SOA confirmation modal ── */}
       <SendSOAModal
         isOpen={showSendConfirm}
+        residentsList={residentsList}
+        targetResidentId={sendSOATargetId}
+        onTargetResidentChange={setSendSOATargetId}
         viewMode={sendSOAViewMode}
         onViewModeChange={setSendSOAViewMode}
         sending={sendingSOA}
         result={sendSOAResult}
-        onSend={handleSendAllSOA}
-        onClose={() => { setShowSendConfirm(false); setSendSOAResult(null); }}
+        onSend={handleSendSOA}
+        onClose={() => { setShowSendConfirm(false); setSendSOAResult(null); setSendSOATargetId('All'); }}
       />
 
       {/* ── Per-resident SOA print — content choice modal ── */}

@@ -5,6 +5,9 @@ import { MONTHLY_DUE_DEFAULT, buildLineItemBreakdown, localToday } from './payme
 // AuditorDashboard's printFinancialReport — opens a new window, builds HTML,
 // then triggers the browser print dialog. Used exclusively by SOAPrintModal.
 export const printSOA = (resident, paidHistory = [], viewMode = 'both', monthlyDueAmount = MONTHLY_DUE_DEFAULT, qrCodeUrl = null) => {
+  // Absolute URL — this document has no reliable base URI once written into a
+  // blank popup window, so a plain relative "/ChataueLogo.svg" can fail to resolve.
+  const logoUrl = `${window.location.origin}/ChataueLogo.svg`;
   const fmtCurrency = (n) => `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
   const fmtDate  = (d) => d ? new Date(d).toLocaleDateString('en-PH', { month: 'short',  day: 'numeric', year: 'numeric' }) : '—';
   const fmtDateL = (d) => d ? new Date(d).toLocaleDateString('en-PH', { month: 'long',   day: 'numeric', year: 'numeric' }) : '—';
@@ -162,10 +165,13 @@ export const printSOA = (resident, paidHistory = [], viewMode = 'both', monthlyD
     <!-- Letterhead -->
     <div class="lh">
       <div class="lh-inner">
-        <div>
-          <div class="doc-type">Official Document</div>
-          <h1>Statement of Account</h1>
-          <div class="org">Chateau Real Executive Village Homeowners Association Inc. (CREVHAI)</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <img src="${logoUrl}" alt="CREVHAI Logo" style="width:48px;height:48px;object-fit:contain;flex-shrink:0;" />
+          <div>
+            <div class="doc-type">Official Document</div>
+            <h1>Statement of Account</h1>
+            <div class="org">Chateau Real Executive Village Homeowners Association Inc. (CREVHAI)</div>
+          </div>
         </div>
         <div style="text-align:right;">
           <div style="font-size:9px;color:#a7f3d0;font-weight:bold;text-transform:uppercase;letter-spacing:.05em;">Reference No.</div>
@@ -246,7 +252,9 @@ export const printSOA = (resident, paidHistory = [], viewMode = 'both', monthlyD
       <div class="plbl">&#128179; Payment Instructions</div>
       <p>Please settle your outstanding balance on or before <strong>${fmtDateL(earliestDueDate)}</strong> to avoid late penalties.<br>
       Payments may be made at the <strong>HOA Office</strong> or through your designated <strong>HOA Treasurer</strong>.<br>
-      Present this document as your billing reference — Ref. No. <strong>${soaRef}</strong>.</p>
+      Present this document as your billing reference — Ref. No. <strong>${soaRef}</strong>.<br>
+      <strong>Accounts with an unpaid balance of ₱450 or more (approximately 3 months) are automatically flagged delinquent
+      and will have mobile app access locked until the balance is settled.</strong></p>
       ${qrCodeUrl ? `
       <div style="margin-top:12px;text-align:center;">
         <img src="${qrCodeUrl}" alt="GCash QR Code" style="max-width:160px;border:1px solid #e2e8f0;border-radius:8px;" />
