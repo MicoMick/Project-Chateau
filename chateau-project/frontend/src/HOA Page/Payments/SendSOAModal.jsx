@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Mail } from 'lucide-react';
+import { Mail, User } from 'lucide-react';
+import ResidentFilterSelect from '../Resident Management/ResidentFilterSelect';
 
 const VIEW_MODE_OPTIONS = [
   { key: 'outstanding', label: 'Outstanding Charges Only' },
@@ -9,16 +10,20 @@ const VIEW_MODE_OPTIONS = [
 ];
 
 /**
- * SendSOAModal — confirmation before bulk-emailing a Statement of Account to
- * every resident who currently has an outstanding balance. The actual send
- * (handleSendAllSOA in Payment.jsx) calls the 'send-soa-emails' Supabase Edge
- * Function; this modal only collects the content choice and confirms intent.
+ * SendSOAModal — confirmation before emailing a Statement of Account, either
+ * to every resident with an outstanding balance (bulk) or to one resident
+ * picked from the dropdown (single). The actual send (handleSendSOA in
+ * Payment.jsx) calls the 'send-soa-emails' Supabase Edge Function; this modal
+ * only collects the recipient + content choice and confirms intent.
  *
  * Rendered through a portal straight to <body>, same reason as SOAPrintModal
  * — guarantees the overlay is always truly viewport-relative.
  *
  * Props:
  *  - isOpen: boolean
+ *  - residentsList: [{ id, full_name }] — for the recipient picker
+ *  - targetResidentId: string | 'All' — 'All' means the bulk send
+ *  - onTargetResidentChange: (id) => void
  *  - viewMode: 'outstanding' | 'history' | 'both'
  *  - onViewModeChange: (key) => void
  *  - sending: boolean — disables the Send button and shows a spinner
@@ -26,8 +31,16 @@ const VIEW_MODE_OPTIONS = [
  *  - onSend: () => void
  *  - onClose: () => void
  */
-const SendSOAModal = ({ isOpen, viewMode, onViewModeChange, sending, result, onSend, onClose }) => {
+const SendSOAModal = ({
+  isOpen, residentsList = [], targetResidentId, onTargetResidentChange,
+  viewMode, onViewModeChange, sending, result, onSend, onClose,
+}) => {
   if (!isOpen) return null;
+
+  const isSingleTarget = targetResidentId && targetResidentId !== 'All';
+  const targetName = isSingleTarget
+    ? residentsList.find(r => r.id === targetResidentId)?.full_name
+    : null;
 
   return createPortal(
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
@@ -36,12 +49,27 @@ const SendSOAModal = ({ isOpen, viewMode, onViewModeChange, sending, result, onS
           <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
             <Mail size={18} className="text-blue-600" />
           </div>
-          <h2 className="text-lg font-black text-slate-900">Send SOA to All Residents?</h2>
+          <h2 className="text-lg font-black text-slate-900">
+            {isSingleTarget ? `Send SOA to ${targetName || 'Resident'}?` : 'Send SOA to All Residents?'}
+          </h2>
         </div>
         <p className="text-sm text-slate-500 leading-relaxed mb-5">
-          This will email a Statement of Account to every resident who currently has an outstanding balance.
-          Residents who are fully settled will not receive an email. This action is logged in the audit trail.
+          {isSingleTarget
+            ? `This will email a Statement of Account directly to ${targetName || 'this resident'}, regardless of their current balance. This action is logged in the audit trail.`
+            : 'This will email a Statement of Account to every resident who currently has an outstanding balance. Residents who are fully settled will not receive an email. This action is logged in the audit trail.'}
         </p>
+
+        <div className="mb-5">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Send to</p>
+          <ResidentFilterSelect
+            value={targetResidentId}
+            onChange={onTargetResidentChange}
+            options={residentsList.map(r => ({ value: r.id, label: r.full_name }))}
+            allValue="All"
+            allLabel="All Residents (bulk send)"
+            icon={User}
+          />
+        </div>
 
         <div className="mb-5">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">What should the email include?</p>

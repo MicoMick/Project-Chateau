@@ -75,8 +75,15 @@ const AdminControl = () => {
   const confirmDeleteAdmin = async () => {
     if (!adminToDelete) return;
     try {
-      const { error } = await supabase.from('admins').delete().eq('id', adminToDelete.id);
-      if (error) throw error;
+      // Deletion runs server-side in the 'delete-admin' Edge Function so it can
+      // remove the Supabase Auth user too, not just the admins table row —
+      // otherwise the outgoing officer's account survives and they can still log in.
+      const { data, error: fnError } = await supabase.functions.invoke('delete-admin', {
+        body: { id: adminToDelete.id },
+      });
+
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
 
       await logActivity('Deleted Admin', `Deleted admin account: ${adminToDelete.email}`);
       setIsDeleteModalOpen(false);
@@ -194,7 +201,7 @@ const AdminControl = () => {
                       Reset MFA
                     </button>
                     <button onClick={() => openEditModal(admin)} className="p-2 text-slate-400 hover:text-[#006837] cursor-pointer"><Edit2 size={16} /></button>
-                    <button onClick={() => handleDeleteAdmin(admin)} className="p-2 text-slate-400 hover:text-red-500 cursor-pointer"><Trash2 size={16} /></button>
+                    <button onClick={() => handleDeleteAdmin(admin)} className="p-2 text-slate-400 hover:text-red-500 cursor-pointer" title="Offboard Admin"><Trash2 size={16} /></button>
                   </td>
                 </tr>
               ))}
@@ -242,11 +249,11 @@ const AdminControl = () => {
              <div className="mx-auto bg-red-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
                <AlertTriangle className="text-red-600" size={24} />
              </div>
-             <h2 className="text-lg font-bold text-slate-800 mb-2">Delete Admin</h2>
-             <p className="text-slate-500 text-sm mb-6">Are you sure you want to delete <strong>{adminToDelete?.display_name}</strong>? This action cannot be undone.</p>
+             <h2 className="text-lg font-bold text-slate-800 mb-2">Offboard Admin</h2>
+             <p className="text-slate-500 text-sm mb-6">Are you sure you want to offboard <strong>{adminToDelete?.display_name}</strong>? This action cannot be undone.</p>
              <div className="flex gap-3">
                <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 px-4 py-2 bg-slate-100 text-slate-600 font-semibold rounded-lg hover:bg-slate-200 cursor-pointer">Cancel</button>
-               <button onClick={confirmDeleteAdmin} className="flex-1 px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 cursor-pointer">Delete Account</button>
+               <button onClick={confirmDeleteAdmin} className="flex-1 px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 cursor-pointer">Offboard Account</button>
              </div>
           </div>
         </div>

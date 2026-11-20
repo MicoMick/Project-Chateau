@@ -213,9 +213,16 @@ function buildFormalSoaHtml(
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td style="padding:22px 28px;">
-          <p style="margin:0;font-size:9px;font-weight:bold;color:#a7f3d0;text-transform:uppercase;letter-spacing:.08em;">Official Document</p>
-          <p style="margin:4px 0 0;font-size:20px;font-weight:900;color:#fff;letter-spacing:-.3px;">Statement of Account</p>
-          <p style="margin:2px 0 0;font-size:11px;color:#a7f3d0;">Chateau Real Executive Village Homeowners Association Inc. (CREVHAI)</p>
+          <table cellpadding="0" cellspacing="0"><tr>
+            <td style="padding-right:12px;vertical-align:middle;">
+              <img src="https://chateaureals.com/ChataueLogo.svg" alt="CREVHAI Logo" width="44" height="44" style="display:block;" />
+            </td>
+            <td style="vertical-align:middle;">
+              <p style="margin:0;font-size:9px;font-weight:bold;color:#a7f3d0;text-transform:uppercase;letter-spacing:.08em;">Official Document</p>
+              <p style="margin:4px 0 0;font-size:20px;font-weight:900;color:#fff;letter-spacing:-.3px;">Statement of Account</p>
+              <p style="margin:2px 0 0;font-size:11px;color:#a7f3d0;">Chateau Real Executive Village Homeowners Association Inc. (CREVHAI)</p>
+            </td>
+          </tr></table>
         </td>
         <td style="padding:22px 28px;text-align:right;vertical-align:top;">
           <p style="margin:0;font-size:9px;color:#a7f3d0;font-weight:bold;text-transform:uppercase;letter-spacing:.05em;">Reference No.</p>
@@ -324,7 +331,9 @@ function buildFormalSoaHtml(
         <p style="margin:6px 0 0;font-size:11px;color:#78350f;line-height:1.7;">
           Please settle your outstanding balance on or before <strong>${fd(earliestDue)}</strong> to avoid late penalties.<br>
           Payments may be made at the <strong>HOA Office</strong> or through your designated <strong>HOA Treasurer</strong>.<br>
-          Present this Statement of Account as your billing reference (Ref. No. <strong>${soaRef}</strong>).
+          Present this Statement of Account as your billing reference (Ref. No. <strong>${soaRef}</strong>).<br>
+          <strong>Accounts with an unpaid balance of &#8369;450 or more (approximately 3 months) are automatically flagged delinquent
+          and will have mobile app access locked until the balance is settled.</strong>
         </p>
         ${qrCodeUrl ? `
         <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
@@ -395,14 +404,20 @@ Deno.serve(async (req: Request) => {
   // Optional content filter sent from the admin portal:
   // { viewMode: 'outstanding' | 'history' | 'both' } — defaults to 'both' so a
   // cron-triggered or bodyless call behaves exactly as before.
+  // Optional { userId } targets a single resident instead of every resident
+  // with an outstanding balance — used by the "Send SOA to [Resident]" flow.
   let viewMode: 'outstanding' | 'history' | 'both' = 'both'
+  let targetUserId: string | null = null
   try {
     const body = await req.json()
     if (body?.viewMode === 'outstanding' || body?.viewMode === 'history' || body?.viewMode === 'both') {
       viewMode = body.viewMode
     }
+    if (typeof body?.userId === 'string' && body.userId) {
+      targetUserId = body.userId
+    }
   } catch (_e) {
-    // No JSON body provided — keep the 'both' default.
+    // No JSON body provided — keep the defaults.
   }
 
   const supabase = createClient(
@@ -429,26 +444,39 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { data: unpaidPayments, error: uErr } = await supabase
+    let unpaidQuery = supabase
       .from('payments')
       .select('id, user_id, amount, due_date, statement_date, reference_no, status, line_items')
       .in('status', ['unpaid', 'overdue', 'pending'])
       .order('due_date', { ascending: true })
+    if (targetUserId) unpaidQuery = unpaidQuery.eq('user_id', targetUserId)
+    const { data: unpaidPayments, error: uErr } = await unpaidQuery
     if (uErr) { console.error('Fetch unpaid:', uErr.message); throw new Error(uErr.message) }
 
-    if (!unpaidPayments?.length) {
+    // Bulk send: nothing to do if nobody owes anything. A single targeted
+    // resident still gets emailed below even with zero unpaid rows — the
+    // "Account Fully Settled" branch in buildFormalSoaHtml covers that case.
+    if (!unpaidPayments?.length && !targetUserId) {
       return new Response(JSON.stringify({ sent: 0, failed: 0, note: 'No outstanding balances.' }), {
         status: 200, headers: { 'Content-Type': 'application/json', ...CORS },
       })
     }
 
-    const userIds = [...new Set(unpaidPayments.map((p: { user_id: string }) => p.user_id))]
+    const userIds = targetUserId
+      ? [targetUserId]
+      : [...new Set(unpaidPayments!.map((p: { user_id: string }) => p.user_id))]
 
     const { data: residents, error: rErr } = await supabase
       .from('profiles')
       .select('id, full_name, email, block, lot, street')
       .in('id', userIds)
     if (rErr) { console.error('Fetch profiles:', rErr.message); throw new Error(rErr.message) }
+
+    if (targetUserId && !residents?.length) {
+      return new Response(JSON.stringify({ sent: 0, failed: 0, error: 'Resident not found.' }), {
+        status: 404, headers: { 'Content-Type': 'application/json', ...CORS },
+      })
+    }
 
     const { data: paidPayments, error: pErr } = await supabase
       .from('payments')
@@ -475,7 +503,10 @@ Deno.serve(async (req: Request) => {
     for (const resident of (residents || [])) {
       const unpaidList  = unpaidMap[resident.id] || []
       const paidHistory = paidMap[resident.id]   || []
-      if (!unpaidList.length) continue
+      // Bulk send only emails residents who actually owe something. A
+      // specifically-targeted resident gets emailed regardless (they'll see
+      // the "Account Fully Settled" notice if they have no unpaid balance).
+      if (!unpaidList.length && resident.id !== targetUserId) continue
 
       const fmtBlock = (b: string) => b?.toLowerCase().startsWith('blk') ? b : `Blk ${b}`
       const fmtLot   = (l: string) => l?.toLowerCase().startsWith('lot') ? l : `Lot ${l}`

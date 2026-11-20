@@ -15,6 +15,9 @@ export const printFinancialReport = ({ duesIncome, courtIncome, expenses, period
   const today = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
   const isAnnual = period && (period.toLowerCase().includes('year') || period.toLowerCase().includes('annual'));
   const docTitle = isAnnual ? 'Annual Financial Report' : 'Financial Statement';
+  // Absolute URL — this document has no reliable base URI once written into a
+  // blank popup window, so a plain relative "/ChataueLogo.svg" can fail to resolve.
+  const logoUrl = `${window.location.origin}/ChataueLogo.svg`;
 
   // ── Income ────────────────────────────────────────────────────────────────
   const totalIncome = duesIncome.total + courtIncome.total;
@@ -48,20 +51,26 @@ export const printFinancialReport = ({ duesIncome, courtIncome, expenses, period
   <title>${docTitle} — ${today}</title>
   <style>
     *{box-sizing:border-box;}
-    body{font-family:Arial,sans-serif;margin:28px;color:#1e293b;font-size:13px;line-height:1.5;}
+    body{font-family:Georgia,'Times New Roman',serif;margin:28px;color:#1e293b;font-size:13px;line-height:1.5;}
 
-    .doc-header{text-align:center;border-bottom:3px solid #006837;padding-bottom:16px;margin-bottom:20px;}
-    .doc-header h1{font-size:20px;font-weight:900;text-transform:uppercase;letter-spacing:1px;color:#006837;margin:0 0 5px;}
-    .doc-header .org{font-size:13px;color:#374151;font-weight:bold;margin:2px 0;}
-    .doc-header .period{font-size:12px;color:#64748b;margin:5px 0 0;}
+    .letterhead{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding-bottom:16px;}
+    .letterhead-brand{display:flex;align-items:center;gap:14px;}
+    .letterhead-brand img{width:58px;height:58px;object-fit:contain;flex-shrink:0;}
+    .letterhead-brand .assoc-name{font-size:14px;font-weight:900;color:#0f172a;line-height:1.3;}
+    .letterhead-brand .assoc-sub{font-size:11px;color:#64748b;font-weight:700;margin-top:2px;}
+    .letterhead-doc{text-align:right;}
+    .letterhead-doc h1{font-size:19px;font-weight:900;text-transform:uppercase;letter-spacing:1px;color:#006837;margin:0 0 6px;}
+    .letterhead-doc .period{font-size:11.5px;color:#64748b;margin:1px 0;}
+    .letterhead-rule{height:4px;border-radius:2px;margin-bottom:24px;
+      background:linear-gradient(90deg,#006837 0%,#006837 75%,#FFF200 100%);}
 
     h2{font-size:13px;color:#0f172a;font-weight:900;margin:26px 0 10px;padding-bottom:6px;
        border-bottom:2px solid #e2e8f0;text-transform:uppercase;letter-spacing:0.4px;}
 
-    table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:12.5px;}
-    th{background:#006837;color:#FFF200;padding:8px 10px;text-align:left;font-weight:bold;font-size:11.5px;}
-    td{padding:7px 10px;border-bottom:1px solid #e2e8f0;}
-    tfoot td{background:#f8fafc;font-weight:bold;padding:8px 10px;}
+    table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:12.5px;border:1px solid #94a3b8;}
+    th{background:#006837;color:#FFF200;padding:8px 10px;text-align:left;font-weight:bold;font-size:11.5px;border:1px solid #005c30;}
+    td{padding:7px 10px;border:1px solid #cbd5e1;}
+    tfoot td{background:#f8fafc;font-weight:bold;padding:8px 10px;border:1px solid #94a3b8;}
 
     /* Headline summary — the ONE place the bottom line lives */
     .summary-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:0 0 24px;}
@@ -77,13 +86,14 @@ export const printFinancialReport = ({ duesIncome, courtIncome, expenses, period
     .sbox.net-neg{border-color:#dc2626;background:#fef2f2;}
     .sbox.net-neg .lbl{color:#991b1b;} .sbox.net-neg .amt{color:#dc2626;}
 
-    /* Income & Expenditure breakdown — plain, readable rows, no repeated totals */
-    .stmt td{padding:8px 10px;font-size:12.5px;border-bottom:1px solid #f1f5f9;}
+    /* Income & Expenditure breakdown — ledger-style grid, no repeated totals */
+    .stmt{border:1px solid #94a3b8;}
+    .stmt td{padding:8px 10px;font-size:12.5px;border:1px solid #cbd5e1;}
     .stmt .lbl{color:#334155;}
     .stmt .amt{text-align:right;font-weight:700;color:#0f172a;}
-    .stmt .group-hdr td{padding-top:14px;padding-bottom:4px;border-bottom:none;
+    .stmt .group-hdr td{padding-top:14px;padding-bottom:4px;border:none;background:#f8fafc;
       font-size:10.5px;font-weight:900;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;}
-    .stmt .subtotal-row td{border-top:1.5px solid #cbd5e1;font-weight:900;font-size:13px;}
+    .stmt .subtotal-row td{border-top:1.5px solid #64748b;font-weight:900;font-size:13px;}
     .stmt .subtotal-row.income td{color:#006837;}
     .stmt .subtotal-row.expense td{color:#dc2626;}
 
@@ -96,17 +106,30 @@ export const printFinancialReport = ({ duesIncome, courtIncome, expenses, period
     .sig-name{font-size:12px;font-weight:bold;}
     .sig-role{font-size:10.5px;color:#64748b;}
 
+    /* Document control footer */
+    .doc-footer{margin-top:30px;padding-top:10px;border-top:1px solid #e2e8f0;
+      text-align:center;font-size:9.5px;color:#94a3b8;letter-spacing:0.2px;}
+    .doc-footer div{margin:2px 0;}
+
     @media print{body{margin:10px;}@page{margin:12mm;size:A4;}}
   </style></head><body>
 
-  <!-- ── Document Header ── -->
-  <div class="doc-header">
-    <h1>${docTitle}</h1>
-    <div class="org">Chateau Real Executive Village Homeowners Association Inc. (CREVHAI)</div>
-    ${period
-      ? `<div class="period">Period: <strong>${period}</strong> &nbsp;·&nbsp; Generated: ${today}</div>`
-      : `<div class="period">Generated: ${today}</div>`}
+  <!-- ── Document Header (Letterhead) ── -->
+  <div class="letterhead">
+    <div class="letterhead-brand">
+      <img src="${logoUrl}" alt="CREVHAI Logo" />
+      <div>
+        <div class="assoc-name">Chateau Real Executive Village</div>
+        <div class="assoc-sub">Homeowners Association Inc. (CREVHAI)</div>
+      </div>
+    </div>
+    <div class="letterhead-doc">
+      <h1>${docTitle}</h1>
+      ${period ? `<div class="period">Period: <strong>${period}</strong></div>` : ''}
+      <div class="period">Generated: ${today}</div>
+    </div>
   </div>
+  <div class="letterhead-rule"></div>
 
   <!-- ── Headline Summary — the bottom line, stated once ── -->
   <div class="summary-grid">
@@ -170,6 +193,12 @@ export const printFinancialReport = ({ duesIncome, courtIncome, expenses, period
         <div class="sig-role">Signature over Printed Name</div>
       </div>
     </div>
+  </div>
+
+  <!-- ── Document Control Footer ── -->
+  <div class="doc-footer">
+    <div>Chateau Real Executive Village Homeowners Association Inc. (CREVHAI)</div>
+    <div>This is a system-generated financial report produced by the CREVHAI HOA Management System.</div>
   </div>
 
   </body></html>`;

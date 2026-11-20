@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Search } from 'lucide-react';
 
 // ─── Scrollable resident-filter dropdown ───────────────────────────────────
 // Drop-in replacement for a native <select> of residents. Renders its menu
@@ -17,8 +17,22 @@ const ResidentFilterSelect = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState(null);
+  const [searchText, setSearchText] = useState('');
   const triggerRef = useRef(null);
   const menuRef = useRef(null);
+  const searchRef = useRef(null);
+
+  // Reset the search box each time the menu closes, so reopening starts fresh
+  // instead of still showing the last filter.
+  useEffect(() => {
+    if (!open) setSearchText('');
+  }, [open]);
+
+  // Autofocus the search box once the menu has actually mounted (it renders a
+  // render-cycle after `open` flips, once menuPos is known).
+  useEffect(() => {
+    if (open && menuPos) searchRef.current?.focus();
+  }, [open, menuPos]);
 
   useEffect(() => {
     if (!open) return;
@@ -51,6 +65,11 @@ const ResidentFilterSelect = ({
   const selected = options.find(o => o.value === value);
   const label = value === allValue ? allLabel : (selected?.label || allLabel);
 
+  const trimmedSearch = searchText.trim().toLowerCase();
+  const filteredOptions = trimmedSearch
+    ? options.filter(o => o.label.toLowerCase().includes(trimmedSearch))
+    : options;
+
   return (
     <div className={`relative ${className}`}>
       <button
@@ -68,25 +87,44 @@ const ResidentFilterSelect = ({
         <div
           ref={menuRef}
           style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, width: menuPos.width, zIndex: 9999 }}
-          className="max-h-56 overflow-y-auto dropdown-scroll bg-white border border-slate-200 rounded-xl shadow-lg py-1"
+          className="bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden"
         >
-          <button
-            type="button"
-            onClick={() => { onChange(allValue); setOpen(false); }}
-            className={`block w-full text-left px-3 py-2 text-sm font-semibold cursor-pointer hover:bg-slate-50 ${value === allValue ? 'text-[#006837] bg-[#006837]/5' : 'text-slate-600'}`}
-          >
-            {allLabel}
-          </button>
-          {options.map(o => (
+          {/* Pinned search box — stays put while the option list below it scrolls,
+              so this still works with a few hundred residents instead of just scrolling. */}
+          <div className="relative border-b border-slate-100 p-1.5">
+            <Search size={13} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              ref={searchRef}
+              type="text"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}
+              placeholder="Type to search..."
+              className="w-full pl-7 pr-2 py-1.5 text-sm text-slate-700 placeholder-slate-400 bg-slate-50 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#006837]/20 focus:border-[#006837]"
+            />
+          </div>
+
+          <div className="max-h-56 overflow-y-auto dropdown-scroll py-1">
             <button
-              key={o.value}
               type="button"
-              onClick={() => { onChange(o.value); setOpen(false); }}
-              className={`block w-full text-left px-3 py-2 text-sm font-semibold cursor-pointer hover:bg-slate-50 truncate ${value === o.value ? 'text-[#006837] bg-[#006837]/5' : 'text-slate-600'}`}
+              onClick={() => { onChange(allValue); setOpen(false); }}
+              className={`block w-full text-left px-3 py-2 text-sm font-semibold cursor-pointer hover:bg-slate-50 ${value === allValue ? 'text-[#006837] bg-[#006837]/5' : 'text-slate-600'}`}
             >
-              {o.label}
+              {allLabel}
             </button>
-          ))}
+            {filteredOptions.length > 0 ? filteredOptions.map(o => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => { onChange(o.value); setOpen(false); }}
+                className={`block w-full text-left px-3 py-2 text-sm font-semibold cursor-pointer hover:bg-slate-50 truncate ${value === o.value ? 'text-[#006837] bg-[#006837]/5' : 'text-slate-600'}`}
+              >
+                {o.label}
+              </button>
+            )) : (
+              <p className="px-3 py-2 text-sm text-slate-400 italic">No matches</p>
+            )}
+          </div>
         </div>,
         document.body
       )}

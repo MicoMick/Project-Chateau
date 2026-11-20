@@ -46,6 +46,16 @@ const AddAdmin = ({ isOpen, onClose, onAdminAdded }) => {
       if (fnError) throw fnError;
       if (data?.error) throw new Error(data.error);
 
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from('system_logs').insert([
+        {
+          user_email: user?.email || 'System',
+          activity: 'Created Admin',
+          severity: 'info',
+          details: `Created admin account: ${email} (${role})`
+        }
+      ]);
+
       setDisplayName('');
       setEmail('');
       setPassword('');
